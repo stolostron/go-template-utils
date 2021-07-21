@@ -17,10 +17,10 @@ func TestFromSecret(t *testing.T) {
 		expectedResult string
 		expectedErr    error
 	}{
-		{"testns", "testsecret", "secretkey1", "secretkey1Val", nil},                                            //green-path test
-		{"testns", "testsecret", "secretkey2", "secretkey2Val", nil},                                            //green-path test
-		{"testns", "idontexist", "secretkey1", "secretkey2Val", errors.New("secrets \"idontexist\" not found")}, //error : nonexistant secret
-		{"testns", "testsecret", "blah", "", nil},                                                               //error : nonexistant key
+		{"testns", "testsecret", "secretkey1", "secretkey1Val", nil},                                            // green-path test
+		{"testns", "testsecret", "secretkey2", "secretkey2Val", nil},                                            // green-path test
+		{"testns", "idontexist", "secretkey1", "secretkey2Val", errors.New("secrets \"idontexist\" not found")}, // error : nonexistant secret
+		{"testns", "testsecret", "blah", "", nil},                                                               // error : nonexistant key
 	}
 
 	for _, test := range testcases {

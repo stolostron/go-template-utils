@@ -54,8 +54,8 @@ func fromConfigMap(namespace string, cmapname string, key string) (string, error
 	return keyVal, nil
 }
 
-//convenience functions to base64 encode string values
-//for setting in value in Referencing Secret resources
+// convenience functions to base64 encode string values
+// for setting in value in Referencing Secret resources
 func base64encode(v string) string {
 	return base64.StdEncoding.EncodeToString([]byte(v))
 }
