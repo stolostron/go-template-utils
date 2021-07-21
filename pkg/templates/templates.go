@@ -17,16 +17,18 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-var kubeClient *kubernetes.Interface
-var kubeConfig *rest.Config
-var kubeAPIResourceList []*metav1.APIResourceList
+var (
+	kubeClient          *kubernetes.Interface
+	kubeConfig          *rest.Config
+	kubeAPIResourceList []*metav1.APIResourceList
+)
 
 func InitializeKubeClient(kClient *kubernetes.Interface, kConfig *rest.Config) {
 	kubeClient = kClient
 	kubeConfig = kConfig
 }
 
-//If this is set, template processing will not try to rediscover
+// If this is set, template processing will not try to rediscover
 // the apiresourcesList needed for dynamic client/ gvk look
 func SetAPIResources(apiresList []*metav1.APIResourceList) {
 	kubeAPIResourceList = apiresList
@@ -47,7 +49,6 @@ func HasTemplate(templateStr string) bool {
 
 // Main Template Processing func
 func ResolveTemplate(tmplMap interface{}) (interface{}, error) {
-
 	glog.V(2).Infof("ResolveTemplate for: %v", tmplMap)
 
 	// Build Map of supported template functions
@@ -67,7 +68,7 @@ func ResolveTemplate(tmplMap interface{}) (interface{}, error) {
 	// create template processor and Initialize function map
 	tmpl := template.New("tmpl").Funcs(funcMap)
 
-	//convert the interface to yaml to string
+	// convert the interface to yaml to string
 	// ext.raw is jsonMarshalled data which the template processor is not accepting
 	// so marshalling  unmarshalled(ext.raw) to yaml to string
 
@@ -77,7 +78,7 @@ func ResolveTemplate(tmplMap interface{}) (interface{}, error) {
 	}
 	glog.V(2).Infof("Initial template str to resolve : %v ", templateStr)
 
-	//process for int or bool
+	// process for int or bool
 	if strings.Contains(templateStr, "toInt") || strings.Contains(templateStr, "toBool") {
 		templateStr = processForDataTypes(templateStr)
 	}
@@ -97,7 +98,7 @@ func ResolveTemplate(tmplMap interface{}) (interface{}, error) {
 
 	resolvedTemplateStr := buf.String()
 	glog.V(2).Infof("resolved template str : %v ", resolvedTemplateStr)
-	//unmarshall before returning
+	// unmarshall before returning
 
 	resolvedTemplateIntf, err := fromYAML(resolvedTemplateStr)
 	if err != nil {
@@ -130,10 +131,9 @@ func toYAML(v interface{}) (string, error) {
 }
 
 func processForDataTypes(str string) string {
-
-	//the idea is to remove the quotes enclosing the template if it ends in toBool ot ToInt
-	//quotes around the resolved template forces the value to be a string..
-	//so removal of these quotes allows yaml to process the datatype correctly..
+	// the idea is to remove the quotes enclosing the template if it ends in toBool ot ToInt
+	// quotes around the resolved template forces the value to be a string..
+	// so removal of these quotes allows yaml to process the datatype correctly..
 
 	// the below pattern searches for optional block scalars | or >.. followed by the quoted template ,
 	// and replaces it with just the template txt thats inside in the quotes

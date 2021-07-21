@@ -4,12 +4,11 @@
 package templates
 
 import (
-	"os"
-	"testing"
-
 	"context"
 	"errors"
+	"os"
 	"strings"
+	"testing"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,19 +17,19 @@ import (
 )
 
 func TestMain(m *testing.M) {
-
 	var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
 
-	//setup test resources
+	// setup test resources
 
 	testns := "testns"
-	var ns = corev1.Namespace{ObjectMeta: metav1.ObjectMeta{
-		Name: testns,
-	},
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testns,
+		},
 	}
 	simpleClient.CoreV1().Namespaces().Create(context.TODO(), &ns, metav1.CreateOptions{})
 
-	//secret
+	// secret
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "testsecret",
@@ -43,7 +42,7 @@ func TestMain(m *testing.M) {
 	}
 	simpleClient.CoreV1().Secrets(testns).Create(context.TODO(), &secret, metav1.CreateOptions{})
 
-	//configmap
+	// configmap
 	configmap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "testconfigmap",
@@ -62,7 +61,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestResolveTemplate(t *testing.T) {
-
 	const tmpl1 = `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`
 	testcases := []struct {
 		inputTmpl      string
@@ -98,7 +96,7 @@ func TestResolveTemplate(t *testing.T) {
 
 	for _, test := range testcases {
 
-		//unmarshall to Interface
+		// unmarshall to Interface
 		tmplMap, _ := fromYAML(test.inputTmpl)
 		val, err := ResolveTemplate(tmplMap)
 
@@ -134,6 +132,7 @@ func TestHasTemplate(t *testing.T) {
 		}
 	}
 }
+
 func TestAtoi(t *testing.T) {
 	testcases := []struct {
 		input  string
@@ -177,14 +176,18 @@ func TestProcessForDataTypes(t *testing.T) {
 		expectedResult string
 	}{
 		{`key : "{{ "1" | toBool }}"`, `key : {{ "1" | toBool }}`},
-		{`key : |
+		{
+			`key : |
 			"{{ "6" | toInt }}"`,
-			`key : {{ "6" | toInt }}`},
-		{`key1 : "{{ "1" | toInt }}"
+			`key : {{ "6" | toInt }}`,
+		},
+		{
+			`key1 : "{{ "1" | toInt }}"
 		  key2 : |-
 		 		{{ "test" | toBool | toInt }}`,
 			`key1 : {{ "1" | toInt }}
-		  key2 : {{ "test" | toBool | toInt }}`},
+		  key2 : {{ "test" | toBool | toInt }}`,
+		},
 	}
 
 	for _, test := range testcases {
