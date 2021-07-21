@@ -1,10 +1,24 @@
 // Copyright (c) 2020 Red Hat, Inc.
 // Copyright Contributors to the Open Cluster Management project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// Copyright Contributors to the Open Cluster Management project
 
 package templates
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/golang/glog"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -15,9 +29,9 @@ import (
 )
 
 func lookup(apiversion string, kind string, namespace string, rsrcname string) (map[string]interface{}, error) {
-	glog.V(2).Infof("lookup :  %v, %v, %v, %v", apiversion, kind, namespace, rsrcname)
+	glog.V(glogDefLvl).Infof("lookup :  %v, %v, %v, %v", apiversion, kind, namespace, rsrcname)
 
-	result := map[string]interface{}{}
+	result := make(map[string]interface{})
 
 	// get dynamic Client for the given GVK and namespace
 	dclient, dclientErr := getDynamicClient(apiversion, kind, namespace)
@@ -27,19 +41,21 @@ func lookup(apiversion string, kind string, namespace string, rsrcname string) (
 
 	// if resourcename is  set then get the specific resource
 	// else get list of all resources for that (gvk, ns)
-
 	var lookupErr error
+
 	if rsrcname != "" {
 		getObj, getErr := dclient.Get(context.TODO(), rsrcname, metav1.GetOptions{})
 		if getErr == nil {
 			result = getObj.UnstructuredContent()
 		}
+
 		lookupErr = getErr
 	} else {
 		listObj, listErr := dclient.List(context.TODO(), metav1.ListOptions{})
 		if listErr == nil {
 			result = listObj.UnstructuredContent()
 		}
+
 		lookupErr = listErr
 	}
 
@@ -49,15 +65,16 @@ func lookup(apiversion string, kind string, namespace string, rsrcname string) (
 		}
 	}
 
-	glog.V(2).Infof("lookup result:  %v", result)
+	glog.V(glogDefLvl).Infof("lookup result:  %v", result)
+
 	return result, lookupErr
 }
 
-// this func finds the GVR for given GVK and returns a namespaced dynamic client
+// this func finds the GVR for given GVK and returns a namespaced dynamic client.
 func getDynamicClient(apiversion string, kind string, namespace string) (dynamic.ResourceInterface, error) {
 	var dclient dynamic.ResourceInterface
 	gvk := schema.FromAPIVersionAndKind(apiversion, kind)
-	glog.V(2).Infof("GVK is:  %v", gvk)
+	glog.V(glogDefLvl).Infof("GVK is:  %v", gvk)
 
 	// we have GVK but We need GVR i.e resourcename for kind inorder to create dynamicClient
 	// find ApiResource for given GVK
@@ -71,13 +88,14 @@ func getDynamicClient(apiversion string, kind string, namespace string) (dynamic
 		Version:  apiResource.Version,
 		Resource: apiResource.Name,
 	}
-	glog.V(2).Infof("GVR is:  %v", gvr)
+	glog.V(glogDefLvl).Infof("GVR is:  %v", gvr)
 
 	// get Dynamic Client
 	dclientIntf, dclientErr := dynamic.NewForConfig(kubeConfig)
 	if dclientErr != nil {
 		glog.Errorf("Failed to get dynamic client with err: %v", dclientErr)
-		return nil, dclientErr
+
+		return nil, fmt.Errorf("failed to get the dynamic client: %w", dclientErr)
 	}
 
 	// get Dynamic Client for GVR
@@ -90,12 +108,13 @@ func getDynamicClient(apiversion string, kind string, namespace string) (dynamic
 		dclient = dclientNsRes
 	}
 
-	glog.V(2).Infof("dynamic client:  %v", dclient)
+	glog.V(glogDefLvl).Infof("dynamic client: %v", dclient)
+
 	return dclient, nil
 }
 
 func findAPIResource(gvk schema.GroupVersionKind) (metav1.APIResource, error) {
-	glog.V(2).Infof("GVK is:  %v", gvk)
+	glog.V(glogDefLvl).Infof("GVK is: %v", gvk)
 
 	apiResource := metav1.APIResource{}
 
@@ -105,8 +124,9 @@ func findAPIResource(gvk schema.GroupVersionKind) (metav1.APIResource, error) {
 	if apiResList == nil {
 		var ddErr error
 		apiResList, ddErr = discoverAPIResources()
+
 		if ddErr != nil {
-			return apiResource, ddErr
+			return apiResource, fmt.Errorf("")
 		}
 	}
 
@@ -117,7 +137,7 @@ func findAPIResource(gvk schema.GroupVersionKind) (metav1.APIResource, error) {
 	} else {
 		groupVersion = gvk.Version
 	}
-	glog.V(2).Infof("GroupVersion is  :  %v", groupVersion)
+	glog.V(glogDefLvl).Infof("GroupVersion is: %v", groupVersion)
 
 	for _, apiResGroup := range apiResList {
 		if apiResGroup.GroupVersion == groupVersion {
@@ -126,33 +146,39 @@ func findAPIResource(gvk schema.GroupVersionKind) (metav1.APIResource, error) {
 					apiResource = apiRes
 					apiResource.Group = gvk.Group
 					apiResource.Version = gvk.Version
+
 					break
 				}
 			}
 		}
 	}
 
-	glog.V(2).Infof("found APIResource :  %v", apiResource)
+	glog.V(glogDefLvl).Infof("found APIResource :  %v", apiResource)
+
 	return apiResource, nil
 }
 
 // Configpolicycontroller sets the apiresource list on the template processor
 // So this func shouldnt  execute in the configpolicy flow
-// including this just for completeness
+// including this just for completeness.
 func discoverAPIResources() ([]*metav1.APIResourceList, error) {
-	glog.V(2).Infof("discover APIResources")
+	glog.V(glogDefLvl).Infof("discover APIResources")
 
 	dd, ddErr := discovery.NewDiscoveryClientForConfig(kubeConfig)
 	if ddErr != nil {
-		glog.Errorf("Failed to create discovery client with err: %v", ddErr)
-		return nil, ddErr
+		glog.Errorf("Failed to create the discovery client with err: %v", ddErr)
+
+		return nil, fmt.Errorf("failed to create the discovery client: %w", ddErr)
 	}
+
 	apiresourcelist, apiresourcelistErr := dd.ServerResources()
 	if apiresourcelistErr != nil {
 		glog.Errorf("Failed to retrieve apiresourcelist with err: %v", apiresourcelistErr)
-		return nil, apiresourcelistErr
+
+		return nil, fmt.Errorf("failed to retrieve apiresourcelist: %w", apiresourcelistErr)
 	}
 
-	glog.V(2).Infof("discovered APIResources :  %v", apiresourcelist)
+	glog.V(glogDefLvl).Infof("discovered APIResources: %v", apiresourcelist)
+
 	return apiresourcelist, nil
 }

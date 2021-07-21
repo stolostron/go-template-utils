@@ -1,5 +1,18 @@
 // Copyright (c) 2020 Red Hat, Inc.
 // Copyright Contributors to the Open Cluster Management project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// Copyright Contributors to the Open Cluster Management project
 
 package templates
 
@@ -61,7 +74,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestResolveTemplate(t *testing.T) {
-	const tmpl1 = `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`
+	t.Parallel()
 	testcases := []struct {
 		inputTmpl      string
 		expectedResult string
@@ -90,12 +103,11 @@ func TestResolveTemplate(t *testing.T) {
 		{
 			`test: '{{ blah "asdf"  }}'`,
 			"",
-			errors.New("template: tmpl:1: function \"blah\" not defined"),
+			errors.New(`failed to parse the template map map[test:{{ blah "asdf"  }}]: template: tmpl:1: function "blah" not defined`),
 		},
 	}
 
 	for _, test := range testcases {
-
 		// unmarshall to Interface
 		tmplMap, _ := fromYAML(test.inputTmpl)
 		val, err := ResolveTemplate(tmplMap)
@@ -117,6 +129,7 @@ func TestResolveTemplate(t *testing.T) {
 }
 
 func TestHasTemplate(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		input  string
 		result bool
@@ -134,6 +147,7 @@ func TestHasTemplate(t *testing.T) {
 }
 
 func TestAtoi(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		input  string
 		result int
@@ -150,6 +164,7 @@ func TestAtoi(t *testing.T) {
 }
 
 func TestToBool(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		input  string
 		result bool
@@ -171,6 +186,7 @@ func TestToBool(t *testing.T) {
 }
 
 func TestProcessForDataTypes(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		input          string
 		expectedResult string
