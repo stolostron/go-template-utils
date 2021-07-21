@@ -1,0 +1,21 @@
+name: Commit linting
+on:
+  - pull_request
+
+jobs:
+  commits-check:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    name: Commits check
+    steps:
+    - name: Get PR Commits
+      id: 'get-pr-commits'
+      uses: tim-actions/get-pr-commits@v1.1.0
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: DCO check
+      uses: tim-actions/dco@v1.1.0
+      with:
+        commits: ${{ steps.get-pr-commits.outputs.commits }}
