@@ -19,14 +19,14 @@ func lookup(apiversion string, kind string, namespace string, rsrcname string) (
 
 	result := map[string]interface{}{}
 
-	//get dynamic Client for the given GVK and namespace
+	// get dynamic Client for the given GVK and namespace
 	dclient, dclientErr := getDynamicClient(apiversion, kind, namespace)
 	if dclientErr != nil {
 		return result, dclientErr
 	}
 
-	//if resourcename is  set then get the specific resource
-	//else get list of all resources for that (gvk, ns)
+	// if resourcename is  set then get the specific resource
+	// else get list of all resources for that (gvk, ns)
 
 	var lookupErr error
 	if rsrcname != "" {
@@ -53,9 +53,8 @@ func lookup(apiversion string, kind string, namespace string, rsrcname string) (
 	return result, lookupErr
 }
 
-//this func finds the GVR for given GVK and returns a namespaced dynamic client
+// this func finds the GVR for given GVK and returns a namespaced dynamic client
 func getDynamicClient(apiversion string, kind string, namespace string) (dynamic.ResourceInterface, error) {
-
 	var dclient dynamic.ResourceInterface
 	gvk := schema.FromAPIVersionAndKind(apiversion, kind)
 	glog.V(2).Infof("GVK is:  %v", gvk)
@@ -66,7 +65,7 @@ func getDynamicClient(apiversion string, kind string, namespace string) (dynamic
 	if findErr != nil {
 		return nil, findErr
 	}
-	//make GVR from ApiResource
+	// make GVR from ApiResource
 	gvr := schema.GroupVersionResource{
 		Group:    apiResource.Group,
 		Version:  apiResource.Version,
@@ -74,17 +73,17 @@ func getDynamicClient(apiversion string, kind string, namespace string) (dynamic
 	}
 	glog.V(2).Infof("GVR is:  %v", gvr)
 
-	//get Dynamic Client
+	// get Dynamic Client
 	dclientIntf, dclientErr := dynamic.NewForConfig(kubeConfig)
 	if dclientErr != nil {
 		glog.Errorf("Failed to get dynamic client with err: %v", dclientErr)
 		return nil, dclientErr
 	}
 
-	//get Dynamic Client for GVR
+	// get Dynamic Client for GVR
 	dclientNsRes := dclientIntf.Resource(gvr)
 
-	//get Dynamic Client for GVR for Namespace if namespaced
+	// get Dynamic Client for GVR for Namespace if namespaced
 	if apiResource.Namespaced && namespace != "" {
 		dclient = dclientNsRes.Namespace(namespace)
 	} else {
@@ -100,8 +99,8 @@ func findAPIResource(gvk schema.GroupVersionKind) (metav1.APIResource, error) {
 
 	apiResource := metav1.APIResource{}
 
-	//check if an apiresource list is available already (i.e provided as input to templates)
-	//if not available use api discovery client to get api resource list
+	// check if an apiresource list is available already (i.e provided as input to templates)
+	// if not available use api discovery client to get api resource list
 	apiResList := kubeAPIResourceList
 	if apiResList == nil {
 		var ddErr error
@@ -111,7 +110,7 @@ func findAPIResource(gvk schema.GroupVersionKind) (metav1.APIResource, error) {
 		}
 	}
 
-	//find apiResourcefor given GVK
+	// find apiResourcefor given GVK
 	var groupVersion string
 	if gvk.Group != "" {
 		groupVersion = gvk.Group + "/" + gvk.Version
