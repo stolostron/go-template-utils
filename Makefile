@@ -9,10 +9,11 @@ GOPATH_DEFAULT := $(PWD)/.go
 export GOPATH ?= $(GOPATH_DEFAULT)
 GOBIN_DEFAULT := $(GOPATH)/bin
 export GOBIN ?= $(GOBIN_DEFAULT)
+export PATH := $(PATH):$(GOBIN)
 TESTARGS_DEFAULT := "-v"
 export TESTARGS ?= $(TESTARGS_DEFAULT)
 
-.PHONY: fmt lint test
+.PHONY: fmt lint lint-dependencies test
 
 include build/common/Makefile.common.mk
 
@@ -27,10 +28,12 @@ fmt:
 # lint section
 ############################################################
 
-# All available linters: lint-dockerfiles lint-scripts lint-yaml lint-copyright-banner lint-go lint-python lint-helm lint-markdown lint-sass lint-typescript lint-protos
-# Default value will run all linters, override these make target with your requirements:
-#    eg: lint: lint-go lint-yaml
-lint: lint-all
+lint-dependencies:
+	@if [ ! -f $(GOBIN)/golangci-lint ]; then\
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/v1.41.1/install.sh | sh -s -- -b $(GOBIN) v1.41.1;\
+    fi
+
+lint: lint-dependencies lint-all
 
 ############################################################
 # test section
