@@ -61,7 +61,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestResolveTemplate(t *testing.T) {
-	const tmpl1 = `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`
+	t.Parallel()
 	testcases := []struct {
 		inputTmpl      string
 		expectedResult string
@@ -90,12 +90,11 @@ func TestResolveTemplate(t *testing.T) {
 		{
 			`test: '{{ blah "asdf"  }}'`,
 			"",
-			errors.New("template: tmpl:1: function \"blah\" not defined"),
+			errors.New(`failed to parse the template map map[test:{{ blah "asdf"  }}]: template: tmpl:1: function "blah" not defined`),
 		},
 	}
 
 	for _, test := range testcases {
-
 		// unmarshall to Interface
 		tmplMap, _ := fromYAML(test.inputTmpl)
 		val, err := ResolveTemplate(tmplMap)
@@ -117,6 +116,7 @@ func TestResolveTemplate(t *testing.T) {
 }
 
 func TestHasTemplate(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		input  string
 		result bool
@@ -134,6 +134,7 @@ func TestHasTemplate(t *testing.T) {
 }
 
 func TestAtoi(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		input  string
 		result int
@@ -150,6 +151,7 @@ func TestAtoi(t *testing.T) {
 }
 
 func TestToBool(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		input  string
 		result bool
@@ -171,6 +173,7 @@ func TestToBool(t *testing.T) {
 }
 
 func TestProcessForDataTypes(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		input          string
 		expectedResult string

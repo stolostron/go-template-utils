@@ -13,9 +13,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/api v0.20.5
 	k8s.io/apimachinery v0.20.5
-	k8s.io/client-go v12.0.0+incompatible
+	k8s.io/client-go v0.20.5
 	k8s.io/klog/v2 v2.8.0 // indirect
 	sigs.k8s.io/yaml v1.2.0
 )
-
-replace k8s.io/client-go => k8s.io/client-go v0.20.5

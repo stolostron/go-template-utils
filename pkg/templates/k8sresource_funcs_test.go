@@ -10,6 +10,7 @@ import (
 )
 
 func TestFromSecret(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		inputNs        string
 		inputCMname    string
@@ -17,14 +18,19 @@ func TestFromSecret(t *testing.T) {
 		expectedResult string
 		expectedErr    error
 	}{
-		{"testns", "testsecret", "secretkey1", "secretkey1Val", nil},                                            // green-path test
-		{"testns", "testsecret", "secretkey2", "secretkey2Val", nil},                                            // green-path test
-		{"testns", "idontexist", "secretkey1", "secretkey2Val", errors.New("secrets \"idontexist\" not found")}, // error : nonexistant secret
-		{"testns", "testsecret", "blah", "", nil},                                                               // error : nonexistant key
+		{"testns", "testsecret", "secretkey1", "secretkey1Val", nil}, // green-path test
+		{"testns", "testsecret", "secretkey2", "secretkey2Val", nil}, // green-path test
+		{
+			"testns",
+			"idontexist",
+			"secretkey1",
+			"secretkey2Val",
+			errors.New(`failed to get the secret idontexist from testns: secrets "idontexist" not found`),
+		}, // error : nonexistant secret
+		{"testns", "testsecret", "blah", "", nil}, // error : nonexistant key
 	}
 
 	for _, test := range testcases {
-
 		val, err := fromSecret(test.inputNs, test.inputCMname, test.inputKey)
 
 		if err != nil {
@@ -34,15 +40,14 @@ func TestFromSecret(t *testing.T) {
 			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
 				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 			}
-		} else {
-			if val != base64encode(test.expectedResult) {
-				t.Fatalf("expected : %s , got : %s", base64encode(test.expectedResult), val)
-			}
+		} else if val != base64encode(test.expectedResult) {
+			t.Fatalf("expected : %s , got : %s", base64encode(test.expectedResult), val)
 		}
 	}
 }
 
 func TestFromConfigMap(t *testing.T) {
+	t.Parallel()
 	testcases := []struct {
 		inputNs        string
 		inputCMname    string
@@ -52,12 +57,11 @@ func TestFromConfigMap(t *testing.T) {
 	}{
 		{"testns", "testconfigmap", "cmkey1", "cmkey1Val", nil},
 		{"testns", "testconfigmap", "cmkey2", "cmkey2Val", nil},
-		{"testns", "idontexist", "cmkey1", "cmkey1Val", errors.New("configmaps \"idontexist\" not found")},
+		{"testns", "idontexist", "cmkey1", "cmkey1Val", errors.New(`failed getting the ConfigMap idontexist from testns: configmaps "idontexist" not found`)},
 		{"testns", "testconfigmap", "idontexist", "", nil},
 	}
 
 	for _, test := range testcases {
-
 		val, err := fromConfigMap(test.inputNs, test.inputCMname, test.inputKey)
 
 		if err != nil {
@@ -67,10 +71,8 @@ func TestFromConfigMap(t *testing.T) {
 			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
 				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 			}
-		} else {
-			if val != test.expectedResult {
-				t.Fatalf("expected : %s , got : %s", test.expectedResult, val)
-			}
+		} else if val != test.expectedResult {
+			t.Fatalf("expected : %s , got : %s", test.expectedResult, val)
 		}
 	}
 }
