@@ -39,6 +39,10 @@ linters:
     - scopelint
     - funlen
     - bodyclose
+    - wsl
+    - exhaustivestruct
+    - goerr113
+    - testpackage
   fast: false
 
 linters-settings:
