@@ -6,6 +6,7 @@ package templates
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	fake "k8s.io/client-go/kubernetes/fake"
+	"sigs.k8s.io/yaml"
 )
 
 func TestMain(m *testing.M) {
@@ -199,4 +201,58 @@ func TestProcessForDataTypes(t *testing.T) {
 			t.Fatalf("expected : %v , got : %v", test.expectedResult, val)
 		}
 	}
+}
+
+func ExampleResolveTemplate() {
+	policyYAML := `
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: ConfigurationPolicy
+metadata:
+  name: demo-sampleapp-config
+  namespace: sampleapp
+spec:
+  namespaceSelector:
+    exclude:
+    - kube-*
+    include:
+    - default
+  object-templates:
+  - complianceType: musthave
+    objectDefinition:
+      kind: ConfigMap
+      apiVersion: v1
+      metadata:
+        name: demo-sampleapp-config
+        namespace: test
+      data:
+        message: '{{ "VGVtcGxhdGVzIHJvY2shCg==" | base64dec }}'
+    remediationAction: enforce
+    severity: high
+`
+	policyMap := map[string]interface{}{}
+
+	if err := yaml.Unmarshal([]byte(policyYAML), &policyMap); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to unmarshal the policy YAML: %v\n", err)
+		panic(err)
+	}
+
+	policyMapProcessed, err := ResolveTemplate(policyMap)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)
+		panic(err)
+	}
+
+	objTmpls := policyMapProcessed.(map[string]interface{})["spec"].(map[string]interface{})["object-templates"]
+	objDef := objTmpls.([]interface{})[0].(map[string]interface{})["objectDefinition"]
+	message, ok := objDef.(map[string]interface{})["data"].(map[string]interface{})["message"].(string)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)
+		panic(err)
+	}
+
+	fmt.Println(message)
+
+	// Output:
+	// Templates rock!
 }

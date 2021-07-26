@@ -28,18 +28,22 @@ var (
 	kubeAPIResourceList []*metav1.APIResourceList
 )
 
+// InitializeKubeClient will set the Kubernetes client and configuration for
+// global usage in this package.
 func InitializeKubeClient(k8sClient *kubernetes.Interface, k8sConfig *rest.Config) {
 	kubeClient = k8sClient
 	kubeConfig = k8sConfig
 }
 
-// If this is set, template processing will not try to rediscover
-// the apiresourcesList needed for dynamic client/ gvk look.
+// SetAPIResources sets the cache for the Kubernetes API resources. If this is
+// set, template processing will not try to rediscover the Kubernetes API resources
+// needed for dynamic client/ GVK lookups.
 func SetAPIResources(apiresList []*metav1.APIResourceList) {
 	kubeAPIResourceList = apiresList
 }
 
-// HasTemplate does a simple check for a "{{" string to indicate if it has a template.
+// HasTemplate performs a simple check for the template delimiter of "{{" to
+// indicate if the input string has a template.
 func HasTemplate(templateStr string) bool {
 	glog.V(glogDefLvl).Infof("hasTemplate template str:  %v", templateStr)
 
@@ -53,7 +57,8 @@ func HasTemplate(templateStr string) bool {
 	return hasTemplate
 }
 
-// Main Template Processing func.
+// ResolveTemplate accepts an unmarshaled map that can be marshaled to YAML.
+// It will process any template strings in it and return the processed map.
 func ResolveTemplate(tmplMap interface{}) (interface{}, error) {
 	glog.V(glogDefLvl).Infof("ResolveTemplate for: %v", tmplMap)
 
