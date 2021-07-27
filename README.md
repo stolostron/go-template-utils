@@ -10,7 +10,6 @@ Go to the [Contributing guide](CONTRIBUTING.md) to learn how to get involved.
 - The `go-template-utils` repository is part of the `open-cluster-management`
   community. For more information, visit:
   [open-cluster-management.io](https://open-cluster-management.io).
-- Optional: List and link of additional references if needed.
 
 ## How do templates work?
 
@@ -24,7 +23,7 @@ can be marshaled to YAML, any of the
 Additionally, the following custom functions are supported:
 
 - `atoi` parses an input string and returns an integer like the
-  [Atoi](https://pkg.go.dev/strconv#Atoi) package. For example,
+  [Atoi](https://pkg.go.dev/strconv#Atoi) function. For example,
   `{{ "6" | atoi }}`.
 - `base64enc` decodes the input Base64 string to its decoded form. For example,
   `{{ "VGVtcGxhdGVzIHJvY2shCg==" | base64dec }}`.
