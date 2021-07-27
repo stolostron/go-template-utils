@@ -23,7 +23,7 @@ can be marshaled to YAML, any of the
 Additionally, the following custom functions are supported:
 
 - `atoi` parses an input string and returns an integer like the
-  [Atoi](https://pkg.go.dev/strconv#Atoi) package. For example,
+  [Atoi](https://pkg.go.dev/strconv#Atoi) function. For example,
   `{{ "6" | atoi }}`.
 - `base64enc` decodes the input Base64 string to its decoded form. For example,
   `{{ "VGVtcGxhdGVzIHJvY2shCg==" | base64dec }}`.
