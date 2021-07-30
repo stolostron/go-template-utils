@@ -175,6 +175,10 @@ issues:
       linters:
         - errcheck
         - maligned
+    # False positive: https://github.com/kunwardeep/paralleltest/issues/8.
+    - linters:
+      - paralleltest
+      text: "does not use range value in test Run"
 
   # Independently from option `exclude` we use default exclude patterns,
   # it can be disabled by this option. To list all

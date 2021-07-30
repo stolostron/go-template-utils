@@ -15,13 +15,13 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-func lookup(apiversion string, kind string, namespace string, rsrcname string) (map[string]interface{}, error) {
+func (t *TemplateResolver) lookup(apiversion string, kind string, namespace string, rsrcname string) (map[string]interface{}, error) {
 	glog.V(glogDefLvl).Infof("lookup :  %v, %v, %v, %v", apiversion, kind, namespace, rsrcname)
 
 	result := make(map[string]interface{})
 
 	// get dynamic Client for the given GVK and namespace
-	dclient, dclientErr := getDynamicClient(apiversion, kind, namespace)
+	dclient, dclientErr := t.getDynamicClient(apiversion, kind, namespace)
 	if dclientErr != nil {
 		return result, dclientErr
 	}
@@ -58,14 +58,14 @@ func lookup(apiversion string, kind string, namespace string, rsrcname string) (
 }
 
 // this func finds the GVR for given GVK and returns a namespaced dynamic client.
-func getDynamicClient(apiversion string, kind string, namespace string) (dynamic.ResourceInterface, error) {
+func (t *TemplateResolver) getDynamicClient(apiversion string, kind string, namespace string) (dynamic.ResourceInterface, error) {
 	var dclient dynamic.ResourceInterface
 	gvk := schema.FromAPIVersionAndKind(apiversion, kind)
 	glog.V(glogDefLvl).Infof("GVK is:  %v", gvk)
 
 	// we have GVK but We need GVR i.e resourcename for kind inorder to create dynamicClient
 	// find ApiResource for given GVK
-	apiResource, findErr := findAPIResource(gvk)
+	apiResource, findErr := t.findAPIResource(gvk)
 	if findErr != nil {
 		return nil, findErr
 	}
@@ -78,7 +78,7 @@ func getDynamicClient(apiversion string, kind string, namespace string) (dynamic
 	glog.V(glogDefLvl).Infof("GVR is:  %v", gvr)
 
 	// get Dynamic Client
-	dclientIntf, dclientErr := dynamic.NewForConfig(kubeConfig)
+	dclientIntf, dclientErr := dynamic.NewForConfig(t.kubeConfig)
 	if dclientErr != nil {
 		glog.Errorf("Failed to get dynamic client with err: %v", dclientErr)
 
@@ -100,17 +100,17 @@ func getDynamicClient(apiversion string, kind string, namespace string) (dynamic
 	return dclient, nil
 }
 
-func findAPIResource(gvk schema.GroupVersionKind) (metav1.APIResource, error) {
+func (t *TemplateResolver) findAPIResource(gvk schema.GroupVersionKind) (metav1.APIResource, error) {
 	glog.V(glogDefLvl).Infof("GVK is: %v", gvk)
 
 	apiResource := metav1.APIResource{}
 
 	// check if an apiresource list is available already (i.e provided as input to templates)
 	// if not available use api discovery client to get api resource list
-	apiResList := kubeAPIResourceList
+	apiResList := t.kubeAPIResourceList
 	if apiResList == nil {
 		var ddErr error
-		apiResList, ddErr = discoverAPIResources()
+		apiResList, ddErr = t.discoverAPIResources()
 
 		if ddErr != nil {
 			return apiResource, fmt.Errorf("")
@@ -148,10 +148,10 @@ func findAPIResource(gvk schema.GroupVersionKind) (metav1.APIResource, error) {
 // Configpolicycontroller sets the apiresource list on the template processor
 // So this func shouldnt  execute in the configpolicy flow
 // including this just for completeness.
-func discoverAPIResources() ([]*metav1.APIResourceList, error) {
+func (t *TemplateResolver) discoverAPIResources() ([]*metav1.APIResourceList, error) {
 	glog.V(glogDefLvl).Infof("discover APIResources")
 
-	dd, ddErr := discovery.NewDiscoveryClientForConfig(kubeConfig)
+	dd, ddErr := discovery.NewDiscoveryClientForConfig(t.kubeConfig)
 	if ddErr != nil {
 		glog.Errorf("Failed to create the discovery client with err: %v", ddErr)
 

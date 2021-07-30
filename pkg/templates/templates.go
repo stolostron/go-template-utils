@@ -22,30 +22,57 @@ const (
 	glogDefLvl = 2
 )
 
-var (
-	kubeClient          *kubernetes.Interface
-	kubeConfig          *rest.Config
-	kubeAPIResourceList []*metav1.APIResourceList
-)
-
-// InitializeKubeClient will set the Kubernetes client and configuration for
-// global usage in this package.
-func InitializeKubeClient(k8sClient *kubernetes.Interface, k8sConfig *rest.Config) {
-	kubeClient = k8sClient
-	kubeConfig = k8sConfig
+// Config is a struct containing configuration for the API. Some are required.
+//
+// - KubeAPIResourceList sets the cache for the Kubernetes API resources. If this is
+// set, template processing will not try to rediscover the Kubernetes API resources
+// needed for dynamic client/ GVK lookups. If this is not set, KubeConfig must be set.
+//
+// - KubeConfig the configuration of the Kubernetes cluster the template is running against. If this
+// is not set, then KubeAPIResourceList must be set.
+//
+type Config struct {
+	KubeAPIResourceList []*metav1.APIResourceList
+	KubeConfig          *rest.Config
 }
 
-// SetAPIResources sets the cache for the Kubernetes API resources. If this is
-// set, template processing will not try to rediscover the Kubernetes API resources
-// needed for dynamic client/ GVK lookups.
-func SetAPIResources(apiresList []*metav1.APIResourceList) {
-	kubeAPIResourceList = apiresList
+// TemplateResolver is the API for processing templates. It's better to use the NewResolver function
+// instead of instantiating this directly so that configuration defaults and validation are applied.
+type TemplateResolver struct {
+	// Required
+	kubeClient *kubernetes.Interface
+	// Optional
+	kubeAPIResourceList []*metav1.APIResourceList
+	kubeConfig          *rest.Config
+}
+
+// NewResolver creates a new TemplateResolver instance, which is the API for processing templates.
+//
+// - kubeClient is the Kubernetes client to be used for the template lookup functions.
+//
+// - config is the Config instance for configuration for template processing.
+func NewResolver(kubeClient *kubernetes.Interface, config Config) (*TemplateResolver, error) {
+	if kubeClient == nil {
+		return nil, fmt.Errorf("kubeClient must be a non-nil value")
+	}
+
+	if config.KubeAPIResourceList == nil && config.KubeConfig == nil {
+		return nil, fmt.Errorf("the configuration must have either KubeAPIResourceList or kubeConfig set")
+	}
+
+	return &TemplateResolver{
+		// Required
+		kubeClient: kubeClient,
+		// Optional
+		kubeAPIResourceList: config.KubeAPIResourceList,
+		kubeConfig:          config.KubeConfig,
+	}, nil
 }
 
 // HasTemplate performs a simple check for the template delimiter of "{{" to
 // indicate if the input string has a template.
-func HasTemplate(templateStr string) bool {
-	glog.V(glogDefLvl).Infof("hasTemplate template str:  %v", templateStr)
+func HasTemplate(templateStr string, config Config) bool {
+	glog.V(glogDefLvl).Infof("HasTemplate template str:  %v", templateStr)
 
 	hasTemplate := false
 	if strings.Contains(templateStr, "{{") {
@@ -59,15 +86,15 @@ func HasTemplate(templateStr string) bool {
 
 // ResolveTemplate accepts an unmarshaled map that can be marshaled to YAML.
 // It will process any template strings in it and return the processed map.
-func ResolveTemplate(tmplMap interface{}) (interface{}, error) {
+func (t *TemplateResolver) ResolveTemplate(tmplMap interface{}) (interface{}, error) {
 	glog.V(glogDefLvl).Infof("ResolveTemplate for: %v", tmplMap)
 
 	// Build Map of supported template functions
 	funcMap := template.FuncMap{
-		"fromSecret":       fromSecret,
-		"fromConfigMap":    fromConfigMap,
-		"fromClusterClaim": fromClusterClaim,
-		"lookup":           lookup,
+		"fromSecret":       t.fromSecret,
+		"fromConfigMap":    t.fromConfigMap,
+		"fromClusterClaim": t.fromClusterClaim,
+		"lookup":           t.lookup,
 		"base64enc":        base64encode,
 		"base64dec":        base64decode,
 		"indent":           indent,
@@ -91,7 +118,7 @@ func ResolveTemplate(tmplMap interface{}) (interface{}, error) {
 
 	// process for int or bool
 	if strings.Contains(templateStr, "toInt") || strings.Contains(templateStr, "toBool") {
-		templateStr = processForDataTypes(templateStr)
+		templateStr = t.processForDataTypes(templateStr)
 	}
 
 	tmpl, err = tmpl.Parse(templateStr)
@@ -146,7 +173,7 @@ func toYAML(v interface{}) (string, error) {
 	return strings.TrimSuffix(string(data), "\n"), nil
 }
 
-func processForDataTypes(str string) string {
+func (t *TemplateResolver) processForDataTypes(str string) string {
 	// the idea is to remove the quotes enclosing the template if it ends in toBool ot ToInt
 	// quotes around the resolved template forces the value to be a string..
 	// so removal of these quotes allows yaml to process the datatype correctly..

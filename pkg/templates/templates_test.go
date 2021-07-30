@@ -15,10 +15,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	fake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/yaml"
 )
 
-func TestMain(m *testing.M) {
+func getTemplateResolver(c Config) *TemplateResolver {
 	var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
 
 	// setup test resources
@@ -56,10 +57,66 @@ func TestMain(m *testing.M) {
 	}
 	simpleClient.CoreV1().ConfigMaps(testns).Create(context.TODO(), &configmap, metav1.CreateOptions{})
 
-	InitializeKubeClient(&simpleClient, nil)
+	resolver, err := NewResolver(&simpleClient, c)
+	if err != nil {
+		panic(err.Error())
+	}
 
-	exitVal := m.Run()
-	os.Exit(exitVal)
+	return resolver
+}
+
+func TestNewResolver(t *testing.T) {
+	t.Parallel()
+	var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
+
+	testcases := []struct {
+		testName string
+		config   Config
+	}{
+		{"KubeConfig set", Config{KubeConfig: &rest.Config{}}},
+		{"KubeAPIResourceList set", Config{KubeAPIResourceList: []*metav1.APIResourceList{}}},
+	}
+
+	for _, test := range testcases {
+		test := test
+		t.Run(test.testName, func(t *testing.T) {
+			t.Parallel()
+			_, err := NewResolver(&simpleClient, test.config)
+			if err != nil {
+				t.Fatalf("No error was expected: %v", err)
+			}
+		})
+	}
+}
+
+func TestNewResolverFailures(t *testing.T) {
+	t.Parallel()
+	var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
+
+	testcases := []struct {
+		kubeClient  *kubernetes.Interface
+		config      Config
+		expectedErr string
+	}{
+		{nil, Config{}, "kubeClient must be a non-nil value"},
+		{&simpleClient, Config{}, "the configuration must have either KubeAPIResourceList or kubeConfig set"},
+	}
+
+	for _, test := range testcases {
+		testName := fmt.Sprintf("expectedErr=%s", test.expectedErr)
+		test := test
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+			_, err := NewResolver(test.kubeClient, test.config)
+			if err == nil {
+				t.Fatal("No error was provided")
+			}
+
+			if err.Error() != test.expectedErr {
+				t.Fatalf("error \"%s\" != \"%s\"", err.Error(), test.expectedErr)
+			}
+		})
+	}
 }
 
 func TestResolveTemplate(t *testing.T) {
@@ -99,7 +156,8 @@ func TestResolveTemplate(t *testing.T) {
 	for _, test := range testcases {
 		// unmarshall to Interface
 		tmplMap, _ := fromYAML(test.inputTmpl)
-		val, err := ResolveTemplate(tmplMap)
+		resolver := getTemplateResolver(Config{KubeConfig: &rest.Config{}})
+		val, err := resolver.ResolveTemplate(tmplMap)
 
 		if err != nil {
 			if test.expectedErr == nil {
@@ -128,7 +186,7 @@ func TestHasTemplate(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		val := HasTemplate(test.input)
+		val := HasTemplate(test.input, Config{})
 		if val != test.result {
 			t.Fatalf("expected : %v , got : %v", test.result, val)
 		}
@@ -196,14 +254,15 @@ func TestProcessForDataTypes(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		val := processForDataTypes(test.input)
+		resolver := getTemplateResolver(Config{KubeConfig: &rest.Config{}})
+		val := resolver.processForDataTypes(test.input)
 		if val != test.expectedResult {
 			t.Fatalf("expected : %v , got : %v", test.expectedResult, val)
 		}
 	}
 }
 
-func ExampleResolveTemplate() {
+func ExampleTemplateResolver_ResolveTemplate() {
 	policyYAML := `
 ---
 apiVersion: policy.open-cluster-management.io/v1
@@ -226,7 +285,7 @@ spec:
         name: demo-sampleapp-config
         namespace: test
       data:
-        message: '{{ "VGVtcGxhdGVzIHJvY2shCg==" | base64dec }}'
+        message: '{{ "VGVtcGxhdGVzIHJvY2sh" | base64dec }}'
     remediationAction: enforce
     severity: high
 `
@@ -237,7 +296,17 @@ spec:
 		panic(err)
 	}
 
-	policyMapProcessed, err := ResolveTemplate(policyMap)
+	// This example uses the fake Kubernetes client, but in production, use a
+	// real Kubernetes configuration and client
+	cfg := Config{KubeConfig: &rest.Config{}}
+	var k8sClient kubernetes.Interface = fake.NewSimpleClientset()
+	resolver, err := NewResolver(&k8sClient, cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to instantiate the templatesResolver struct: %v\n", err)
+		panic(err)
+	}
+
+	policyMapProcessed, err := resolver.ResolveTemplate(policyMap)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)
 		panic(err)
