@@ -4,7 +4,9 @@
 package templates
 
 import (
+	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -116,10 +118,48 @@ func HasTemplate(templateStr string, startDelim string) bool {
 	return hasTemplate
 }
 
+// getValidContext takes an input context struct with string fields and
+// validates it. If is is valid, the context will be returned as is. If the
+// input context is nil, an empty struct will be returned. If it's not valid, an
+// error will be returned.
+func getValidContext(context interface{}) (ctx interface{}, _ error) {
+	var ctxType reflect.Type
+	if context == nil {
+		ctx = struct{}{}
+
+		return ctx, nil
+	}
+
+	ctxType = reflect.TypeOf(context)
+	if ctxType.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("the input context must be a struct with string fields, got %s", ctxType)
+	}
+
+	for i := 0; i < ctxType.NumField(); i++ {
+		f := ctxType.Field(i)
+		if f.Type.Kind() != reflect.String {
+			return nil, errors.New("the input context must be a struct with string fields")
+		}
+	}
+
+	return context, nil
+}
+
 // ResolveTemplate accepts an unmarshaled map that can be marshaled to YAML.
-// It will process any template strings in it and return the processed map.
-func (t *TemplateResolver) ResolveTemplate(tmplMap interface{}) (interface{}, error) {
+// it also accepts a struct with string fields that will be made available
+// when the template is processed. For example, if the argument is
+// `struct{ClusterName string}{"cluster1"}`, the value `cluster1` would be
+// available with `{{ .ClusterName }}`. This can also be `nil` if no fields
+// should be made available.
+//
+// ResolveTemplate will process any template strings in the map and return the processed map.
+func (t *TemplateResolver) ResolveTemplate(tmplMap interface{}, context interface{}) (interface{}, error) {
 	glog.V(glogDefLvl).Infof("ResolveTemplate for: %v", tmplMap)
+
+	ctx, err := getValidContext(context)
+	if err != nil {
+		return "", err
+	}
 
 	// Build Map of supported template functions
 	funcMap := template.FuncMap{
@@ -161,7 +201,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplMap interface{}) (interface{}, er
 	}
 
 	var buf strings.Builder
-	err = tmpl.Execute(&buf, "")
+	err = tmpl.Execute(&buf, ctx)
 	if err != nil {
 		glog.Errorf("error executing the template map %v,\n template str %v,\n error: %v", tmplMap, templateStr, err)
 

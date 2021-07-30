@@ -125,56 +125,93 @@ func TestResolveTemplate(t *testing.T) {
 	testcases := []struct {
 		inputTmpl      string
 		config         Config
+		ctx            interface{}
 		expectedResult string
 		expectedErr    error
 	}{
 		{
 			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
 			Config{KubeConfig: &rest.Config{}},
+			nil,
 			"data: c2VjcmV0a2V5MVZhbA==",
 			nil,
 		},
 		{
 			`param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
 			Config{KubeConfig: &rest.Config{}},
+			nil,
 			"param: cmkey1Val",
 			nil,
 		},
 		{
 			`config1: '{{ "testdata" | base64enc  }}'`,
 			Config{KubeConfig: &rest.Config{}},
+			nil,
 			"config1: dGVzdGRhdGE=",
 			nil,
 		},
 		{
 			`config2: '{{ "dGVzdGRhdGE=" | base64dec  }}'`,
 			Config{KubeConfig: &rest.Config{}},
+			nil,
 			"config2: testdata",
 			nil,
 		},
 		{
 			`test: '{{ blah "asdf"  }}'`,
 			Config{KubeConfig: &rest.Config{}},
+			nil,
 			"",
 			errors.New(`failed to parse the template map map[test:{{ blah "asdf"  }}]: template: tmpl:1: function "blah" not defined`),
 		},
 		{
 			`config1: '{{ "testdata" | base64enc  }}'`,
 			Config{KubeConfig: &rest.Config{}, StartDelim: "{{hub", StopDelim: "hub}}"},
+			nil,
 			`config1: '{{ "testdata" | base64enc  }}'`,
 			nil,
 		},
 		{
 			`config1: '{{hub "testdata" | base64enc  hub}}'`,
 			Config{KubeConfig: &rest.Config{}, StartDelim: "{{hub", StopDelim: "hub}}"},
+			nil,
 			"config1: dGVzdGRhdGE=",
 			nil,
 		},
 		{
 			`config1: '{{ "{{hub "dGVzdGRhdGE=" | base64dec hub}}" | base64enc }}'`,
 			Config{KubeConfig: &rest.Config{}, StartDelim: "{{hub", StopDelim: "hub}}"},
+			nil,
 			`config1: '{{ "testdata" | base64enc }}'`,
 			nil,
+		},
+		{
+			`config1: '{{ .ClusterName  }}'`,
+			Config{KubeConfig: &rest.Config{}},
+			struct{ ClusterName string }{"cluster0001"},
+			"config1: cluster0001",
+			nil,
+		},
+		{
+			`config1: '{{ .ClusterID | toInt }}'`,
+			Config{KubeConfig: &rest.Config{}},
+			struct{ ClusterID string }{"12345"},
+			"config1: 12345",
+			nil,
+		},
+		{
+			`test: '{{ printf "hello %s" "world" }}'`,
+			Config{KubeConfig: &rest.Config{}},
+			123,
+			"",
+			errors.New(`the input context must be a struct with string fields, got int`),
+		},
+		{
+			`test: '{{ printf "hello %s" "world" }}'`,
+			Config{KubeConfig: &rest.Config{}},
+			struct{ ClusterID int }{12},
+			"",
+			errors.New(`the input context must be a struct with string fields`),
 		},
 	}
 
@@ -182,7 +219,7 @@ func TestResolveTemplate(t *testing.T) {
 		// unmarshall to Interface
 		tmplMap, _ := fromYAML(test.inputTmpl)
 		resolver := getTemplateResolver(test.config)
-		val, err := resolver.ResolveTemplate(tmplMap)
+		val, err := resolver.ResolveTemplate(tmplMap, test.ctx)
 
 		if err != nil {
 			if test.expectedErr == nil {
@@ -322,6 +359,7 @@ spec:
         namespace: test
       data:
         message: '{{ "VGVtcGxhdGVzIHJvY2sh" | base64dec }}'
+        b64-cluster-name: '{{ .ClusterName | base64enc }}'
     remediationAction: enforce
     severity: high
 `
@@ -342,7 +380,8 @@ spec:
 		panic(err)
 	}
 
-	policyMapProcessed, err := resolver.ResolveTemplate(policyMap)
+	templateContext := struct{ ClusterName string }{ClusterName: "cluster0001"}
+	policyMapProcessed, err := resolver.ResolveTemplate(policyMap, templateContext)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)
 		panic(err)
@@ -350,14 +389,28 @@ spec:
 
 	objTmpls := policyMapProcessed.(map[string]interface{})["spec"].(map[string]interface{})["object-templates"]
 	objDef := objTmpls.([]interface{})[0].(map[string]interface{})["objectDefinition"]
-	message, ok := objDef.(map[string]interface{})["data"].(map[string]interface{})["message"].(string)
+	data, ok := objDef.(map[string]interface{})["data"].(map[string]interface{})
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)
+		panic(err)
+	}
+
+	message, ok := data["message"].(string)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)
+		panic(err)
+	}
+
+	b64ClusterName, ok := data["b64-cluster-name"].(string)
 	if !ok {
 		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)
 		panic(err)
 	}
 
 	fmt.Println(message)
+	fmt.Println(b64ClusterName)
 
 	// Output:
 	// Templates rock!
+	// Y2x1c3RlcjAwMDE=
 }
