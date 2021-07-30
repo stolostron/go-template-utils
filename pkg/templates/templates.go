@@ -19,7 +19,9 @@ import (
 )
 
 const (
-	glogDefLvl = 2
+	defaultStartDelim = "{{"
+	defaultStopDelim  = "}}"
+	glogDefLvl        = 2
 )
 
 // Config is a struct containing configuration for the API. Some are required.
@@ -31,9 +33,16 @@ const (
 // - KubeConfig the configuration of the Kubernetes cluster the template is running against. If this
 // is not set, then KubeAPIResourceList must be set.
 //
+// - StartDelim customizes the start delimiter used to distinguish a template action. This defaults
+// to "{{". If StopDelim is set, this must also be set.
+//
+// - StopDelim customizes the stop delimiter used to distinguish a template action. This defaults
+// to "}}". If StartDelim is set, this must also be set.
 type Config struct {
 	KubeAPIResourceList []*metav1.APIResourceList
 	KubeConfig          *rest.Config
+	StartDelim          string
+	StopDelim           string
 }
 
 // TemplateResolver is the API for processing templates. It's better to use the NewResolver function
@@ -44,6 +53,8 @@ type TemplateResolver struct {
 	// Optional
 	kubeAPIResourceList []*metav1.APIResourceList
 	kubeConfig          *rest.Config
+	startDelim          string
+	stopDelim           string
 }
 
 // NewResolver creates a new TemplateResolver instance, which is the API for processing templates.
@@ -56,9 +67,22 @@ func NewResolver(kubeClient *kubernetes.Interface, config Config) (*TemplateReso
 		return nil, fmt.Errorf("kubeClient must be a non-nil value")
 	}
 
+	if (config.StartDelim != "" && config.StopDelim == "") || (config.StartDelim == "" && config.StopDelim != "") {
+		return nil, fmt.Errorf("the configurations StartDelim and StopDelim cannot be set independently")
+	}
+
 	if config.KubeAPIResourceList == nil && config.KubeConfig == nil {
 		return nil, fmt.Errorf("the configuration must have either KubeAPIResourceList or kubeConfig set")
 	}
+
+	startDelim := defaultStartDelim
+	stopDelim := defaultStopDelim
+	// It's only required to check config.StartDelim since it's invalid to set these independently
+	if config.StartDelim != "" {
+		startDelim = config.StartDelim
+		stopDelim = config.StopDelim
+	}
+	glog.V(glogDefLvl).Infof("Using the delimiters of %s and %s", startDelim, stopDelim)
 
 	return &TemplateResolver{
 		// Required
@@ -66,16 +90,24 @@ func NewResolver(kubeClient *kubernetes.Interface, config Config) (*TemplateReso
 		// Optional
 		kubeAPIResourceList: config.KubeAPIResourceList,
 		kubeConfig:          config.KubeConfig,
+		startDelim:          startDelim,
+		stopDelim:           stopDelim,
 	}, nil
 }
 
-// HasTemplate performs a simple check for the template delimiter of "{{" to
-// indicate if the input string has a template.
-func HasTemplate(templateStr string, config Config) bool {
+// HasTemplate performs a simple check for the template start delimiter to
+// indicate if the input string has a template. If the startDelim argument is
+// an empty string, the default start delimiter of "{{" will be used.
+func HasTemplate(templateStr string, startDelim string) bool {
+	if startDelim == "" {
+		startDelim = defaultStartDelim
+	}
+
 	glog.V(glogDefLvl).Infof("HasTemplate template str:  %v", templateStr)
+	glog.V(glogDefLvl).Infof("Checking for the start delimiter:  %s", startDelim)
 
 	hasTemplate := false
-	if strings.Contains(templateStr, "{{") {
+	if strings.Contains(templateStr, startDelim) {
 		hasTemplate = true
 	}
 
@@ -104,7 +136,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplMap interface{}) (interface{}, er
 	}
 
 	// create template processor and Initialize function map
-	tmpl := template.New("tmpl").Funcs(funcMap)
+	tmpl := template.New("tmpl").Delims(t.startDelim, t.stopDelim).Funcs(funcMap)
 
 	// convert the interface to yaml to string
 	// ext.raw is jsonMarshalled data which the template processor is not accepting
@@ -183,7 +215,9 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 	// ex-1 key : "{{ "6" | toInt }}"  .. is replaced with  key : {{ "6" | toInt }}
 	// ex-2 key : |
 	//						"{{ "true" | toBool }}" .. is replaced with key : {{ "true" | toBool }}
-	re := regexp.MustCompile(`:\s+(?:[\|>][-]?\s+)?(?:['|"]\s*)?({{.*?\s+\|\s+(?:toInt|toBool)\s*}})(?:\s*['|"])?`)
+	d1 := regexp.QuoteMeta(t.startDelim)
+	d2 := regexp.QuoteMeta(t.stopDelim)
+	re := regexp.MustCompile(`:\s+(?:[\|>][-]?\s+)?(?:['|"]\s*)?(` + d1 + `.*?\s+\|\s+(?:toInt|toBool)\s*` + d2 + `)(?:\s*['|"])?`)
 	glog.V(glogDefLvl).Infof("\n Pattern: %v\n", re.String())
 
 	submatchall := re.FindAllStringSubmatch(str, -1)

@@ -99,6 +99,7 @@ func TestNewResolverFailures(t *testing.T) {
 		expectedErr string
 	}{
 		{nil, Config{}, "kubeClient must be a non-nil value"},
+		{&simpleClient, Config{StartDelim: "{{hub"}, "the configurations StartDelim and StopDelim cannot be set independently"},
 		{&simpleClient, Config{}, "the configuration must have either KubeAPIResourceList or kubeConfig set"},
 	}
 
@@ -123,40 +124,64 @@ func TestResolveTemplate(t *testing.T) {
 	t.Parallel()
 	testcases := []struct {
 		inputTmpl      string
+		config         Config
 		expectedResult string
 		expectedErr    error
 	}{
 		{
 			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
+			Config{KubeConfig: &rest.Config{}},
 			"data: c2VjcmV0a2V5MVZhbA==",
 			nil,
 		},
 		{
 			`param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
+			Config{KubeConfig: &rest.Config{}},
 			"param: cmkey1Val",
 			nil,
 		},
 		{
 			`config1: '{{ "testdata" | base64enc  }}'`,
+			Config{KubeConfig: &rest.Config{}},
 			"config1: dGVzdGRhdGE=",
 			nil,
 		},
 		{
 			`config2: '{{ "dGVzdGRhdGE=" | base64dec  }}'`,
+			Config{KubeConfig: &rest.Config{}},
 			"config2: testdata",
 			nil,
 		},
 		{
 			`test: '{{ blah "asdf"  }}'`,
+			Config{KubeConfig: &rest.Config{}},
 			"",
 			errors.New(`failed to parse the template map map[test:{{ blah "asdf"  }}]: template: tmpl:1: function "blah" not defined`),
+		},
+		{
+			`config1: '{{ "testdata" | base64enc  }}'`,
+			Config{KubeConfig: &rest.Config{}, StartDelim: "{{hub", StopDelim: "hub}}"},
+			`config1: '{{ "testdata" | base64enc  }}'`,
+			nil,
+		},
+		{
+			`config1: '{{hub "testdata" | base64enc  hub}}'`,
+			Config{KubeConfig: &rest.Config{}, StartDelim: "{{hub", StopDelim: "hub}}"},
+			"config1: dGVzdGRhdGE=",
+			nil,
+		},
+		{
+			`config1: '{{ "{{hub "dGVzdGRhdGE=" | base64dec hub}}" | base64enc }}'`,
+			Config{KubeConfig: &rest.Config{}, StartDelim: "{{hub", StopDelim: "hub}}"},
+			`config1: '{{ "testdata" | base64enc }}'`,
+			nil,
 		},
 	}
 
 	for _, test := range testcases {
 		// unmarshall to Interface
 		tmplMap, _ := fromYAML(test.inputTmpl)
-		resolver := getTemplateResolver(Config{KubeConfig: &rest.Config{}})
+		resolver := getTemplateResolver(test.config)
 		val, err := resolver.ResolveTemplate(tmplMap)
 
 		if err != nil {
@@ -178,15 +203,20 @@ func TestResolveTemplate(t *testing.T) {
 func TestHasTemplate(t *testing.T) {
 	t.Parallel()
 	testcases := []struct {
-		input  string
-		result bool
+		input      string
+		startDelim string
+		result     bool
 	}{
-		{" I am a sample template ", false},
-		{" I am a {{ sample }}  template ", true},
+		{" I am a sample template ", "{{", false},
+		{" I am a sample template ", "", false},
+		{" I am a {{ sample }}  template ", "{{", true},
+		{" I am a {{ sample }}  template ", "", true},
+		{" I am a {{ sample }}  template ", "{{hub", false},
+		{" I am a {{hub sample hub}}  template ", "{{hub", true},
 	}
 
 	for _, test := range testcases {
-		val := HasTemplate(test.input, Config{})
+		val := HasTemplate(test.input, test.startDelim)
 		if val != test.result {
 			t.Fatalf("expected : %v , got : %v", test.result, val)
 		}
@@ -234,27 +264,33 @@ func TestToBool(t *testing.T) {
 
 func TestProcessForDataTypes(t *testing.T) {
 	t.Parallel()
+	config := Config{KubeConfig: &rest.Config{}, StartDelim: "{{", StopDelim: "}}"}
+	hubConfig := Config{KubeConfig: &rest.Config{}, StartDelim: "{{hub", StopDelim: "hub}}"}
 	testcases := []struct {
 		input          string
+		config         Config
 		expectedResult string
 	}{
-		{`key : "{{ "1" | toBool }}"`, `key : {{ "1" | toBool }}`},
+		{`key : "{{ "1" | toBool }}"`, config, `key : {{ "1" | toBool }}`},
 		{
 			`key : |
 			"{{ "6" | toInt }}"`,
+			config,
 			`key : {{ "6" | toInt }}`,
 		},
 		{
 			`key1 : "{{ "1" | toInt }}"
 		  key2 : |-
 		 		{{ "test" | toBool | toInt }}`,
+			config,
 			`key1 : {{ "1" | toInt }}
 		  key2 : {{ "test" | toBool | toInt }}`,
 		},
+		{`key : "{{hub "1" | toBool hub}}"`, hubConfig, `key : {{hub "1" | toBool hub}}`},
 	}
 
 	for _, test := range testcases {
-		resolver := getTemplateResolver(Config{KubeConfig: &rest.Config{}})
+		resolver := getTemplateResolver(test.config)
 		val := resolver.processForDataTypes(test.input)
 		if val != test.expectedResult {
 			t.Fatalf("expected : %v , got : %v", test.expectedResult, val)
