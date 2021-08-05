@@ -7,6 +7,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"k8s.io/client-go/rest"
 )
 
 func TestFromSecret(t *testing.T) {
@@ -30,8 +32,9 @@ func TestFromSecret(t *testing.T) {
 		{"testns", "testsecret", "blah", "", nil}, // error : nonexistant key
 	}
 
+	resolver := getTemplateResolver(Config{KubeConfig: &rest.Config{}})
 	for _, test := range testcases {
-		val, err := fromSecret(test.inputNs, test.inputCMname, test.inputKey)
+		val, err := resolver.fromSecret(test.inputNs, test.inputCMname, test.inputKey)
 
 		if err != nil {
 			if test.expectedErr == nil {
@@ -61,8 +64,10 @@ func TestFromConfigMap(t *testing.T) {
 		{"testns", "testconfigmap", "idontexist", "", nil},
 	}
 
+	resolver := getTemplateResolver(Config{KubeConfig: &rest.Config{}})
+
 	for _, test := range testcases {
-		val, err := fromConfigMap(test.inputNs, test.inputCMname, test.inputKey)
+		val, err := resolver.fromConfigMap(test.inputNs, test.inputCMname, test.inputKey)
 
 		if err != nil {
 			if test.expectedErr == nil {

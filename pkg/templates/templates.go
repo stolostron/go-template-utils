@@ -4,7 +4,9 @@
 package templates
 
 import (
+	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,36 +21,95 @@ import (
 )
 
 const (
-	glogDefLvl = 2
+	defaultStartDelim = "{{"
+	defaultStopDelim  = "}}"
+	glogDefLvl        = 2
 )
 
-var (
-	kubeClient          *kubernetes.Interface
-	kubeConfig          *rest.Config
-	kubeAPIResourceList []*metav1.APIResourceList
-)
-
-// InitializeKubeClient will set the Kubernetes client and configuration for
-// global usage in this package.
-func InitializeKubeClient(k8sClient *kubernetes.Interface, k8sConfig *rest.Config) {
-	kubeClient = k8sClient
-	kubeConfig = k8sConfig
-}
-
-// SetAPIResources sets the cache for the Kubernetes API resources. If this is
+// Config is a struct containing configuration for the API. Some are required.
+//
+// - KubeAPIResourceList sets the cache for the Kubernetes API resources. If this is
 // set, template processing will not try to rediscover the Kubernetes API resources
-// needed for dynamic client/ GVK lookups.
-func SetAPIResources(apiresList []*metav1.APIResourceList) {
-	kubeAPIResourceList = apiresList
+// needed for dynamic client/ GVK lookups. If this is not set, KubeConfig must be set.
+//
+// - KubeConfig the configuration of the Kubernetes cluster the template is running against. If this
+// is not set, then KubeAPIResourceList must be set.
+//
+// - StartDelim customizes the start delimiter used to distinguish a template action. This defaults
+// to "{{". If StopDelim is set, this must also be set.
+//
+// - StopDelim customizes the stop delimiter used to distinguish a template action. This defaults
+// to "}}". If StartDelim is set, this must also be set.
+type Config struct {
+	KubeAPIResourceList []*metav1.APIResourceList
+	KubeConfig          *rest.Config
+	StartDelim          string
+	StopDelim           string
 }
 
-// HasTemplate performs a simple check for the template delimiter of "{{" to
-// indicate if the input string has a template.
-func HasTemplate(templateStr string) bool {
-	glog.V(glogDefLvl).Infof("hasTemplate template str:  %v", templateStr)
+// TemplateResolver is the API for processing templates. It's better to use the NewResolver function
+// instead of instantiating this directly so that configuration defaults and validation are applied.
+type TemplateResolver struct {
+	// Required
+	kubeClient *kubernetes.Interface
+	// Optional
+	kubeAPIResourceList []*metav1.APIResourceList
+	kubeConfig          *rest.Config
+	startDelim          string
+	stopDelim           string
+}
+
+// NewResolver creates a new TemplateResolver instance, which is the API for processing templates.
+//
+// - kubeClient is the Kubernetes client to be used for the template lookup functions.
+//
+// - config is the Config instance for configuration for template processing.
+func NewResolver(kubeClient *kubernetes.Interface, config Config) (*TemplateResolver, error) {
+	if kubeClient == nil {
+		return nil, fmt.Errorf("kubeClient must be a non-nil value")
+	}
+
+	if (config.StartDelim != "" && config.StopDelim == "") || (config.StartDelim == "" && config.StopDelim != "") {
+		return nil, fmt.Errorf("the configurations StartDelim and StopDelim cannot be set independently")
+	}
+
+	if config.KubeAPIResourceList == nil && config.KubeConfig == nil {
+		return nil, fmt.Errorf("the configuration must have either KubeAPIResourceList or kubeConfig set")
+	}
+
+	startDelim := defaultStartDelim
+	stopDelim := defaultStopDelim
+	// It's only required to check config.StartDelim since it's invalid to set these independently
+	if config.StartDelim != "" {
+		startDelim = config.StartDelim
+		stopDelim = config.StopDelim
+	}
+	glog.V(glogDefLvl).Infof("Using the delimiters of %s and %s", startDelim, stopDelim)
+
+	return &TemplateResolver{
+		// Required
+		kubeClient: kubeClient,
+		// Optional
+		kubeAPIResourceList: config.KubeAPIResourceList,
+		kubeConfig:          config.KubeConfig,
+		startDelim:          startDelim,
+		stopDelim:           stopDelim,
+	}, nil
+}
+
+// HasTemplate performs a simple check for the template start delimiter to
+// indicate if the input string has a template. If the startDelim argument is
+// an empty string, the default start delimiter of "{{" will be used.
+func HasTemplate(templateStr string, startDelim string) bool {
+	if startDelim == "" {
+		startDelim = defaultStartDelim
+	}
+
+	glog.V(glogDefLvl).Infof("HasTemplate template str:  %v", templateStr)
+	glog.V(glogDefLvl).Infof("Checking for the start delimiter:  %s", startDelim)
 
 	hasTemplate := false
-	if strings.Contains(templateStr, "{{") {
+	if strings.Contains(templateStr, startDelim) {
 		hasTemplate = true
 	}
 
@@ -57,17 +118,55 @@ func HasTemplate(templateStr string) bool {
 	return hasTemplate
 }
 
+// getValidContext takes an input context struct with string fields and
+// validates it. If is is valid, the context will be returned as is. If the
+// input context is nil, an empty struct will be returned. If it's not valid, an
+// error will be returned.
+func getValidContext(context interface{}) (ctx interface{}, _ error) {
+	var ctxType reflect.Type
+	if context == nil {
+		ctx = struct{}{}
+
+		return ctx, nil
+	}
+
+	ctxType = reflect.TypeOf(context)
+	if ctxType.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("the input context must be a struct with string fields, got %s", ctxType)
+	}
+
+	for i := 0; i < ctxType.NumField(); i++ {
+		f := ctxType.Field(i)
+		if f.Type.Kind() != reflect.String {
+			return nil, errors.New("the input context must be a struct with string fields")
+		}
+	}
+
+	return context, nil
+}
+
 // ResolveTemplate accepts an unmarshaled map that can be marshaled to YAML.
-// It will process any template strings in it and return the processed map.
-func ResolveTemplate(tmplMap interface{}) (interface{}, error) {
+// it also accepts a struct with string fields that will be made available
+// when the template is processed. For example, if the argument is
+// `struct{ClusterName string}{"cluster1"}`, the value `cluster1` would be
+// available with `{{ .ClusterName }}`. This can also be `nil` if no fields
+// should be made available.
+//
+// ResolveTemplate will process any template strings in the map and return the processed map.
+func (t *TemplateResolver) ResolveTemplate(tmplMap interface{}, context interface{}) (interface{}, error) {
 	glog.V(glogDefLvl).Infof("ResolveTemplate for: %v", tmplMap)
+
+	ctx, err := getValidContext(context)
+	if err != nil {
+		return "", err
+	}
 
 	// Build Map of supported template functions
 	funcMap := template.FuncMap{
-		"fromSecret":       fromSecret,
-		"fromConfigMap":    fromConfigMap,
-		"fromClusterClaim": fromClusterClaim,
-		"lookup":           lookup,
+		"fromSecret":       t.fromSecret,
+		"fromConfigMap":    t.fromConfigMap,
+		"fromClusterClaim": t.fromClusterClaim,
+		"lookup":           t.lookup,
 		"base64enc":        base64encode,
 		"base64dec":        base64decode,
 		"indent":           indent,
@@ -77,7 +176,7 @@ func ResolveTemplate(tmplMap interface{}) (interface{}, error) {
 	}
 
 	// create template processor and Initialize function map
-	tmpl := template.New("tmpl").Funcs(funcMap)
+	tmpl := template.New("tmpl").Delims(t.startDelim, t.stopDelim).Funcs(funcMap)
 
 	// convert the interface to yaml to string
 	// ext.raw is jsonMarshalled data which the template processor is not accepting
@@ -91,7 +190,7 @@ func ResolveTemplate(tmplMap interface{}) (interface{}, error) {
 
 	// process for int or bool
 	if strings.Contains(templateStr, "toInt") || strings.Contains(templateStr, "toBool") {
-		templateStr = processForDataTypes(templateStr)
+		templateStr = t.processForDataTypes(templateStr)
 	}
 
 	tmpl, err = tmpl.Parse(templateStr)
@@ -102,7 +201,7 @@ func ResolveTemplate(tmplMap interface{}) (interface{}, error) {
 	}
 
 	var buf strings.Builder
-	err = tmpl.Execute(&buf, "")
+	err = tmpl.Execute(&buf, ctx)
 	if err != nil {
 		glog.Errorf("error executing the template map %v,\n template str %v,\n error: %v", tmplMap, templateStr, err)
 
@@ -146,7 +245,7 @@ func toYAML(v interface{}) (string, error) {
 	return strings.TrimSuffix(string(data), "\n"), nil
 }
 
-func processForDataTypes(str string) string {
+func (t *TemplateResolver) processForDataTypes(str string) string {
 	// the idea is to remove the quotes enclosing the template if it ends in toBool ot ToInt
 	// quotes around the resolved template forces the value to be a string..
 	// so removal of these quotes allows yaml to process the datatype correctly..
@@ -156,7 +255,9 @@ func processForDataTypes(str string) string {
 	// ex-1 key : "{{ "6" | toInt }}"  .. is replaced with  key : {{ "6" | toInt }}
 	// ex-2 key : |
 	//						"{{ "true" | toBool }}" .. is replaced with key : {{ "true" | toBool }}
-	re := regexp.MustCompile(`:\s+(?:[\|>][-]?\s+)?(?:['|"]\s*)?({{.*?\s+\|\s+(?:toInt|toBool)\s*}})(?:\s*['|"])?`)
+	d1 := regexp.QuoteMeta(t.startDelim)
+	d2 := regexp.QuoteMeta(t.stopDelim)
+	re := regexp.MustCompile(`:\s+(?:[\|>][-]?\s+)?(?:['|"]\s*)?(` + d1 + `.*?\s+\|\s+(?:toInt|toBool)\s*` + d2 + `)(?:\s*['|"])?`)
 	glog.V(glogDefLvl).Infof("\n Pattern: %v\n", re.String())
 
 	submatchall := re.FindAllStringSubmatch(str, -1)

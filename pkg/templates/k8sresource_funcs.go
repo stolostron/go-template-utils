@@ -13,10 +13,10 @@ import (
 )
 
 // retrieves the value of the key in the given Secret, namespace.
-func fromSecret(namespace string, secretname string, key string) (string, error) {
+func (t *TemplateResolver) fromSecret(namespace string, secretname string, key string) (string, error) {
 	glog.V(glogDefLvl).Infof("fromSecret for namespace: %v, secretname: %v, key:%v", namespace, secretname, key)
 
-	secretsClient := (*kubeClient).CoreV1().Secrets(namespace)
+	secretsClient := (*t.kubeClient).CoreV1().Secrets(namespace)
 	secret, getErr := secretsClient.Get(context.TODO(), secretname, metav1.GetOptions{})
 
 	if getErr != nil {
@@ -39,10 +39,10 @@ func fromSecret(namespace string, secretname string, key string) (string, error)
 }
 
 // retrieves value for the key in the given Configmap, namespace.
-func fromConfigMap(namespace string, cmapname string, key string) (string, error) {
+func (t *TemplateResolver) fromConfigMap(namespace string, cmapname string, key string) (string, error) {
 	glog.V(glogDefLvl).Infof("fromConfigMap for namespace: %v, configmap name: %v, key:%v", namespace, cmapname, key)
 
-	configmapsClient := (*kubeClient).CoreV1().ConfigMaps(namespace)
+	configmapsClient := (*t.kubeClient).CoreV1().ConfigMaps(namespace)
 	configmap, getErr := configmapsClient.Get(context.TODO(), cmapname, metav1.GetOptions{})
 
 	if getErr != nil {

@@ -12,8 +12,8 @@ import (
 )
 
 // retrieve the Spec value for the given clusterclaim.
-func fromClusterClaim(claimname string) (string, error) {
-	dclient, dclientErr := getDynamicClient(
+func (t *TemplateResolver) fromClusterClaim(claimname string) (string, error) {
+	dclient, dclientErr := t.getDynamicClient(
 		"cluster.open-cluster-management.io/v1alpha1",
 		"ClusterClaim",
 		"",

@@ -13,6 +13,16 @@ Go to the [Contributing guide](CONTRIBUTING.md) to learn how to get involved.
 
 ## How do templates work?
 
+To get started, use the
+[templates.NewResolver](https://pkg.go.dev/github.com/open-cluster-management/go-template-utils/pkg/templates#NewResolver)
+function along with a
+[templates.Config](https://pkg.go.dev/github.com/open-cluster-management/go-template-utils/pkg/templates#Config)
+instance.
+
+See the
+[ResolveTemplate example](https://pkg.go.dev/github.com/open-cluster-management/go-template-utils/pkg/templates#example_TemplateResolver_ResolveTemplate)
+for an example of how to use this library.
+
 Under the hood, `go-template-utils` wraps the
 [text/template](https://pkg.go.dev/text/template) package. This means that as
 long as the input to
