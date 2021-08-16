@@ -32,8 +32,11 @@ const (
 // set, template processing will not try to rediscover the Kubernetes API resources
 // needed for dynamic client/ GVK lookups. If this is not set, KubeConfig must be set.
 //
-// - KubeConfig the configuration of the Kubernetes cluster the template is running against. If this
+// - KubeConfig is the configuration of the Kubernetes cluster the template is running against. If this
 // is not set, then KubeAPIResourceList must be set.
+//
+// - LookupNamespace is the namespace to restrict "lookup" template functions (e.g. fromConfigMap)
+// to. If this is not set (i.e. an empty string), then all namespaces can be used.
 //
 // - StartDelim customizes the start delimiter used to distinguish a template action. This defaults
 // to "{{". If StopDelim is set, this must also be set.
@@ -43,6 +46,7 @@ const (
 type Config struct {
 	KubeAPIResourceList []*metav1.APIResourceList
 	KubeConfig          *rest.Config
+	LookupNamespace     string
 	StartDelim          string
 	StopDelim           string
 }
@@ -55,6 +59,7 @@ type TemplateResolver struct {
 	// Optional
 	kubeAPIResourceList []*metav1.APIResourceList
 	kubeConfig          *rest.Config
+	lookupNamespace     string
 	startDelim          string
 	stopDelim           string
 }
@@ -92,6 +97,7 @@ func NewResolver(kubeClient *kubernetes.Interface, config Config) (*TemplateReso
 		// Optional
 		kubeAPIResourceList: config.KubeAPIResourceList,
 		kubeConfig:          config.KubeConfig,
+		lookupNamespace:     config.LookupNamespace,
 		startDelim:          startDelim,
 		stopDelim:           stopDelim,
 	}, nil

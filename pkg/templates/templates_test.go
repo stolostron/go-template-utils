@@ -335,6 +335,37 @@ func TestProcessForDataTypes(t *testing.T) {
 	}
 }
 
+func TestVerifyNamespace(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		funcName            string
+		configuredNamespace string
+		actualNamespace     string
+		expectedError       error
+	}{
+		{"fromConfigMap", "my-policies", "my-policies", nil},
+		{"fromConfigMap", "", "prod-configs", nil},
+		{"fromConfigMap", "my-policies", "prod-configs", errors.New("the namespace argument passed to fromConfigMap is restricted to my-policies")},
+		{"fromConfigMap", "policies", "prod-configs", errors.New("the namespace argument passed to fromConfigMap is restricted to policies")},
+	}
+
+	for _, test := range tests {
+		var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
+		config := Config{KubeConfig: &rest.Config{}, LookupNamespace: test.configuredNamespace}
+		resolver, _ := NewResolver(&simpleClient, config)
+
+		err := resolver.verifyNamespace(test.funcName, test.actualNamespace)
+
+		if err == nil || test.expectedError == nil {
+			if !(err == nil && test.expectedError == nil) {
+				t.Fatalf("expected error: %v, got: %v", test.expectedError, err)
+			}
+		} else if err.Error() != test.expectedError.Error() {
+			t.Fatalf("expected error: %v, got: %v", test.expectedError, err)
+		}
+	}
+}
+
 func ExampleTemplateResolver_ResolveTemplate() {
 	policyYAML := `
 ---

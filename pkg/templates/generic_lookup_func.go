@@ -5,6 +5,7 @@ package templates
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/golang/glog"
@@ -15,10 +16,28 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
+// verifyNamespace checks that the target namespace is allowed based on the configured
+// lookupNamespace. If it's not, an error is returned.
+func (t *TemplateResolver) verifyNamespace(funcName, namespace string) error {
+	// When lookupNamespace is an empty string, there are no namespace restrictions.
+	if t.lookupNamespace != "" && t.lookupNamespace != namespace {
+		msg := fmt.Sprintf("the namespace argument passed to %s is restricted to %s", funcName, t.lookupNamespace)
+		glog.Error(msg)
+
+		return errors.New(msg)
+	}
+
+	return nil
+}
+
 func (t *TemplateResolver) lookup(apiversion string, kind string, namespace string, rsrcname string) (map[string]interface{}, error) {
 	glog.V(glogDefLvl).Infof("lookup :  %v, %v, %v, %v", apiversion, kind, namespace, rsrcname)
 
 	result := make(map[string]interface{})
+
+	if err := t.verifyNamespace("lookup", namespace); err != nil {
+		return result, err
+	}
 
 	// get dynamic Client for the given GVK and namespace
 	dclient, dclientErr := t.getDynamicClient(apiversion, kind, namespace)
