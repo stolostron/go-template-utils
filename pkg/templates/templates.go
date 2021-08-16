@@ -96,9 +96,9 @@ func NewResolver(kubeClient *kubernetes.Interface, kubeConfig *rest.Config, conf
 }
 
 // HasTemplate performs a simple check for the template start delimiter to
-// indicate if the input string has a template. If the startDelim argument is
+// indicate if the input byte slice has a template. If the startDelim argument is
 // an empty string, the default start delimiter of "{{" will be used.
-func HasTemplate(templateStr string, startDelim string) bool {
+func HasTemplate(templateStr []byte, startDelim string) bool {
 	if startDelim == "" {
 		startDelim = defaultStartDelim
 	}
@@ -107,7 +107,7 @@ func HasTemplate(templateStr string, startDelim string) bool {
 	glog.V(glogDefLvl).Infof("Checking for the start delimiter:  %s", startDelim)
 
 	hasTemplate := false
-	if strings.Contains(templateStr, startDelim) {
+	if strings.Contains(string(templateStr), startDelim) {
 		hasTemplate = true
 	}
 
@@ -150,12 +150,12 @@ func getValidContext(context interface{}) (ctx interface{}, _ error) {
 // also be `nil` if no fields should be made available.
 //
 // ResolveTemplate will process any template strings in the map and return the processed map.
-func (t *TemplateResolver) ResolveTemplate(tmplJSON string, context interface{}) (string, error) {
+func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{}) ([]byte, error) {
 	glog.V(glogDefLvl).Infof("ResolveTemplate for: %v", tmplJSON)
 
 	ctx, err := getValidContext(context)
 	if err != nil {
-		return "", err
+		return []byte(""), err
 	}
 
 	// Build Map of supported template functions
@@ -176,11 +176,12 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON string, context interface{})
 	tmpl := template.New("tmpl").Delims(t.startDelim, t.stopDelim).Funcs(funcMap)
 
 	// convert the JSON to YAML
-	templateYAMLBytes, err := yaml.JSONToYAML([]byte(tmplJSON))
-	templateStr := string(templateYAMLBytes)
+	templateYAMLBytes, err := yaml.JSONToYAML(tmplJSON)
 	if err != nil {
-		return "", fmt.Errorf("failed to convert the policy template to YAML: %w", err)
+		return []byte(""), fmt.Errorf("failed to convert the policy template to YAML: %w", err)
 	}
+
+	templateStr := string(templateYAMLBytes)
 	glog.V(glogDefLvl).Infof("Initial template str to resolve : %v ", templateStr)
 
 	// process for int or bool
@@ -190,17 +191,19 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON string, context interface{})
 
 	tmpl, err = tmpl.Parse(templateStr)
 	if err != nil {
-		glog.Errorf("error parsing template JSON string %v,\n template str %v,\n error: %v", tmplJSON, templateStr, err)
+		tmplJSONStr := string(tmplJSON)
+		glog.Errorf("error parsing template JSON string %v,\n template str %v,\n error: %v", tmplJSONStr, templateStr, err)
 
-		return "", fmt.Errorf("failed to parse the template JSON string %v: %w", tmplJSON, err)
+		return []byte(""), fmt.Errorf("failed to parse the template JSON string %v: %w", tmplJSONStr, err)
 	}
 
 	var buf strings.Builder
 	err = tmpl.Execute(&buf, ctx)
 	if err != nil {
-		glog.Errorf("error resolving the template %v,\n template str %v,\n error: %v", tmplJSON, templateStr, err)
+		tmplJSONStr := string(tmplJSON)
+		glog.Errorf("error resolving the template %v,\n template str %v,\n error: %v", tmplJSONStr, templateStr, err)
 
-		return "", fmt.Errorf("failed to resolve the template %v: %w", tmplJSON, err)
+		return []byte(""), fmt.Errorf("failed to resolve the template %v: %w", tmplJSONStr, err)
 	}
 
 	resolvedTemplateStr := buf.String()
@@ -209,10 +212,10 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON string, context interface{})
 
 	resolvedTemplateBytes, err := yaml.YAMLToJSON([]byte(resolvedTemplateStr))
 	if err != nil {
-		return "", fmt.Errorf("failed to convert the resolved template back to YAML: %w", err)
+		return []byte(""), fmt.Errorf("failed to convert the resolved template back to YAML: %w", err)
 	}
 
-	return string(resolvedTemplateBytes), nil
+	return resolvedTemplateBytes, nil
 }
 
 func (t *TemplateResolver) processForDataTypes(str string) string {
