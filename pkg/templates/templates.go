@@ -143,16 +143,15 @@ func getValidContext(context interface{}) (ctx interface{}, _ error) {
 	return context, nil
 }
 
-// ResolveTemplate accepts an unmarshaled map that can be marshaled to YAML.
-// it also accepts a struct with string fields that will be made available
-// when the template is processed. For example, if the argument is
-// `struct{ClusterName string}{"cluster1"}`, the value `cluster1` would be
-// available with `{{ .ClusterName }}`. This can also be `nil` if no fields
-// should be made available.
+// ResolveTemplate accepts a map marshaled as JSON. It also accepts a struct
+// with string fields that will be made available when the template is processed.
+// For example, if the argument is `struct{ClusterName string}{"cluster1"}`,
+// the value `cluster1` would be available with `{{ .ClusterName }}`. This can
+// also be `nil` if no fields should be made available.
 //
 // ResolveTemplate will process any template strings in the map and return the processed map.
-func (t *TemplateResolver) ResolveTemplate(tmplMap interface{}, context interface{}) (interface{}, error) {
-	glog.V(glogDefLvl).Infof("ResolveTemplate for: %v", tmplMap)
+func (t *TemplateResolver) ResolveTemplate(tmplJSON string, context interface{}) (string, error) {
+	glog.V(glogDefLvl).Infof("ResolveTemplate for: %v", tmplJSON)
 
 	ctx, err := getValidContext(context)
 	if err != nil {
@@ -176,13 +175,11 @@ func (t *TemplateResolver) ResolveTemplate(tmplMap interface{}, context interfac
 	// create template processor and Initialize function map
 	tmpl := template.New("tmpl").Delims(t.startDelim, t.stopDelim).Funcs(funcMap)
 
-	// convert the interface to yaml to string
-	// ext.raw is jsonMarshalled data which the template processor is not accepting
-	// so marshaling  unmarshaled(ext.raw) to yaml to string
-
-	templateStr, err := toYAML(tmplMap)
+	// convert the JSON to YAML
+	templateYAMLBytes, err := yaml.JSONToYAML([]byte(tmplJSON))
+	templateStr := string(templateYAMLBytes)
 	if err != nil {
-		return "", fmt.Errorf("failed to convert the policy template to yaml: %w", err)
+		return "", fmt.Errorf("failed to convert the policy template to YAML: %w", err)
 	}
 	glog.V(glogDefLvl).Infof("Initial template str to resolve : %v ", templateStr)
 
@@ -193,54 +190,29 @@ func (t *TemplateResolver) ResolveTemplate(tmplMap interface{}, context interfac
 
 	tmpl, err = tmpl.Parse(templateStr)
 	if err != nil {
-		glog.Errorf("error parsing template map %v,\n template str %v,\n error: %v", tmplMap, templateStr, err)
+		glog.Errorf("error parsing template JSON string %v,\n template str %v,\n error: %v", tmplJSON, templateStr, err)
 
-		return "", fmt.Errorf("failed to parse the template map %v: %w", tmplMap, err)
+		return "", fmt.Errorf("failed to parse the template JSON string %v: %w", tmplJSON, err)
 	}
 
 	var buf strings.Builder
 	err = tmpl.Execute(&buf, ctx)
 	if err != nil {
-		glog.Errorf("error executing the template map %v,\n template str %v,\n error: %v", tmplMap, templateStr, err)
+		glog.Errorf("error resolving the template %v,\n template str %v,\n error: %v", tmplJSON, templateStr, err)
 
-		return "", fmt.Errorf("failed to execute the template map %v: %w", tmplMap, err)
+		return "", fmt.Errorf("failed to resolve the template %v: %w", tmplJSON, err)
 	}
 
 	resolvedTemplateStr := buf.String()
 	glog.V(glogDefLvl).Infof("resolved template str: %v ", resolvedTemplateStr)
 	// unmarshall before returning
 
-	resolvedTemplateIntf, err := fromYAML(resolvedTemplateStr)
+	resolvedTemplateBytes, err := yaml.YAMLToJSON([]byte(resolvedTemplateStr))
 	if err != nil {
 		return "", fmt.Errorf("failed to convert the resolved template back to YAML: %w", err)
 	}
 
-	return resolvedTemplateIntf, nil
-}
-
-// fromYAML converts a YAML document into a map[string]interface{}.
-func fromYAML(str string) (map[string]interface{}, error) {
-	m := map[string]interface{}{}
-
-	if err := yaml.Unmarshal([]byte(str), &m); err != nil {
-		glog.Errorf("error parsing the YAML the template str %v , \n %v ", str, err)
-
-		return m, fmt.Errorf("failed to parse the YAML template str: %w", err)
-	}
-
-	return m, nil
-}
-
-// toYAML converts a map[string]interface{} to a YAML document string.
-func toYAML(v interface{}) (string, error) {
-	data, err := yaml.Marshal(v)
-	if err != nil {
-		glog.Errorf("error parsing the YAML template map %v , \n %v ", v, err)
-
-		return "", fmt.Errorf("failed to parse the YAML template map %v: %w", v, err)
-	}
-
-	return strings.TrimSuffix(string(data), "\n"), nil
+	return string(resolvedTemplateBytes), nil
 }
 
 func (t *TemplateResolver) processForDataTypes(str string) string {
