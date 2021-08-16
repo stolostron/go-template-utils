@@ -151,7 +151,7 @@ func TestResolveTemplate(t *testing.T) {
 			Config{},
 			nil,
 			"",
-			errors.New(`failed to parse the template map map[test:{{ blah "asdf"  }}]: template: tmpl:1: function "blah" not defined`),
+			errors.New(`failed to parse the template JSON string {"test":"{{ blah \"asdf\"  }}"}: template: tmpl:1: function "blah" not defined`),
 		},
 		{
 			`config1: '{{ "testdata" | base64enc  }}'`,
@@ -205,10 +205,9 @@ func TestResolveTemplate(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		// unmarshall to Interface
-		tmplMap, _ := fromYAML(test.inputTmpl)
+		tmplStr, _ := yaml.YAMLToJSON([]byte(test.inputTmpl))
 		resolver := getTemplateResolver(test.config)
-		val, err := resolver.ResolveTemplate(tmplMap, test.ctx)
+		val, err := resolver.ResolveTemplate(string(tmplStr), test.ctx)
 
 		if err != nil {
 			if test.expectedErr == nil {
@@ -218,8 +217,9 @@ func TestResolveTemplate(t *testing.T) {
 				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 			}
 		} else {
-			val, _ := toYAML(val)
-			if val != test.expectedResult {
+			val, _ := yaml.JSONToYAML([]byte(val))
+			valStr := strings.TrimSuffix(string(val), "\n")
+			if valStr != test.expectedResult {
 				t.Fatalf("expected : %s , got : %s", test.expectedResult, val)
 			}
 		}
@@ -236,6 +236,7 @@ func TestHasTemplate(t *testing.T) {
 		{" I am a sample template ", "{{", false},
 		{" I am a sample template ", "", false},
 		{" I am a {{ sample }}  template ", "{{", true},
+		{`{"msg: "I am a {{ sample }} template"}`, "{{", true},
 		{" I am a {{ sample }}  template ", "", true},
 		{" I am a {{ sample }}  template ", "{{hub", false},
 		{" I am a {{hub sample hub}}  template ", "{{hub", true},
@@ -383,10 +384,10 @@ spec:
     remediationAction: enforce
     severity: high
 `
-	policyMap := map[string]interface{}{}
 
-	if err := yaml.Unmarshal([]byte(policyYAML), &policyMap); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to unmarshal the policy YAML: %v\n", err)
+	policyJSON, err := yaml.YAMLToJSON([]byte(policyYAML))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to convert the policy YAML to JSON: %v\n", err)
 		panic(err)
 	}
 
@@ -400,13 +401,16 @@ spec:
 	}
 
 	templateContext := struct{ ClusterName string }{ClusterName: "cluster0001"}
-	policyMapProcessed, err := resolver.ResolveTemplate(policyMap, templateContext)
+	policyResolvedJSON, err := resolver.ResolveTemplate(string(policyJSON), templateContext)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)
 		panic(err)
 	}
 
-	objTmpls := policyMapProcessed.(map[string]interface{})["spec"].(map[string]interface{})["object-templates"]
+	var policyResolved interface{}
+	err = yaml.Unmarshal([]byte(policyResolvedJSON), &policyResolved)
+
+	objTmpls := policyResolved.(map[string]interface{})["spec"].(map[string]interface{})["object-templates"]
 	objDef := objTmpls.([]interface{})[0].(map[string]interface{})["objectDefinition"]
 	data, ok := objDef.(map[string]interface{})["data"].(map[string]interface{})
 	if !ok {
