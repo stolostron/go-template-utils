@@ -365,6 +365,7 @@ metadata:
   name: demo-sampleapp-config
   namespace: sampleapp
 spec:
+  remediationAction: enforce
   namespaceSelector:
     exclude:
     - kube-*
@@ -381,7 +382,6 @@ spec:
       data:
         message: '{{ "VGVtcGxhdGVzIHJvY2sh" | base64dec }}'
         b64-cluster-name: '{{ .ClusterName | base64enc }}'
-    remediationAction: enforce
     severity: high
 `
 
