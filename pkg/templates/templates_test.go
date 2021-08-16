@@ -207,7 +207,7 @@ func TestResolveTemplate(t *testing.T) {
 	for _, test := range testcases {
 		tmplStr, _ := yaml.YAMLToJSON([]byte(test.inputTmpl))
 		resolver := getTemplateResolver(test.config)
-		val, err := resolver.ResolveTemplate(string(tmplStr), test.ctx)
+		val, err := resolver.ResolveTemplate(tmplStr, test.ctx)
 
 		if err != nil {
 			if test.expectedErr == nil {
@@ -217,7 +217,7 @@ func TestResolveTemplate(t *testing.T) {
 				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 			}
 		} else {
-			val, _ := yaml.JSONToYAML([]byte(val))
+			val, _ := yaml.JSONToYAML(val)
 			valStr := strings.TrimSuffix(string(val), "\n")
 			if valStr != test.expectedResult {
 				t.Fatalf("expected : %s , got : %s", test.expectedResult, val)
@@ -243,7 +243,7 @@ func TestHasTemplate(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		val := HasTemplate(test.input, test.startDelim)
+		val := HasTemplate([]byte(test.input), test.startDelim)
 		if val != test.result {
 			t.Fatalf("expected : %v , got : %v", test.result, val)
 		}
@@ -401,14 +401,14 @@ spec:
 	}
 
 	templateContext := struct{ ClusterName string }{ClusterName: "cluster0001"}
-	policyResolvedJSON, err := resolver.ResolveTemplate(string(policyJSON), templateContext)
+	policyResolvedJSON, err := resolver.ResolveTemplate(policyJSON, templateContext)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)
 		panic(err)
 	}
 
 	var policyResolved interface{}
-	err = yaml.Unmarshal([]byte(policyResolvedJSON), &policyResolved)
+	err = yaml.Unmarshal(policyResolvedJSON, &policyResolved)
 
 	objTmpls := policyResolved.(map[string]interface{})["spec"].(map[string]interface{})["object-templates"]
 	objDef := objTmpls.([]interface{})[0].(map[string]interface{})["objectDefinition"]
