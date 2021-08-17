@@ -30,10 +30,7 @@ const (
 //
 // - KubeAPIResourceList sets the cache for the Kubernetes API resources. If this is
 // set, template processing will not try to rediscover the Kubernetes API resources
-// needed for dynamic client/ GVK lookups. If this is not set, KubeConfig must be set.
-//
-// - KubeConfig is the configuration of the Kubernetes cluster the template is running against. If this
-// is not set, then KubeAPIResourceList must be set.
+// needed for dynamic client/ GVK lookups.
 //
 // - LookupNamespace is the namespace to restrict "lookup" template functions (e.g. fromConfigMap)
 // to. If this is not set (i.e. an empty string), then all namespaces can be used.
@@ -45,7 +42,6 @@ const (
 // to "}}". If StartDelim is set, this must also be set.
 type Config struct {
 	KubeAPIResourceList []*metav1.APIResourceList
-	KubeConfig          *rest.Config
 	LookupNamespace     string
 	StartDelim          string
 	StopDelim           string
@@ -69,17 +65,13 @@ type TemplateResolver struct {
 // - kubeClient is the Kubernetes client to be used for the template lookup functions.
 //
 // - config is the Config instance for configuration for template processing.
-func NewResolver(kubeClient *kubernetes.Interface, config Config) (*TemplateResolver, error) {
+func NewResolver(kubeClient *kubernetes.Interface, kubeConfig *rest.Config, config Config) (*TemplateResolver, error) {
 	if kubeClient == nil {
 		return nil, fmt.Errorf("kubeClient must be a non-nil value")
 	}
 
 	if (config.StartDelim != "" && config.StopDelim == "") || (config.StartDelim == "" && config.StopDelim != "") {
 		return nil, fmt.Errorf("the configurations StartDelim and StopDelim cannot be set independently")
-	}
-
-	if config.KubeAPIResourceList == nil && config.KubeConfig == nil {
-		return nil, fmt.Errorf("the configuration must have either KubeAPIResourceList or kubeConfig set")
 	}
 
 	startDelim := defaultStartDelim
@@ -94,9 +86,9 @@ func NewResolver(kubeClient *kubernetes.Interface, config Config) (*TemplateReso
 	return &TemplateResolver{
 		// Required
 		kubeClient: kubeClient,
+		kubeConfig: kubeConfig,
 		// Optional
 		kubeAPIResourceList: config.KubeAPIResourceList,
-		kubeConfig:          config.KubeConfig,
 		lookupNamespace:     config.LookupNamespace,
 		startDelim:          startDelim,
 		stopDelim:           stopDelim,

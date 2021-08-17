@@ -7,8 +7,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-
-	"k8s.io/client-go/rest"
 )
 
 func TestFromSecret(t *testing.T) {
@@ -44,7 +42,7 @@ func TestFromSecret(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		resolver := getTemplateResolver(Config{KubeConfig: &rest.Config{}, LookupNamespace: test.lookupNamespace})
+		resolver := getTemplateResolver(Config{LookupNamespace: test.lookupNamespace})
 		val, err := resolver.fromSecret(test.inputNs, test.inputCMname, test.inputKey)
 
 		if err != nil {
@@ -86,7 +84,7 @@ func TestFromConfigMap(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		resolver := getTemplateResolver(Config{KubeConfig: &rest.Config{}, LookupNamespace: test.lookupNamespace})
+		resolver := getTemplateResolver(Config{LookupNamespace: test.lookupNamespace})
 		val, err := resolver.fromConfigMap(test.inputNs, test.inputCMname, test.inputKey)
 
 		if err != nil {
