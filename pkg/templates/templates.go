@@ -4,6 +4,7 @@
 package templates
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -14,10 +15,10 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/spf13/cast"
+	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -176,7 +177,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	tmpl := template.New("tmpl").Delims(t.startDelim, t.stopDelim).Funcs(funcMap)
 
 	// convert the JSON to YAML
-	templateYAMLBytes, err := yaml.JSONToYAML(tmplJSON)
+	templateYAMLBytes, err := jsonToYAML(tmplJSON)
 	if err != nil {
 		return []byte(""), fmt.Errorf("failed to convert the policy template to YAML: %w", err)
 	}
@@ -210,7 +211,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	glog.V(glogDefLvl).Infof("resolved template str: %v ", resolvedTemplateStr)
 	// unmarshall before returning
 
-	resolvedTemplateBytes, err := yaml.YAMLToJSON([]byte(resolvedTemplateStr))
+	resolvedTemplateBytes, err := yamlToJSON([]byte(resolvedTemplateStr))
 	if err != nil {
 		return []byte(""), fmt.Errorf("failed to convert the resolved template back to YAML: %w", err)
 	}
@@ -240,6 +241,33 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 	glog.V(glogDefLvl).Infof("\n processed data :\n%v", processeddata)
 
 	return processeddata
+}
+
+// jsonToYAML converts JSON to YAML using yaml.v3. This is important since
+// line wrapping is disabled in v3.
+func jsonToYAML(j []byte) ([]byte, error) {
+	// Convert the JSON to an object
+	var jsonObj interface{}
+	err := yaml.Unmarshal(j, &jsonObj)
+	if err != nil {
+		return nil, err // nolint:wrapcheck
+	}
+
+	// Marshal this object into YAML
+	return yaml.Marshal(jsonObj) // nolint:wrapcheck
+}
+
+// yamlToJSON converts YAML to JSON.
+func yamlToJSON(y []byte) ([]byte, error) {
+	// Convert the YAML to an object.
+	var yamlObj interface{}
+	err := yaml.Unmarshal(y, &yamlObj)
+	if err != nil {
+		return nil, err // nolint:wrapcheck
+	}
+
+	// Convert this object to JSON
+	return json.Marshal(yamlObj) // nolint:wrapcheck
 }
 
 func indent(spaces int, v string) string {

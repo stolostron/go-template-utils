@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	fake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
-	"sigs.k8s.io/yaml"
 )
 
 func getTemplateResolver(c Config) *TemplateResolver {
@@ -202,10 +202,19 @@ func TestResolveTemplate(t *testing.T) {
 			"",
 			errors.New(`the input context must be a struct with string fields`),
 		},
+		{
+			`test: '{{ printf "I am a really long template for cluster %s that needs to be over ` +
+				`%d characters to test something" .ClusterName 80 | base64enc }}'`,
+			Config{},
+			struct{ ClusterName string }{"cluster1"},
+			"test: SSBhbSBhIHJlYWxseSBsb25nIHRlbXBsYXRlIGZvciBjbHVzdGVyIGNsdXN0ZXIxIHRoYXQgbmVlZH" +
+				"MgdG8gYmUgb3ZlciA4MCBjaGFyYWN0ZXJzIHRvIHRlc3Qgc29tZXRoaW5n",
+			nil,
+		},
 	}
 
 	for _, test := range testcases {
-		tmplStr, _ := yaml.YAMLToJSON([]byte(test.inputTmpl))
+		tmplStr, _ := yamlToJSON([]byte(test.inputTmpl))
 		resolver := getTemplateResolver(test.config)
 		val, err := resolver.ResolveTemplate(tmplStr, test.ctx)
 
@@ -217,7 +226,7 @@ func TestResolveTemplate(t *testing.T) {
 				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 			}
 		} else {
-			val, _ := yaml.JSONToYAML(val)
+			val, _ := jsonToYAML(val)
 			valStr := strings.TrimSuffix(string(val), "\n")
 			if valStr != test.expectedResult {
 				t.Fatalf("expected : %s , got : %s", test.expectedResult, val)
@@ -385,7 +394,7 @@ spec:
     severity: high
 `
 
-	policyJSON, err := yaml.YAMLToJSON([]byte(policyYAML))
+	policyJSON, err := yamlToJSON([]byte(policyYAML))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to convert the policy YAML to JSON: %v\n", err)
 		panic(err)
