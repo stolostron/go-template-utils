@@ -57,7 +57,7 @@ func getTemplateResolver(c Config) *TemplateResolver {
 	}
 	simpleClient.CoreV1().ConfigMaps(testns).Create(context.TODO(), &configmap, metav1.CreateOptions{})
 
-	resolver, err := NewResolver(&simpleClient, c)
+	resolver, err := NewResolver(&simpleClient, &rest.Config{}, c)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -69,23 +69,13 @@ func TestNewResolver(t *testing.T) {
 	t.Parallel()
 	var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
 
-	testcases := []struct {
-		testName string
-		config   Config
-	}{
-		{"KubeConfig set", Config{KubeConfig: &rest.Config{}}},
-		{"KubeAPIResourceList set", Config{KubeAPIResourceList: []*metav1.APIResourceList{}}},
+	resolver, err := NewResolver(&simpleClient, &rest.Config{}, Config{})
+	if err != nil {
+		t.Fatalf("No error was expected: %v", err)
 	}
 
-	for _, test := range testcases {
-		test := test
-		t.Run(test.testName, func(t *testing.T) {
-			t.Parallel()
-			_, err := NewResolver(&simpleClient, test.config)
-			if err != nil {
-				t.Fatalf("No error was expected: %v", err)
-			}
-		})
+	if resolver.startDelim != "{{" || resolver.stopDelim != "}}" {
+		t.Fatalf("Expected delimiters: {{ and }}  got: %s and %s", resolver.startDelim, resolver.stopDelim)
 	}
 }
 
@@ -100,7 +90,6 @@ func TestNewResolverFailures(t *testing.T) {
 	}{
 		{nil, Config{}, "kubeClient must be a non-nil value"},
 		{&simpleClient, Config{StartDelim: "{{hub"}, "the configurations StartDelim and StopDelim cannot be set independently"},
-		{&simpleClient, Config{}, "the configuration must have either KubeAPIResourceList or kubeConfig set"},
 	}
 
 	for _, test := range testcases {
@@ -108,7 +97,7 @@ func TestNewResolverFailures(t *testing.T) {
 		test := test
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
-			_, err := NewResolver(test.kubeClient, test.config)
+			_, err := NewResolver(test.kubeClient, &rest.Config{}, test.config)
 			if err == nil {
 				t.Fatal("No error was provided")
 			}
@@ -131,84 +120,84 @@ func TestResolveTemplate(t *testing.T) {
 	}{
 		{
 			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
-			Config{KubeConfig: &rest.Config{}},
+			Config{},
 			nil,
 			"data: c2VjcmV0a2V5MVZhbA==",
 			nil,
 		},
 		{
 			`param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
-			Config{KubeConfig: &rest.Config{}},
+			Config{},
 			nil,
 			"param: cmkey1Val",
 			nil,
 		},
 		{
 			`config1: '{{ "testdata" | base64enc  }}'`,
-			Config{KubeConfig: &rest.Config{}},
+			Config{},
 			nil,
 			"config1: dGVzdGRhdGE=",
 			nil,
 		},
 		{
 			`config2: '{{ "dGVzdGRhdGE=" | base64dec  }}'`,
-			Config{KubeConfig: &rest.Config{}},
+			Config{},
 			nil,
 			"config2: testdata",
 			nil,
 		},
 		{
 			`test: '{{ blah "asdf"  }}'`,
-			Config{KubeConfig: &rest.Config{}},
+			Config{},
 			nil,
 			"",
 			errors.New(`failed to parse the template map map[test:{{ blah "asdf"  }}]: template: tmpl:1: function "blah" not defined`),
 		},
 		{
 			`config1: '{{ "testdata" | base64enc  }}'`,
-			Config{KubeConfig: &rest.Config{}, StartDelim: "{{hub", StopDelim: "hub}}"},
+			Config{StartDelim: "{{hub", StopDelim: "hub}}"},
 			nil,
 			`config1: '{{ "testdata" | base64enc  }}'`,
 			nil,
 		},
 		{
 			`config1: '{{hub "testdata" | base64enc  hub}}'`,
-			Config{KubeConfig: &rest.Config{}, StartDelim: "{{hub", StopDelim: "hub}}"},
+			Config{StartDelim: "{{hub", StopDelim: "hub}}"},
 			nil,
 			"config1: dGVzdGRhdGE=",
 			nil,
 		},
 		{
 			`config1: '{{ "{{hub "dGVzdGRhdGE=" | base64dec hub}}" | base64enc }}'`,
-			Config{KubeConfig: &rest.Config{}, StartDelim: "{{hub", StopDelim: "hub}}"},
+			Config{StartDelim: "{{hub", StopDelim: "hub}}"},
 			nil,
 			`config1: '{{ "testdata" | base64enc }}'`,
 			nil,
 		},
 		{
 			`config1: '{{ .ClusterName  }}'`,
-			Config{KubeConfig: &rest.Config{}},
+			Config{},
 			struct{ ClusterName string }{"cluster0001"},
 			"config1: cluster0001",
 			nil,
 		},
 		{
 			`config1: '{{ .ClusterID | toInt }}'`,
-			Config{KubeConfig: &rest.Config{}},
+			Config{},
 			struct{ ClusterID string }{"12345"},
 			"config1: 12345",
 			nil,
 		},
 		{
 			`test: '{{ printf "hello %s" "world" }}'`,
-			Config{KubeConfig: &rest.Config{}},
+			Config{},
 			123,
 			"",
 			errors.New(`the input context must be a struct with string fields, got int`),
 		},
 		{
 			`test: '{{ printf "hello %s" "world" }}'`,
-			Config{KubeConfig: &rest.Config{}},
+			Config{},
 			struct{ ClusterID int }{12},
 			"",
 			errors.New(`the input context must be a struct with string fields`),
@@ -301,8 +290,8 @@ func TestToBool(t *testing.T) {
 
 func TestProcessForDataTypes(t *testing.T) {
 	t.Parallel()
-	config := Config{KubeConfig: &rest.Config{}, StartDelim: "{{", StopDelim: "}}"}
-	hubConfig := Config{KubeConfig: &rest.Config{}, StartDelim: "{{hub", StopDelim: "hub}}"}
+	config := Config{StartDelim: "{{", StopDelim: "}}"}
+	hubConfig := Config{StartDelim: "{{hub", StopDelim: "hub}}"}
 	testcases := []struct {
 		input          string
 		config         Config
@@ -351,8 +340,8 @@ func TestVerifyNamespace(t *testing.T) {
 
 	for _, test := range tests {
 		var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
-		config := Config{KubeConfig: &rest.Config{}, LookupNamespace: test.configuredNamespace}
-		resolver, _ := NewResolver(&simpleClient, config)
+		config := Config{LookupNamespace: test.configuredNamespace}
+		resolver, _ := NewResolver(&simpleClient, &rest.Config{}, config)
 
 		err := resolver.verifyNamespace(test.funcName, test.actualNamespace)
 
@@ -403,9 +392,8 @@ spec:
 
 	// This example uses the fake Kubernetes client, but in production, use a
 	// real Kubernetes configuration and client
-	cfg := Config{KubeConfig: &rest.Config{}}
 	var k8sClient kubernetes.Interface = fake.NewSimpleClientset()
-	resolver, err := NewResolver(&k8sClient, cfg)
+	resolver, err := NewResolver(&k8sClient, &rest.Config{}, Config{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to instantiate the templatesResolver struct: %v\n", err)
 		panic(err)
