@@ -16,7 +16,8 @@ func (t *TemplateResolver) fromClusterClaim(claimname string) (string, error) {
 	dclient, dclientErr := t.getDynamicClient(
 		"cluster.open-cluster-management.io/v1alpha1",
 		"ClusterClaim",
-		"",
+		// If set, this restricts to a particular namespace
+		t.lookupNamespace,
 	)
 	if dclientErr != nil {
 		err := fmt.Errorf("failed to get the cluster claim %s: %w", claimname, dclientErr)
