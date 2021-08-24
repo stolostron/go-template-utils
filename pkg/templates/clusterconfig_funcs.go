@@ -5,6 +5,7 @@ package templates
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/golang/glog"
@@ -13,11 +14,19 @@ import (
 
 // retrieve the Spec value for the given clusterclaim.
 func (t *TemplateResolver) fromClusterClaim(claimname string) (string, error) {
+	if t.lookupNamespace != "" {
+		msg := fmt.Sprintf(
+			"fromClusterClaim is not supported because lookups are restricted to the %s namespace",
+			t.lookupNamespace,
+		)
+
+		return "", errors.New(msg)
+	}
+
 	dclient, dclientErr := t.getDynamicClient(
 		"cluster.open-cluster-management.io/v1alpha1",
 		"ClusterClaim",
-		// If set, this restricts to a particular namespace
-		t.lookupNamespace,
+		"",
 	)
 	if dclientErr != nil {
 		err := fmt.Errorf("failed to get the cluster claim %s: %w", claimname, dclientErr)
