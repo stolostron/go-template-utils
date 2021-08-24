@@ -16,16 +16,17 @@ import (
 func (t *TemplateResolver) fromSecret(namespace string, secretname string, key string) (string, error) {
 	glog.V(glogDefLvl).Infof("fromSecret for namespace: %v, secretname: %v, key:%v", namespace, secretname, key)
 
-	if err := t.verifyNamespace("fromSecret", namespace); err != nil {
+	ns, err := t.getNamespace("fromSecret", namespace)
+	if err != nil {
 		return "", err
 	}
 
-	secretsClient := (*t.kubeClient).CoreV1().Secrets(namespace)
+	secretsClient := (*t.kubeClient).CoreV1().Secrets(ns)
 	secret, getErr := secretsClient.Get(context.TODO(), secretname, metav1.GetOptions{})
 
 	if getErr != nil {
 		glog.Errorf("Error Getting secret:  %v", getErr)
-		err := fmt.Errorf("failed to get the secret %s from %s: %w", secretname, namespace, getErr)
+		err := fmt.Errorf("failed to get the secret %s from %s: %w", secretname, ns, getErr)
 
 		return "", err
 	}
@@ -46,16 +47,17 @@ func (t *TemplateResolver) fromSecret(namespace string, secretname string, key s
 func (t *TemplateResolver) fromConfigMap(namespace string, cmapname string, key string) (string, error) {
 	glog.V(glogDefLvl).Infof("fromConfigMap for namespace: %v, configmap name: %v, key:%v", namespace, cmapname, key)
 
-	if err := t.verifyNamespace("fromConfigMap", namespace); err != nil {
+	ns, err := t.getNamespace("fromConfigMap", namespace)
+	if err != nil {
 		return "", err
 	}
 
-	configmapsClient := (*t.kubeClient).CoreV1().ConfigMaps(namespace)
+	configmapsClient := (*t.kubeClient).CoreV1().ConfigMaps(ns)
 	configmap, getErr := configmapsClient.Get(context.TODO(), cmapname, metav1.GetOptions{})
 
 	if getErr != nil {
 		glog.Errorf("Error getting configmap:  %v", getErr)
-		err := fmt.Errorf("failed getting the ConfigMap %s from %s: %w", cmapname, namespace, getErr)
+		err := fmt.Errorf("failed getting the ConfigMap %s from %s: %w", cmapname, ns, getErr)
 
 		return "", err
 	}
