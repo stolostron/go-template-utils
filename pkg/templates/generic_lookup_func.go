@@ -16,18 +16,28 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-// verifyNamespace checks that the target namespace is allowed based on the configured
-// lookupNamespace. If it's not, an error is returned.
-func (t *TemplateResolver) verifyNamespace(funcName, namespace string) error {
+// getNamespace checks that the target namespace is allowed based on the configured
+// lookupNamespace. If it's not, an error is returned. It then returns the namespace
+// that should be used. If the target namespace is not set and the lookupNamespace
+// configuration is, then the namespace of lookupNamespace is returned for convenience.
+func (t *TemplateResolver) getNamespace(funcName, namespace string) (string, error) {
 	// When lookupNamespace is an empty string, there are no namespace restrictions.
-	if t.lookupNamespace != "" && t.lookupNamespace != namespace {
-		msg := fmt.Sprintf("the namespace argument passed to %s is restricted to %s", funcName, t.lookupNamespace)
-		glog.Error(msg)
+	if t.lookupNamespace != "" {
+		// If lookupNamespace is set but namespace is an empty string, then default
+		// to lookupNamespace for convenience
+		if namespace == "" {
+			return t.lookupNamespace, nil
+		}
 
-		return errors.New(msg)
+		if t.lookupNamespace != namespace {
+			msg := fmt.Sprintf("the namespace argument passed to %s is restricted to %s", funcName, t.lookupNamespace)
+			glog.Error(msg)
+
+			return "", errors.New(msg)
+		}
 	}
 
-	return nil
+	return namespace, nil
 }
 
 func (t *TemplateResolver) lookup(apiversion string, kind string, namespace string, rsrcname string) (map[string]interface{}, error) {
@@ -35,12 +45,13 @@ func (t *TemplateResolver) lookup(apiversion string, kind string, namespace stri
 
 	result := make(map[string]interface{})
 
-	if err := t.verifyNamespace("lookup", namespace); err != nil {
+	ns, err := t.getNamespace("lookup", namespace)
+	if err != nil {
 		return result, err
 	}
 
 	// get dynamic Client for the given GVK and namespace
-	dclient, dclientErr := t.getDynamicClient(apiversion, kind, namespace)
+	dclient, dclientErr := t.getDynamicClient(apiversion, kind, ns)
 	if dclientErr != nil {
 		return result, dclientErr
 	}

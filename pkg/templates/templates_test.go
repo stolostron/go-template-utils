@@ -334,18 +334,32 @@ func TestProcessForDataTypes(t *testing.T) {
 	}
 }
 
-func TestVerifyNamespace(t *testing.T) {
+func TestGetNamespace(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		funcName            string
 		configuredNamespace string
 		actualNamespace     string
+		returnedNamespace   string
 		expectedError       error
 	}{
-		{"fromConfigMap", "my-policies", "my-policies", nil},
-		{"fromConfigMap", "", "prod-configs", nil},
-		{"fromConfigMap", "my-policies", "prod-configs", errors.New("the namespace argument passed to fromConfigMap is restricted to my-policies")},
-		{"fromConfigMap", "policies", "prod-configs", errors.New("the namespace argument passed to fromConfigMap is restricted to policies")},
+		{"fromConfigMap", "my-policies", "my-policies", "my-policies", nil},
+		{"fromConfigMap", "", "prod-configs", "prod-configs", nil},
+		{"fromConfigMap", "my-policies", "", "my-policies", nil},
+		{
+			"fromConfigMap",
+			"my-policies",
+			"prod-configs",
+			"",
+			errors.New("the namespace argument passed to fromConfigMap is restricted to my-policies"),
+		},
+		{
+			"fromConfigMap",
+			"policies",
+			"prod-configs",
+			"",
+			errors.New("the namespace argument passed to fromConfigMap is restricted to policies"),
+		},
 	}
 
 	for _, test := range tests {
@@ -353,11 +367,15 @@ func TestVerifyNamespace(t *testing.T) {
 		config := Config{LookupNamespace: test.configuredNamespace}
 		resolver, _ := NewResolver(&simpleClient, &rest.Config{}, config)
 
-		err := resolver.verifyNamespace(test.funcName, test.actualNamespace)
+		ns, err := resolver.getNamespace(test.funcName, test.actualNamespace)
 
 		if err == nil || test.expectedError == nil {
 			if !(err == nil && test.expectedError == nil) {
 				t.Fatalf("expected error: %v, got: %v", test.expectedError, err)
+			}
+
+			if ns != test.returnedNamespace {
+				t.Fatalf("expected namespace: %s, got: %s", test.actualNamespace, ns)
 			}
 		} else if err.Error() != test.expectedError.Error() {
 			t.Fatalf("expected error: %v, got: %v", test.expectedError, err)
