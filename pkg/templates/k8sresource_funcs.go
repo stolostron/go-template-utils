@@ -32,8 +32,11 @@ func (t *TemplateResolver) fromSecret(namespace string, secretname string, key s
 	}
 	glog.V(glogDefLvl).Infof("Secret is %v", secret)
 
-	keyVal := secret.Data[key]
-	glog.V(glogDefLvl).Infof("Secret Key:%v, Value: %v", key, keyVal)
+	keyVal, ok := secret.Data[key]
+	if !ok {
+		err := fmt.Errorf("failed to retrieve value for key %s in secret %s", key, secretname)
+		return "", err
+	}
 
 	// when using corev1 secret api, the data is returned decoded ,
 	// re-encododing to be able to use it in the referencing secret
@@ -63,7 +66,11 @@ func (t *TemplateResolver) fromConfigMap(namespace string, cmapname string, key 
 	}
 	glog.V(glogDefLvl).Infof("Configmap is %v", configmap)
 
-	keyVal := configmap.Data[key]
+	keyVal, ok := configmap.Data[key]
+	if !ok {
+		err := fmt.Errorf("failed to retrieve value for key %s in configmap %s", key, cmapname)
+		return "", err
+	}
 	glog.V(glogDefLvl).Infof("Configmap Key:%v, Value: %v", key, keyVal)
 
 	return keyVal, nil
