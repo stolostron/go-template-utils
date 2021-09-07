@@ -35,6 +35,7 @@ func (t *TemplateResolver) fromSecret(namespace string, secretname string, key s
 	keyVal, ok := secret.Data[key]
 	if !ok {
 		err := fmt.Errorf("failed to retrieve value for key %s in secret %s", key, secretname)
+
 		return "", err
 	}
 
@@ -69,6 +70,7 @@ func (t *TemplateResolver) fromConfigMap(namespace string, cmapname string, key 
 	keyVal, ok := configmap.Data[key]
 	if !ok {
 		err := fmt.Errorf("failed to retrieve value for key %s in configmap %s", key, cmapname)
+
 		return "", err
 	}
 	glog.V(glogDefLvl).Infof("Configmap Key:%v, Value: %v", key, keyVal)

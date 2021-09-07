@@ -30,9 +30,7 @@ func TestFromSecret(t *testing.T) {
 			"secretkey2Val",
 			errors.New(`failed to get the secret idontexist from testns: secrets "idontexist" not found`),
 		}, // error : nonexistant secret
-		{"testns", "testsecret", "idontexist", "", "",
-			errors.New(`failed to retrieve value for key idontexist in secret testsecret`),
-		}, // error : nonexistant key
+		{"testns", "testsecret", "idontexist", "", "", errors.New(`failed to retrieve value for key idontexist in secret testsecret`)},
 		{
 			"testns",
 			"testsecret",
@@ -74,9 +72,7 @@ func TestFromConfigMap(t *testing.T) {
 		{"testns", "testconfigmap", "cmkey2", "", "cmkey2Val", nil},
 		{"testns", "testconfigmap", "cmkey2", "testns", "cmkey2Val", nil},
 		{"testns", "idontexist", "cmkey1", "", "cmkey1Val", errors.New(`failed getting the ConfigMap idontexist from testns: configmaps "idontexist" not found`)},
-		{"testns", "testconfigmap", "idontexist", "", "",
-			errors.New(`failed to retrieve value for key idontexist in configmap testconfigmap`),
-		}, // error : nonexistant key
+		{"testns", "testconfigmap", "idontexist", "", "", errors.New(`failed to retrieve value for key idontexist in configmap testconfigmap`)},
 		{
 			"testns",
 			"testconfigmap",
