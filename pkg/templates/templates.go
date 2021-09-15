@@ -167,6 +167,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 		"lookup":           t.lookup,
 		"base64enc":        base64encode,
 		"base64dec":        base64decode,
+		"autoindent":       autoindent,
 		"indent":           indent,
 		"atoi":             atoi,
 		"toInt":            toInt,
@@ -188,6 +189,11 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	// process for int or bool
 	if strings.Contains(templateStr, "toInt") || strings.Contains(templateStr, "toBool") {
 		templateStr = t.processForDataTypes(templateStr)
+	}
+
+	// convert `autoindent` placeholders to `indent N`
+	if strings.Contains(templateStr, "autoindent") {
+		templateStr = t.processForAutoIndent(templateStr)
 	}
 
 	tmpl, err = tmpl.Parse(templateStr)
@@ -243,6 +249,35 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 	return processeddata
 }
 
+// processForAutoIndent converts any `autoindent` placeholders into `indent N` in the string.
+// The processed input string is returned.
+func (t *TemplateResolver) processForAutoIndent(str string) string {
+	d1 := regexp.QuoteMeta(t.startDelim)
+	d2 := regexp.QuoteMeta(t.stopDelim)
+	// Detect any templates that contain `autoindent` and capture the spaces before it.
+	// Later on, the amount of spaces will dictate the conversion of `autoindent` to `indent`.
+	// This is not a very strict regex as occasionally, a user will make a mistake such as
+	// `config: '{{ "hello\nworld" | autoindent }}'`. In that event, `autoindent` will change to
+	// `indent 1`, but `indent` properly handles this.
+	re := regexp.MustCompile(`( *)(?:.*` + d1 + `.*\| *autoindent *` + d2 + `)`)
+	glog.V(glogDefLvl).Infof("\n Pattern: %v\n", re.String())
+
+	submatches := re.FindAllStringSubmatch(str, -1)
+	glog.V(glogDefLvl).Infof("\n All Submatches:\n%v", submatches)
+
+	processed := str
+	for _, submatch := range submatches {
+		numSpaces := len(submatch[1])
+		matchStr := submatch[0]
+		newMatchStr := strings.Replace(matchStr, "autoindent", fmt.Sprintf("indent %d", numSpaces), 1)
+		processed = strings.Replace(processed, matchStr, newMatchStr, 1)
+	}
+
+	glog.V(glogDefLvl).Infof("\n processed data :\n%v", processed)
+
+	return processed
+}
+
 // jsonToYAML converts JSON to YAML using yaml.v3. This is important since
 // line wrapping is disabled in v3.
 func jsonToYAML(j []byte) ([]byte, error) {
@@ -275,6 +310,12 @@ func indent(spaces int, v string) string {
 	npad := "\n" + pad + strings.Replace(v, "\n", "\n"+pad, -1)
 
 	return strings.TrimSpace(npad)
+}
+
+// This is so that the user gets a nicer error in the event some valid scenario slips through the
+// regex.
+func autoindent(v string) (string, error) {
+	return "", errors.New("an unexpeceted error occurred where autoindent could not be processed")
 }
 
 func toInt(v interface{}) int {
