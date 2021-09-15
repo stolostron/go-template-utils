@@ -203,6 +203,13 @@ func TestResolveTemplate(t *testing.T) {
 			nil,
 		},
 		{
+			"spec:\n  config1: |\n    {{hub " + `"hello\nworld\n"` + " | indent 4 hub}}\n",
+			Config{AdditionalIndentation: 4, StartDelim: "{{hub", StopDelim: "hub}}"},
+			struct{}{},
+			"spec:\n    config1: |\n        hello\n        world",
+			nil,
+		},
+		{
 			"spec:\n  config1: |\n    {{ " + `"hello\nworld\n"` + " | autoindent }}\n",
 			Config{},
 			struct{}{},
