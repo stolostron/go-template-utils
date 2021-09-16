@@ -35,6 +35,8 @@ Additionally, the following custom functions are supported:
 - `atoi` parses an input string and returns an integer like the
   [Atoi](https://pkg.go.dev/strconv#Atoi) function. For example,
   `{{ "6" | atoi }}`.
+- `autoindent` will automatically indent the input string based on the leading
+  spaces. For example, `{{ "Templating\nrocks!" | autoindent }}`.
 - `base64enc` decodes the input Base64 string to its decoded form. For example,
   `{{ "VGVtcGxhdGVzIHJvY2shCg==" | base64dec }}`.
 - `base64enc` encodes an input string in the Base64 format. For example,
