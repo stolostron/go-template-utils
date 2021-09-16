@@ -29,6 +29,10 @@ const (
 
 // Config is a struct containing configuration for the API. Some are required.
 //
+// - AdditionalIndentation sets the number of additional spaces to be added to the input number
+// to the indent method. This is useful in situations when the indentation should be relative
+// to a logical starting point in a YAML file.
+//
 // - KubeAPIResourceList sets the cache for the Kubernetes API resources. If this is
 // set, template processing will not try to rediscover the Kubernetes API resources
 // needed for dynamic client/ GVK lookups.
@@ -42,10 +46,11 @@ const (
 // - StopDelim customizes the stop delimiter used to distinguish a template action. This defaults
 // to "}}". If StartDelim is set, this must also be set.
 type Config struct {
-	KubeAPIResourceList []*metav1.APIResourceList
-	LookupNamespace     string
-	StartDelim          string
-	StopDelim           string
+	AdditionalIndentation uint
+	KubeAPIResourceList   []*metav1.APIResourceList
+	LookupNamespace       string
+	StartDelim            string
+	StopDelim             string
 }
 
 // TemplateResolver is the API for processing templates. It's better to use the NewResolver function
@@ -54,11 +59,12 @@ type TemplateResolver struct {
 	// Required
 	kubeClient *kubernetes.Interface
 	// Optional
-	kubeAPIResourceList []*metav1.APIResourceList
-	kubeConfig          *rest.Config
-	lookupNamespace     string
-	startDelim          string
-	stopDelim           string
+	AdditionalIndentation uint
+	kubeAPIResourceList   []*metav1.APIResourceList
+	kubeConfig            *rest.Config
+	lookupNamespace       string
+	startDelim            string
+	stopDelim             string
 }
 
 // NewResolver creates a new TemplateResolver instance, which is the API for processing templates.
@@ -89,10 +95,11 @@ func NewResolver(kubeClient *kubernetes.Interface, kubeConfig *rest.Config, conf
 		kubeClient: kubeClient,
 		kubeConfig: kubeConfig,
 		// Optional
-		kubeAPIResourceList: config.KubeAPIResourceList,
-		lookupNamespace:     config.LookupNamespace,
-		startDelim:          startDelim,
-		stopDelim:           stopDelim,
+		AdditionalIndentation: config.AdditionalIndentation,
+		kubeAPIResourceList:   config.KubeAPIResourceList,
+		lookupNamespace:       config.LookupNamespace,
+		startDelim:            startDelim,
+		stopDelim:             stopDelim,
 	}, nil
 }
 
@@ -168,7 +175,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 		"base64enc":        base64encode,
 		"base64dec":        base64decode,
 		"autoindent":       autoindent,
-		"indent":           indent,
+		"indent":           t.indent,
 		"atoi":             atoi,
 		"toInt":            toInt,
 		"toBool":           toBool,
@@ -305,8 +312,8 @@ func yamlToJSON(y []byte) ([]byte, error) {
 	return json.Marshal(yamlObj) // nolint:wrapcheck
 }
 
-func indent(spaces int, v string) string {
-	pad := strings.Repeat(" ", spaces)
+func (t *TemplateResolver) indent(spaces int, v string) string {
+	pad := strings.Repeat(" ", spaces+int(t.AdditionalIndentation))
 	npad := "\n" + pad + strings.Replace(v, "\n", "\n"+pad, -1)
 
 	return strings.TrimSpace(npad)
