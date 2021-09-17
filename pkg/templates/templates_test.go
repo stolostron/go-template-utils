@@ -74,8 +74,12 @@ func TestNewResolver(t *testing.T) {
 		t.Fatalf("No error was expected: %v", err)
 	}
 
-	if resolver.startDelim != "{{" || resolver.stopDelim != "}}" {
-		t.Fatalf("Expected delimiters: {{ and }}  got: %s and %s", resolver.startDelim, resolver.stopDelim)
+	if resolver.config.StartDelim != "{{" || resolver.config.StopDelim != "}}" {
+		t.Fatalf(
+			"Expected delimiters: {{ and }}  got: %s and %s",
+			resolver.config.StartDelim,
+			resolver.config.StopDelim,
+		)
 	}
 }
 
