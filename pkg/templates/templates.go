@@ -274,7 +274,7 @@ func (t *TemplateResolver) processForAutoIndent(str string) string {
 
 	processed := str
 	for _, submatch := range submatches {
-		numSpaces := len(submatch[1])
+		numSpaces := len(submatch[1]) - int(t.AdditionalIndentation)
 		matchStr := submatch[0]
 		newMatchStr := strings.Replace(matchStr, "autoindent", fmt.Sprintf("indent %d", numSpaces), 1)
 		processed = strings.Replace(processed, matchStr, newMatchStr, 1)
