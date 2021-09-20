@@ -22,15 +22,19 @@ import (
 // configuration is, then the namespace of lookupNamespace is returned for convenience.
 func (t *TemplateResolver) getNamespace(funcName, namespace string) (string, error) {
 	// When lookupNamespace is an empty string, there are no namespace restrictions.
-	if t.lookupNamespace != "" {
+	if t.config.LookupNamespace != "" {
 		// If lookupNamespace is set but namespace is an empty string, then default
 		// to lookupNamespace for convenience
 		if namespace == "" {
-			return t.lookupNamespace, nil
+			return t.config.LookupNamespace, nil
 		}
 
-		if t.lookupNamespace != namespace {
-			msg := fmt.Sprintf("the namespace argument passed to %s is restricted to %s", funcName, t.lookupNamespace)
+		if t.config.LookupNamespace != namespace {
+			msg := fmt.Sprintf(
+				"the namespace argument passed to %s is restricted to %s",
+				funcName,
+				t.config.LookupNamespace,
+			)
 			glog.Error(msg)
 
 			return "", errors.New(msg)
@@ -137,7 +141,7 @@ func (t *TemplateResolver) findAPIResource(gvk schema.GroupVersionKind) (metav1.
 
 	// check if an apiresource list is available already (i.e provided as input to templates)
 	// if not available use api discovery client to get api resource list
-	apiResList := t.kubeAPIResourceList
+	apiResList := t.config.KubeAPIResourceList
 	if apiResList == nil {
 		var ddErr error
 		apiResList, ddErr = t.discoverAPIResources()

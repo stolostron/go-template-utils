@@ -14,10 +14,10 @@ import (
 
 // retrieve the Spec value for the given clusterclaim.
 func (t *TemplateResolver) fromClusterClaim(claimname string) (string, error) {
-	if t.lookupNamespace != "" {
+	if t.config.LookupNamespace != "" {
 		msg := fmt.Sprintf(
 			"fromClusterClaim is not supported because lookups are restricted to the %s namespace",
-			t.lookupNamespace,
+			t.config.LookupNamespace,
 		)
 
 		return "", errors.New(msg)

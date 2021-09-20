@@ -56,15 +56,9 @@ type Config struct {
 // TemplateResolver is the API for processing templates. It's better to use the NewResolver function
 // instead of instantiating this directly so that configuration defaults and validation are applied.
 type TemplateResolver struct {
-	// Required
 	kubeClient *kubernetes.Interface
-	// Optional
-	AdditionalIndentation uint
-	kubeAPIResourceList   []*metav1.APIResourceList
-	kubeConfig            *rest.Config
-	lookupNamespace       string
-	startDelim            string
-	stopDelim             string
+	kubeConfig *rest.Config
+	config     Config
 }
 
 // NewResolver creates a new TemplateResolver instance, which is the API for processing templates.
@@ -81,25 +75,17 @@ func NewResolver(kubeClient *kubernetes.Interface, kubeConfig *rest.Config, conf
 		return nil, fmt.Errorf("the configurations StartDelim and StopDelim cannot be set independently")
 	}
 
-	startDelim := defaultStartDelim
-	stopDelim := defaultStopDelim
 	// It's only required to check config.StartDelim since it's invalid to set these independently
-	if config.StartDelim != "" {
-		startDelim = config.StartDelim
-		stopDelim = config.StopDelim
+	if config.StartDelim == "" {
+		config.StartDelim = defaultStartDelim
+		config.StopDelim = defaultStopDelim
 	}
-	glog.V(glogDefLvl).Infof("Using the delimiters of %s and %s", startDelim, stopDelim)
+	glog.V(glogDefLvl).Infof("Using the delimiters of %s and %s", config.StartDelim, config.StopDelim)
 
 	return &TemplateResolver{
-		// Required
 		kubeClient: kubeClient,
 		kubeConfig: kubeConfig,
-		// Optional
-		AdditionalIndentation: config.AdditionalIndentation,
-		kubeAPIResourceList:   config.KubeAPIResourceList,
-		lookupNamespace:       config.LookupNamespace,
-		startDelim:            startDelim,
-		stopDelim:             stopDelim,
+		config:     config,
 	}, nil
 }
 
@@ -182,7 +168,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	}
 
 	// create template processor and Initialize function map
-	tmpl := template.New("tmpl").Delims(t.startDelim, t.stopDelim).Funcs(funcMap)
+	tmpl := template.New("tmpl").Delims(t.config.StartDelim, t.config.StopDelim).Funcs(funcMap)
 
 	// convert the JSON to YAML
 	templateYAMLBytes, err := jsonToYAML(tmplJSON)
@@ -242,8 +228,8 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 	// ex-1 key : "{{ "6" | toInt }}"  .. is replaced with  key : {{ "6" | toInt }}
 	// ex-2 key : |
 	//						"{{ "true" | toBool }}" .. is replaced with key : {{ "true" | toBool }}
-	d1 := regexp.QuoteMeta(t.startDelim)
-	d2 := regexp.QuoteMeta(t.stopDelim)
+	d1 := regexp.QuoteMeta(t.config.StartDelim)
+	d2 := regexp.QuoteMeta(t.config.StopDelim)
 	re := regexp.MustCompile(`:\s+(?:[\|>][-]?\s+)?(?:['|"]\s*)?(` + d1 + `.*?\s+\|\s+(?:toInt|toBool)\s*` + d2 + `)(?:\s*['|"])?`)
 	glog.V(glogDefLvl).Infof("\n Pattern: %v\n", re.String())
 
@@ -259,8 +245,8 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 // processForAutoIndent converts any `autoindent` placeholders into `indent N` in the string.
 // The processed input string is returned.
 func (t *TemplateResolver) processForAutoIndent(str string) string {
-	d1 := regexp.QuoteMeta(t.startDelim)
-	d2 := regexp.QuoteMeta(t.stopDelim)
+	d1 := regexp.QuoteMeta(t.config.StartDelim)
+	d2 := regexp.QuoteMeta(t.config.StopDelim)
 	// Detect any templates that contain `autoindent` and capture the spaces before it.
 	// Later on, the amount of spaces will dictate the conversion of `autoindent` to `indent`.
 	// This is not a very strict regex as occasionally, a user will make a mistake such as
@@ -274,7 +260,7 @@ func (t *TemplateResolver) processForAutoIndent(str string) string {
 
 	processed := str
 	for _, submatch := range submatches {
-		numSpaces := len(submatch[1]) - int(t.AdditionalIndentation)
+		numSpaces := len(submatch[1]) - int(t.config.AdditionalIndentation)
 		matchStr := submatch[0]
 		newMatchStr := strings.Replace(matchStr, "autoindent", fmt.Sprintf("indent %d", numSpaces), 1)
 		processed = strings.Replace(processed, matchStr, newMatchStr, 1)
@@ -313,7 +299,7 @@ func yamlToJSON(y []byte) ([]byte, error) {
 }
 
 func (t *TemplateResolver) indent(spaces int, v string) string {
-	pad := strings.Repeat(" ", spaces+int(t.AdditionalIndentation))
+	pad := strings.Repeat(" ", spaces+int(t.config.AdditionalIndentation))
 	npad := "\n" + pad + strings.Replace(v, "\n", "\n"+pad, -1)
 
 	return strings.TrimSpace(npad)
