@@ -252,7 +252,7 @@ func (t *TemplateResolver) processForAutoIndent(str string) string {
 	// This is not a very strict regex as occasionally, a user will make a mistake such as
 	// `config: '{{ "hello\nworld" | autoindent }}'`. In that event, `autoindent` will change to
 	// `indent 1`, but `indent` properly handles this.
-	re := regexp.MustCompile(`( *)(?:.*` + d1 + `.*\| *autoindent *` + d2 + `)`)
+	re := regexp.MustCompile(`( *)(?:'|")?(` + d1 + `.*\| *autoindent *` + d2 + `)`)
 	glog.V(glogDefLvl).Infof("\n Pattern: %v\n", re.String())
 
 	submatches := re.FindAllStringSubmatch(str, -1)
@@ -261,7 +261,7 @@ func (t *TemplateResolver) processForAutoIndent(str string) string {
 	processed := str
 	for _, submatch := range submatches {
 		numSpaces := len(submatch[1]) - int(t.config.AdditionalIndentation)
-		matchStr := submatch[0]
+		matchStr := submatch[2]
 		newMatchStr := strings.Replace(matchStr, "autoindent", fmt.Sprintf("indent %d", numSpaces), 1)
 		processed = strings.Replace(processed, matchStr, newMatchStr, 1)
 	}
