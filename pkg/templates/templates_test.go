@@ -235,6 +235,13 @@ func TestResolveTemplate(t *testing.T) {
 			nil,
 		},
 		{
+			"spec:\n  autoindent-test: '{{ " + `"hello\nworld\nagain\n"` + " | autoindent }}'\n",
+			Config{AdditionalIndentation: 4},
+			struct{}{},
+			"spec:\n    autoindent-test: hello world again",
+			nil,
+		},
+		{
 			`test: '{{ printf "hello %s" "world" }}'`,
 			Config{},
 			123,
