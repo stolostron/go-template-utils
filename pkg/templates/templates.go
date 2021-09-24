@@ -4,6 +4,7 @@
 package templates
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ const (
 	defaultStartDelim = "{{"
 	defaultStopDelim  = "}}"
 	glogDefLvl        = 2
+	yamlIndentation   = 2
 )
 
 // Config is a struct containing configuration for the API. Some are required.
@@ -282,7 +284,15 @@ func jsonToYAML(j []byte) ([]byte, error) {
 	}
 
 	// Marshal this object into YAML
-	return yaml.Marshal(jsonObj) // nolint:wrapcheck
+	var b bytes.Buffer
+	yamlEncoder := yaml.NewEncoder(&b)
+	yamlEncoder.SetIndent(yamlIndentation)
+	err = yamlEncoder.Encode(&jsonObj)
+	if err != nil {
+		return nil, err // nolint:wrapcheck
+	}
+
+	return b.Bytes(), nil
 }
 
 // yamlToJSON converts YAML to JSON.
