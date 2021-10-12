@@ -30,15 +30,11 @@ func (t *TemplateResolver) fromSecret(namespace string, secretname string, key s
 
 		return "", err
 	}
-	glog.V(glogDefLvl).Infof("Secret is %v", secret)
-
 	keyVal := secret.Data[key]
-	glog.V(glogDefLvl).Infof("Secret Key:%v, Value: %v", key, keyVal)
 
 	// when using corev1 secret api, the data is returned decoded ,
 	// re-encododing to be able to use it in the referencing secret
 	sEnc := base64.StdEncoding.EncodeToString(keyVal)
-	glog.V(glogDefLvl).Infof("encoded secret Key:%v, Value: %v", key, sEnc)
 
 	return sEnc, nil
 }
