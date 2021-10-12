@@ -264,6 +264,17 @@ func TestResolveTemplate(t *testing.T) {
 				"MgdG8gYmUgb3ZlciA4MCBjaGFyYWN0ZXJzIHRvIHRlc3Qgc29tZXRoaW5n",
 			nil,
 		},
+		{
+			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
+			Config{DisabledFunctions: []string{"fromSecret"}},
+			nil,
+			"",
+			errors.New(
+				`failed to parse the template JSON string {"data":"{{ fromSecret \"testns\" ` +
+					`\"testsecret\" \"secretkey1\" }}"}: template: tmpl:1: function "fromSecret" ` +
+					`not defined`,
+			),
+		},
 	}
 
 	for _, test := range testcases {
