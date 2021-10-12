@@ -35,6 +35,8 @@ const (
 // to the indent method. This is useful in situations when the indentation should be relative
 // to a logical starting point in a YAML file.
 //
+// - DisabledFunctions is a slice of default template function names that should be disabled.
+//
 // - KubeAPIResourceList sets the cache for the Kubernetes API resources. If this is
 // set, template processing will not try to rediscover the Kubernetes API resources
 // needed for dynamic client/ GVK lookups.
@@ -49,6 +51,7 @@ const (
 // to "}}". If StartDelim is set, this must also be set.
 type Config struct {
 	AdditionalIndentation uint
+	DisabledFunctions     []string
 	KubeAPIResourceList   []*metav1.APIResourceList
 	LookupNamespace       string
 	StartDelim            string
@@ -167,6 +170,10 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 		"atoi":             atoi,
 		"toInt":            toInt,
 		"toBool":           toBool,
+	}
+
+	for _, funcName := range t.config.DisabledFunctions {
+		delete(funcMap, funcName)
 	}
 
 	// create template processor and Initialize function map
