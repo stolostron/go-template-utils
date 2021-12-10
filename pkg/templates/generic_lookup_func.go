@@ -44,7 +44,11 @@ func (t *TemplateResolver) getNamespace(funcName, namespace string) (string, err
 	return namespace, nil
 }
 
-func (t *TemplateResolver) lookup(apiversion string, kind string, namespace string, rsrcname string) (map[string]interface{}, error) {
+func (t *TemplateResolver) lookup(
+	apiversion string, kind string, namespace string, rsrcname string,
+) (
+	map[string]interface{}, error,
+) {
 	glog.V(glogDefLvl).Infof("lookup :  %v, %v, %v, %v", apiversion, kind, namespace, rsrcname)
 
 	result := make(map[string]interface{})
@@ -92,9 +96,15 @@ func (t *TemplateResolver) lookup(apiversion string, kind string, namespace stri
 }
 
 // this func finds the GVR for given GVK and returns a namespaced dynamic client.
-func (t *TemplateResolver) getDynamicClient(apiversion string, kind string, namespace string) (dynamic.ResourceInterface, error) {
+func (t *TemplateResolver) getDynamicClient(
+	apiversion string, kind string, namespace string,
+) (
+	dynamic.ResourceInterface, error,
+) {
 	var dclient dynamic.ResourceInterface
+
 	gvk := schema.FromAPIVersionAndKind(apiversion, kind)
+
 	glog.V(glogDefLvl).Infof("GVK is:  %v", gvk)
 
 	// we have GVK but We need GVR i.e resourcename for kind inorder to create dynamicClient
@@ -158,6 +168,7 @@ func (t *TemplateResolver) findAPIResource(gvk schema.GroupVersionKind) (metav1.
 	} else {
 		groupVersion = gvk.Version
 	}
+
 	glog.V(glogDefLvl).Infof("GroupVersion is: %v", groupVersion)
 
 	for _, apiResGroup := range apiResList {

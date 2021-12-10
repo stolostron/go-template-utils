@@ -30,7 +30,11 @@ func getTemplateResolver(c Config) *TemplateResolver {
 			Name: testns,
 		},
 	}
-	simpleClient.CoreV1().Namespaces().Create(context.TODO(), &ns, metav1.CreateOptions{})
+
+	_, err := simpleClient.CoreV1().Namespaces().Create(context.TODO(), &ns, metav1.CreateOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
 
 	// secret
 	secret := corev1.Secret{
@@ -43,7 +47,11 @@ func getTemplateResolver(c Config) *TemplateResolver {
 		},
 		Type: "Opaque",
 	}
-	simpleClient.CoreV1().Secrets(testns).Create(context.TODO(), &secret, metav1.CreateOptions{})
+
+	_, err = simpleClient.CoreV1().Secrets(testns).Create(context.TODO(), &secret, metav1.CreateOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
 
 	// configmap
 	configmap := corev1.ConfigMap{
@@ -55,7 +63,11 @@ func getTemplateResolver(c Config) *TemplateResolver {
 			"cmkey2": "cmkey2Val",
 		},
 	}
-	simpleClient.CoreV1().ConfigMaps(testns).Create(context.TODO(), &configmap, metav1.CreateOptions{})
+
+	_, err = simpleClient.CoreV1().ConfigMaps(testns).Create(context.TODO(), &configmap, metav1.CreateOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
 
 	resolver, err := NewResolver(&simpleClient, &rest.Config{}, c)
 	if err != nil {
@@ -93,12 +105,17 @@ func TestNewResolverFailures(t *testing.T) {
 		expectedErr string
 	}{
 		{nil, Config{}, "kubeClient must be a non-nil value"},
-		{&simpleClient, Config{StartDelim: "{{hub"}, "the configurations StartDelim and StopDelim cannot be set independently"},
+		{
+			&simpleClient,
+			Config{StartDelim: "{{hub"},
+			"the configurations StartDelim and StopDelim cannot be set independently",
+		},
 	}
 
 	for _, test := range testcases {
-		testName := fmt.Sprintf("expectedErr=%s", test.expectedErr)
 		test := test
+
+		testName := fmt.Sprintf("expectedErr=%s", test.expectedErr)
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 			_, err := NewResolver(test.kubeClient, &rest.Config{}, test.config)
@@ -115,6 +132,7 @@ func TestNewResolverFailures(t *testing.T) {
 
 func TestResolveTemplate(t *testing.T) {
 	t.Parallel()
+
 	testcases := []struct {
 		inputTmpl      string
 		config         Config
@@ -155,7 +173,10 @@ func TestResolveTemplate(t *testing.T) {
 			Config{},
 			nil,
 			"",
-			errors.New(`failed to parse the template JSON string {"test":"{{ blah \"asdf\"  }}"}: template: tmpl:1: function "blah" not defined`),
+			errors.New(
+				`failed to parse the template JSON string {"test":"{{ blah \"asdf\"  }}"}: template: tmpl:1: ` +
+					`function "blah" not defined`,
+			),
 		},
 		{
 			`config1: '{{ "testdata" | base64enc  }}'`,
@@ -280,18 +301,20 @@ func TestResolveTemplate(t *testing.T) {
 	for _, test := range testcases {
 		tmplStr, _ := yamlToJSON([]byte(test.inputTmpl))
 		resolver := getTemplateResolver(test.config)
-		val, err := resolver.ResolveTemplate(tmplStr, test.ctx)
 
+		val, err := resolver.ResolveTemplate(tmplStr, test.ctx)
 		if err != nil {
 			if test.expectedErr == nil {
 				t.Fatalf(err.Error())
 			}
+
 			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
 				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 			}
 		} else {
 			val, _ := jsonToYAML(val)
 			valStr := strings.TrimSuffix(string(val), "\n")
+
 			if valStr != test.expectedResult {
 				t.Fatalf("expected : %s , got : %s", test.expectedResult, val)
 			}
@@ -301,6 +324,7 @@ func TestResolveTemplate(t *testing.T) {
 
 func TestHasTemplate(t *testing.T) {
 	t.Parallel()
+
 	testcases := []struct {
 		input      string
 		startDelim string
@@ -325,6 +349,7 @@ func TestHasTemplate(t *testing.T) {
 
 func TestAtoi(t *testing.T) {
 	t.Parallel()
+
 	testcases := []struct {
 		input  string
 		result int
@@ -342,6 +367,7 @@ func TestAtoi(t *testing.T) {
 
 func TestToBool(t *testing.T) {
 	t.Parallel()
+
 	testcases := []struct {
 		input  string
 		result bool
@@ -364,6 +390,7 @@ func TestToBool(t *testing.T) {
 
 func TestProcessForDataTypes(t *testing.T) {
 	t.Parallel()
+
 	config := Config{StartDelim: "{{", StopDelim: "}}"}
 	hubConfig := Config{StartDelim: "{{hub", StopDelim: "hub}}"}
 	testcases := []struct {
@@ -392,6 +419,7 @@ func TestProcessForDataTypes(t *testing.T) {
 	for _, test := range testcases {
 		resolver := getTemplateResolver(test.config)
 		val := resolver.processForDataTypes(test.input)
+
 		if val != test.expectedResult {
 			t.Fatalf("expected : %v , got : %v", test.expectedResult, val)
 		}
@@ -400,6 +428,7 @@ func TestProcessForDataTypes(t *testing.T) {
 
 func TestGetNamespace(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		funcName            string
 		configuredNamespace string
@@ -428,6 +457,7 @@ func TestGetNamespace(t *testing.T) {
 
 	for _, test := range tests {
 		var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
+
 		config := Config{LookupNamespace: test.configuredNamespace}
 		resolver, _ := NewResolver(&simpleClient, &rest.Config{}, config)
 
@@ -485,6 +515,7 @@ spec:
 	// This example uses the fake Kubernetes client, but in production, use a
 	// real Kubernetes configuration and client
 	var k8sClient kubernetes.Interface = fake.NewSimpleClientset()
+
 	resolver, err := NewResolver(&k8sClient, &rest.Config{}, Config{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to instantiate the templatesResolver struct: %v\n", err)
@@ -492,6 +523,7 @@ spec:
 	}
 
 	templateContext := struct{ ClusterName string }{ClusterName: "cluster0001"}
+
 	policyResolvedJSON, err := resolver.ResolveTemplate(policyJSON, templateContext)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)
@@ -503,6 +535,7 @@ spec:
 
 	objTmpls := policyResolved.(map[string]interface{})["spec"].(map[string]interface{})["object-templates"]
 	objDef := objTmpls.([]interface{})[0].(map[string]interface{})["objectDefinition"]
+
 	data, ok := objDef.(map[string]interface{})["data"].(map[string]interface{})
 	if !ok {
 		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)

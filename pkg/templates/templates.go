@@ -85,6 +85,7 @@ func NewResolver(kubeClient *kubernetes.Interface, kubeConfig *rest.Config, conf
 		config.StartDelim = defaultStartDelim
 		config.StopDelim = defaultStopDelim
 	}
+
 	glog.V(glogDefLvl).Infof("Using the delimiters of %s and %s", config.StartDelim, config.StopDelim)
 
 	return &TemplateResolver{
@@ -121,6 +122,7 @@ func HasTemplate(templateStr []byte, startDelim string) bool {
 // error will be returned.
 func getValidContext(context interface{}) (ctx interface{}, _ error) {
 	var ctxType reflect.Type
+
 	if context == nil {
 		ctx = struct{}{}
 
@@ -201,12 +203,15 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	tmpl, err = tmpl.Parse(templateStr)
 	if err != nil {
 		tmplJSONStr := string(tmplJSON)
-		glog.Errorf("error parsing template JSON string %v,\n template str %v,\n error: %v", tmplJSONStr, templateStr, err)
+		glog.Errorf(
+			"error parsing template JSON string %v,\n template str %v,\n error: %v", tmplJSONStr, templateStr, err,
+		)
 
 		return []byte(""), fmt.Errorf("failed to parse the template JSON string %v: %w", tmplJSONStr, err)
 	}
 
 	var buf strings.Builder
+
 	err = tmpl.Execute(&buf, ctx)
 	if err != nil {
 		tmplJSONStr := string(tmplJSON)
@@ -227,6 +232,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	return resolvedTemplateBytes, nil
 }
 
+//nolint: wsl
 func (t *TemplateResolver) processForDataTypes(str string) string {
 	// the idea is to remove the quotes enclosing the template if it ends in toBool ot ToInt
 	// quotes around the resolved template forces the value to be a string..
@@ -239,7 +245,9 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 	//						"{{ "true" | toBool }}" .. is replaced with key : {{ "true" | toBool }}
 	d1 := regexp.QuoteMeta(t.config.StartDelim)
 	d2 := regexp.QuoteMeta(t.config.StopDelim)
-	re := regexp.MustCompile(`:\s+(?:[\|>][-]?\s+)?(?:['|"]\s*)?(` + d1 + `.*?\s+\|\s+(?:toInt|toBool)\s*` + d2 + `)(?:\s*['|"])?`)
+	re := regexp.MustCompile(
+		`:\s+(?:[\|>][-]?\s+)?(?:['|"]\s*)?(` + d1 + `.*?\s+\|\s+(?:toInt|toBool)\s*` + d2 + `)(?:\s*['|"])?`,
+	)
 	glog.V(glogDefLvl).Infof("\n Pattern: %v\n", re.String())
 
 	submatchall := re.FindAllStringSubmatch(str, -1)
@@ -265,9 +273,10 @@ func (t *TemplateResolver) processForAutoIndent(str string) string {
 	glog.V(glogDefLvl).Infof("\n Pattern: %v\n", re.String())
 
 	submatches := re.FindAllStringSubmatch(str, -1)
+	processed := str
+
 	glog.V(glogDefLvl).Infof("\n All Submatches:\n%v", submatches)
 
-	processed := str
 	for _, submatch := range submatches {
 		numSpaces := len(submatch[1]) - int(t.config.AdditionalIndentation)
 		matchStr := submatch[2]
@@ -285,6 +294,7 @@ func (t *TemplateResolver) processForAutoIndent(str string) string {
 func jsonToYAML(j []byte) ([]byte, error) {
 	// Convert the JSON to an object
 	var jsonObj interface{}
+
 	err := yaml.Unmarshal(j, &jsonObj)
 	if err != nil {
 		return nil, err // nolint:wrapcheck
@@ -294,6 +304,7 @@ func jsonToYAML(j []byte) ([]byte, error) {
 	var b bytes.Buffer
 	yamlEncoder := yaml.NewEncoder(&b)
 	yamlEncoder.SetIndent(yamlIndentation)
+
 	err = yamlEncoder.Encode(&jsonObj)
 	if err != nil {
 		return nil, err // nolint:wrapcheck
@@ -306,6 +317,7 @@ func jsonToYAML(j []byte) ([]byte, error) {
 func yamlToJSON(y []byte) ([]byte, error) {
 	// Convert the YAML to an object.
 	var yamlObj interface{}
+
 	err := yaml.Unmarshal(y, &yamlObj)
 	if err != nil {
 		return nil, err // nolint:wrapcheck
