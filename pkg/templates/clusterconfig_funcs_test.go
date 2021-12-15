@@ -12,7 +12,9 @@ import (
 
 func TestFromClusterClaimNsError(t *testing.T) {
 	t.Parallel()
+
 	var kubeClient kubernetes.Interface = fake.NewSimpleClientset()
+
 	kubeConfig := &rest.Config{}
 	config := Config{LookupNamespace: "my-policies"}
 	resolver, _ := NewResolver(&kubeClient, kubeConfig, config)

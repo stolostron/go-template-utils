@@ -30,6 +30,7 @@ func (t *TemplateResolver) fromSecret(namespace string, secretname string, key s
 
 		return "", err
 	}
+
 	keyVal := secret.Data[key]
 
 	// when using corev1 secret api, the data is returned decoded ,
@@ -57,6 +58,7 @@ func (t *TemplateResolver) fromConfigMap(namespace string, cmapname string, key 
 
 		return "", err
 	}
+
 	glog.V(glogDefLvl).Infof("Configmap is %v", configmap)
 
 	keyVal := configmap.Data[key]

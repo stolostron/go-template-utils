@@ -11,6 +11,7 @@ import (
 
 func TestFromSecret(t *testing.T) {
 	t.Parallel()
+
 	testcases := []struct {
 		inputNs         string
 		inputCMname     string
@@ -49,6 +50,7 @@ func TestFromSecret(t *testing.T) {
 			if test.expectedErr == nil {
 				t.Fatalf(err.Error())
 			}
+
 			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
 				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 			}
@@ -60,6 +62,7 @@ func TestFromSecret(t *testing.T) {
 
 func TestFromConfigMap(t *testing.T) {
 	t.Parallel()
+
 	testcases := []struct {
 		inputNs         string
 		inputCMname     string
@@ -71,7 +74,14 @@ func TestFromConfigMap(t *testing.T) {
 		{"testns", "testconfigmap", "cmkey1", "", "cmkey1Val", nil},
 		{"testns", "testconfigmap", "cmkey2", "", "cmkey2Val", nil},
 		{"testns", "testconfigmap", "cmkey2", "testns", "cmkey2Val", nil},
-		{"testns", "idontexist", "cmkey1", "", "cmkey1Val", errors.New(`failed getting the ConfigMap idontexist from testns: configmaps "idontexist" not found`)},
+		{
+			"testns",
+			"idontexist",
+			"cmkey1",
+			"",
+			"cmkey1Val",
+			errors.New(`failed getting the ConfigMap idontexist from testns: configmaps "idontexist" not found`),
+		},
 		{"testns", "testconfigmap", "idontexist", "", "", nil},
 		{
 			"testns",
@@ -91,6 +101,7 @@ func TestFromConfigMap(t *testing.T) {
 			if test.expectedErr == nil {
 				t.Fatalf(err.Error())
 			}
+
 			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
 				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 			}
