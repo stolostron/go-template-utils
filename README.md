@@ -48,9 +48,11 @@ Additionally, the following custom functions are supported:
 - `fromConfigMap` returns the value of a key inside a `ConfigMap`. For example,
   `{{ fromConfigMap "namespace" "config-map-name" "key" }}`.
 - `fromSecret` returns the value of a key inside a `Secret`. For example,
-  `{{ fromSecret "namespace" "secret-name" "key" }}`.
+  `{{ fromSecret "namespace" "secret-name" "key" }}`. If the `EncryptionMode` is set
+  to `EncryptionEnabled`, this will return an encrypted value.
 - `lookup` is a generic lookup function for any Kubernetes object. For example,
   `{{ (lookup "v1" "Secret" "namespace" "name").Data.key }}`.
+- `protect` is a function that encrypts any string using AES-CBC.
 - `toBool` - parses an input boolean string converts it to a boolean but also
   removes any quotes around the map value. For example,
   `key: "{{ "true" | toBool }}"` => `key: true`.

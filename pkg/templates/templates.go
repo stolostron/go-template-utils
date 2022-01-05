@@ -26,7 +26,24 @@ const (
 	defaultStartDelim = "{{"
 	defaultStopDelim  = "}}"
 	glogDefLvl        = 2
+	protectedPrefix   = "$ocm_encrypted:"
 	yamlIndentation   = 2
+)
+
+type EncryptionMode uint8
+
+const (
+	// Disables the "protect" method.
+	EncryptionDisabled EncryptionMode = iota
+	// Enables the "protect" method and "fromSecret" returns encrypted content.
+	EncryptionEnabled
+	// Equivalent to "EncryptionDisabled" until decryption is implemented.
+	DecryptionEnabled
+)
+
+var (
+	ErrAESKeyNotSet  = errors.New("AESKey must be set to use this encryption mode")
+	ErrInvalidAESKey = errors.New("the AES key is invalid")
 )
 
 // Config is a struct containing configuration for the API. Some are required.
@@ -35,14 +52,22 @@ const (
 // to the indent method. This is useful in situations when the indentation should be relative
 // to a logical starting point in a YAML file.
 //
-// - DisabledFunctions is a slice of default template function names that should be disabled.
+// - AESKey is an AES key (e.g. AES-256) to use for the "protect" template function and decrypting
+// such values. If it's not specified, the "protect" template function will be undefined.
 //
+// - DisabledFunctions is a slice of default template function names that should be disabled.
 // - KubeAPIResourceList sets the cache for the Kubernetes API resources. If this is
 // set, template processing will not try to rediscover the Kubernetes API resources
 // needed for dynamic client/ GVK lookups.
 //
+// - EncryptionMode determines the encryption mode to use. See the package-level EncryptionMode variables to choose
+// from.
+//
 // - LookupNamespace is the namespace to restrict "lookup" template functions (e.g. fromConfigMap)
 // to. If this is not set (i.e. an empty string), then all namespaces can be used.
+//
+// - Salt is the value to prefix the plaintext value before it is encrypted. When decrypting, the salt is removed
+// from the decrypted value.
 //
 // - StartDelim customizes the start delimiter used to distinguish a template action. This defaults
 // to "{{". If StopDelim is set, this must also be set.
@@ -51,9 +76,12 @@ const (
 // to "}}". If StartDelim is set, this must also be set.
 type Config struct {
 	AdditionalIndentation uint
+	AESKey                []byte
 	DisabledFunctions     []string
+	EncryptionMode        EncryptionMode
 	KubeAPIResourceList   []*metav1.APIResourceList
 	LookupNamespace       string
+	Salt                  string
 	StartDelim            string
 	StopDelim             string
 }
@@ -74,6 +102,11 @@ type TemplateResolver struct {
 func NewResolver(kubeClient *kubernetes.Interface, kubeConfig *rest.Config, config Config) (*TemplateResolver, error) {
 	if kubeClient == nil {
 		return nil, fmt.Errorf("kubeClient must be a non-nil value")
+	}
+
+	mode := config.EncryptionMode
+	if (mode == EncryptionEnabled || mode == DecryptionEnabled) && config.AESKey == nil {
+		return nil, ErrAESKeyNotSet
 	}
 
 	if (config.StartDelim != "" && config.StopDelim == "") || (config.StartDelim == "" && config.StopDelim != "") {
@@ -172,6 +205,11 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 		"atoi":             atoi,
 		"toInt":            toInt,
 		"toBool":           toBool,
+	}
+
+	if t.config.EncryptionMode == EncryptionEnabled {
+		funcMap["fromSecret"] = t.fromSecretProtected
+		funcMap["protect"] = t.protect
 	}
 
 	for _, funcName := range t.config.DisabledFunctions {
