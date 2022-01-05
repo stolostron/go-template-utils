@@ -65,7 +65,7 @@ linters-settings:
     # default is false: such cases aren't reported by default.
     check-blank: false
   gci:
-    local-prefixes: github.com/open-cluster-management/go-template-utils
+    local-prefixes: github.com/stolostron/go-template-utils
   govet:
     # report about shadowed variables
     check-shadowing: false
