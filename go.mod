@@ -1,4 +1,4 @@
-module github.com/open-cluster-management/go-template-utils
+module github.com/stolostron/go-template-utils
 
 go 1.16
 
