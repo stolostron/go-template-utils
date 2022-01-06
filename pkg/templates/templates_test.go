@@ -4,6 +4,7 @@
 package templates
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -110,6 +111,16 @@ func TestNewResolverFailures(t *testing.T) {
 			Config{StartDelim: "{{hub"},
 			"the configurations StartDelim and StopDelim cannot be set independently",
 		},
+		{
+			&simpleClient,
+			Config{EncryptionMode: EncryptionEnabled},
+			"AESKey must be set to use this encryption mode",
+		},
+		{
+			&simpleClient,
+			Config{EncryptionMode: DecryptionEnabled},
+			"AESKey must be set to use this encryption mode",
+		},
 	}
 
 	for _, test := range testcases {
@@ -132,6 +143,10 @@ func TestNewResolverFailures(t *testing.T) {
 
 func TestResolveTemplate(t *testing.T) {
 	t.Parallel()
+
+	// Generate a 256 bit for AES-256. It can't be random so that the test results are deterministic.
+	keyBytesSize := 256 / 8
+	key := bytes.Repeat([]byte{byte('A')}, keyBytesSize)
 
 	testcases := []struct {
 		inputTmpl      string
@@ -263,6 +278,34 @@ func TestResolveTemplate(t *testing.T) {
 			nil,
 		},
 		{
+			`value: '{{ "Raleigh" | protect }}'`,
+			Config{AESKey: key, EncryptionMode: EncryptionEnabled},
+			struct{}{},
+			"value: $ocm_encrypted:rvoW8XuFaBeHdSN4DEaTiA==",
+			nil,
+		},
+		{
+			`value: '{{ "Raleigh" | protect }}'`,
+			Config{AESKey: key, EncryptionMode: EncryptionEnabled, Salt: "namespace.policy"},
+			struct{}{},
+			"value: $ocm_encrypted:4Zq4Jugv6XBCGNRrdO/lLs9r9yyAEIMdqycRlVbLaME=",
+			nil,
+		},
+		{
+			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
+			Config{AESKey: key, EncryptionMode: EncryptionEnabled, Salt: "namespace.policy"},
+			nil,
+			"data: $ocm_encrypted:4Zq4Jugv6XBCGNRrdO/lLhW9pWA1Y2z28k3Xdi/6lOy8Zjovmx816w+I8ezkp+ky",
+			nil,
+		},
+		{
+			`value: '{{ "" | protect }}'`,
+			Config{AESKey: key, EncryptionMode: EncryptionEnabled, Salt: "namespace.policy"},
+			struct{}{},
+			`value: ""`,
+			nil,
+		},
+		{
 			`test: '{{ printf "hello %s" "world" }}'`,
 			Config{},
 			123,
@@ -294,6 +337,17 @@ func TestResolveTemplate(t *testing.T) {
 				`failed to parse the template JSON string {"data":"{{ fromSecret \"testns\" ` +
 					`\"testsecret\" \"secretkey1\" }}"}: template: tmpl:1: function "fromSecret" ` +
 					`not defined`,
+			),
+		},
+		{
+			`value: '{{ "Raleigh" | protect }}'`,
+			Config{AESKey: []byte{byte('A')}, EncryptionMode: EncryptionEnabled},
+			nil,
+			"",
+			errors.New(
+				`failed to resolve the template {"value":"{{ \"Raleigh\" | protect }}"}: template: tmpl:1:23: ` +
+					`executing "tmpl" at <protect>: error calling protect: the AES key is invalid: crypto/aes: ` +
+					`invalid key size 1`,
 			),
 		},
 	}

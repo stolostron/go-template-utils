@@ -4,7 +4,10 @@
 package templates
 
 import (
+	"bytes"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	base64 "encoding/base64"
 	"fmt"
 
@@ -38,6 +41,16 @@ func (t *TemplateResolver) fromSecret(namespace string, secretname string, key s
 	sEnc := base64.StdEncoding.EncodeToString(keyVal)
 
 	return sEnc, nil
+}
+
+// fromSecretProtected wraps fromSecret and encrypts the output value using the "protect" method.
+func (t *TemplateResolver) fromSecretProtected(namespace string, secretName string, key string) (string, error) {
+	value, err := t.fromSecret(namespace, secretName, key)
+	if err != nil {
+		return "", err
+	}
+
+	return t.protect(value)
 }
 
 // retrieves value for the key in the given Configmap, namespace.
@@ -80,4 +93,56 @@ func base64decode(v string) string {
 	}
 
 	return string(data)
+}
+
+// protect encrypts the input value using AES-CBC. If a salt is set on t.config.Salt, it will prefix the plaintext
+// value before it is encrypted. The returned value is in the format of `$ocm_encrypted:<base64 of encrypted string>`.
+// An error is returned if the AES key is invalid.
+func (t *TemplateResolver) protect(value string) (string, error) {
+	if value == "" {
+		return value, nil
+	}
+
+	block, err := aes.NewCipher(t.config.AESKey)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrInvalidAESKey, err)
+	}
+
+	blockSize := block.BlockSize()
+	// The initialization vector is meant to be something unpredictable but known to both parties. It is mixed in with
+	// the first block that is encrypted. Subsequent blocks mix with the cipher text from the previous block instead of
+	// the initialization vector. Ideally this would be unique per message so that the same message encrypted with the
+	// same key would appear different but that is impractical in this situation. This is mostly mitigated with a salt
+	// added to the plaintext value.
+	iv := t.config.AESKey[:blockSize]
+	blockMode := cipher.NewCBCEncrypter(block, iv)
+
+	// Prefix the salt to the plaintext value and pad it so that it matches the block size before encrypting it.
+	valueBytes := []byte(t.config.Salt + value)
+	valueBytes = pkcs7Pad(valueBytes, blockSize)
+
+	encryptedValue := make([]byte, len(valueBytes))
+	blockMode.CryptBlocks(encryptedValue, valueBytes)
+
+	return protectedPrefix + base64.StdEncoding.EncodeToString(encryptedValue), nil
+}
+
+// pkcs7Pad right-pads the given value to match the input block size for AES encryption. The padding
+// ranges from 1 byte to the number of bytes equal to the block size.
+// Inspired from https://gist.github.com/huyinghuan/7bf174017bf54efb91ece04a48589b22.
+func pkcs7Pad(value []byte, blockSize int) []byte {
+	// Determine the amount of padding that is required in order to make the plaintext value
+	// divisible by the block size. If it is already divisible by the block size, then the padding
+	// amount will be a whole block. This is to ensure there is always padding.
+	paddingAmount := blockSize - (len(value) % blockSize)
+	// Create a new byte slice that can contain the plaintext value and the padding.
+	paddedValue := make([]byte, len(value)+paddingAmount)
+	// Copy the original value into the new byte slice.
+	copy(paddedValue, value)
+	// Add the padding to the new byte slice. Each padding byte is the byte representation of the
+	// padding amount. This ensures that the last byte of the padded plaintext value refers to the
+	// amount of padding to remove when unpadded.
+	copy(paddedValue[len(value):], bytes.Repeat([]byte{byte(paddingAmount)}, paddingAmount))
+
+	return paddedValue
 }
