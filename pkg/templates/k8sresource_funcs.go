@@ -108,17 +108,16 @@ func (t *TemplateResolver) protect(value string) (string, error) {
 		return "", fmt.Errorf("%w: %v", ErrInvalidAESKey, err)
 	}
 
-	blockSize := block.BlockSize()
-	// The initialization vector is meant to be something unpredictable but known to both parties. It is mixed in with
-	// the first block that is encrypted. Subsequent blocks mix with the cipher text from the previous block instead of
-	// the initialization vector. Ideally this would be unique per message so that the same message encrypted with the
-	// same key would appear different but that is impractical in this situation. This is mostly mitigated with a salt
-	// added to the plaintext value.
-	iv := t.config.AESKey[:blockSize]
-	blockMode := cipher.NewCBCEncrypter(block, iv)
+	// This is already validated in the NewResolver method, but is checked again in case that method was bypassed
+	// to avoid a panic.
+	if len(t.config.InitializationVector) != IVSize {
+		return "", ErrInvalidIV
+	}
 
-	// Prefix the salt to the plaintext value and pad it so that it matches the block size before encrypting it.
-	valueBytes := []byte(t.config.Salt + value)
+	blockSize := block.BlockSize()
+	blockMode := cipher.NewCBCEncrypter(block, t.config.InitializationVector)
+
+	valueBytes := []byte(value)
 	valueBytes = pkcs7Pad(valueBytes, blockSize)
 
 	encryptedValue := make([]byte, len(valueBytes))

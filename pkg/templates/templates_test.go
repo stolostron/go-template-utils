@@ -121,6 +121,11 @@ func TestNewResolverFailures(t *testing.T) {
 			Config{EncryptionMode: DecryptionEnabled},
 			"AESKey must be set to use this encryption mode",
 		},
+		{
+			&simpleClient,
+			Config{EncryptionMode: EncryptionEnabled, AESKey: bytes.Repeat([]byte{byte('A')}, 256/8)},
+			"InitializationVector must be 128 bits",
+		},
 	}
 
 	for _, test := range testcases {
@@ -147,6 +152,7 @@ func TestResolveTemplate(t *testing.T) {
 	// Generate a 256 bit for AES-256. It can't be random so that the test results are deterministic.
 	keyBytesSize := 256 / 8
 	key := bytes.Repeat([]byte{byte('A')}, keyBytesSize)
+	iv := bytes.Repeat([]byte{byte('I')}, IVSize)
 
 	testcases := []struct {
 		inputTmpl      string
@@ -279,28 +285,21 @@ func TestResolveTemplate(t *testing.T) {
 		},
 		{
 			`value: '{{ "Raleigh" | protect }}'`,
-			Config{AESKey: key, EncryptionMode: EncryptionEnabled},
+			Config{AESKey: key, EncryptionMode: EncryptionEnabled, InitializationVector: iv},
 			struct{}{},
-			"value: $ocm_encrypted:rvoW8XuFaBeHdSN4DEaTiA==",
-			nil,
-		},
-		{
-			`value: '{{ "Raleigh" | protect }}'`,
-			Config{AESKey: key, EncryptionMode: EncryptionEnabled, Salt: "namespace.policy"},
-			struct{}{},
-			"value: $ocm_encrypted:4Zq4Jugv6XBCGNRrdO/lLs9r9yyAEIMdqycRlVbLaME=",
+			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
 			nil,
 		},
 		{
 			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
-			Config{AESKey: key, EncryptionMode: EncryptionEnabled, Salt: "namespace.policy"},
+			Config{AESKey: key, EncryptionMode: EncryptionEnabled, InitializationVector: iv},
 			nil,
-			"data: $ocm_encrypted:4Zq4Jugv6XBCGNRrdO/lLhW9pWA1Y2z28k3Xdi/6lOy8Zjovmx816w+I8ezkp+ky",
+			"data: $ocm_encrypted:c6PNhsEfbM9NRUqeJ+HbcECCyVdFnRbLdd+n8r1fS9M=",
 			nil,
 		},
 		{
 			`value: '{{ "" | protect }}'`,
-			Config{AESKey: key, EncryptionMode: EncryptionEnabled, Salt: "namespace.policy"},
+			Config{AESKey: key, EncryptionMode: EncryptionEnabled, InitializationVector: iv},
 			struct{}{},
 			`value: ""`,
 			nil,
@@ -341,7 +340,7 @@ func TestResolveTemplate(t *testing.T) {
 		},
 		{
 			`value: '{{ "Raleigh" | protect }}'`,
-			Config{AESKey: []byte{byte('A')}, EncryptionMode: EncryptionEnabled},
+			Config{AESKey: []byte{byte('A')}, EncryptionMode: EncryptionEnabled, InitializationVector: iv},
 			nil,
 			"",
 			errors.New(
