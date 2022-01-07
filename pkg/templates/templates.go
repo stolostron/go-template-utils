@@ -34,19 +34,23 @@ const (
 type EncryptionMode uint8
 
 const (
-	// Disables the "protect" method.
+	// Disables the "protect" template function.
 	EncryptionDisabled EncryptionMode = iota
-	// Enables the "protect" method and "fromSecret" returns encrypted content.
+	// Enables the "protect" template function and "fromSecret" returns encrypted content.
 	EncryptionEnabled
-	// Equivalent to "EncryptionDisabled" until decryption is implemented.
+	// Enables automatic decrypting of encrypted strings. With this mode, the "protect" template function is not
+	// available and "fromSecret" does not return encrypted content.
 	DecryptionEnabled
 )
 
 var (
-	ErrAESKeyNotSet = errors.New("AESKey must be set to use this encryption mode")
+	ErrAESKeyNotSet          = errors.New("AESKey must be set to use this encryption mode")
+	ErrInvalidAESKey         = errors.New("the AES key is invalid")
+	ErrInvalidB64OfEncrypted = errors.New("the encrypted string is invalid base64")
 	// nolint: golint
-	ErrInvalidIV     = errors.New("InitializationVector must be 128 bits")
-	ErrInvalidAESKey = errors.New("the AES key is invalid")
+	ErrInvalidIV           = errors.New("InitializationVector must be 128 bits")
+	ErrInvalidPKCS7Padding = errors.New("invalid PCKS7 padding")
+	ErrProtectNotEnabled   = errors.New("the protect template function is not enabled in this mode")
 )
 
 // Config is a struct containing configuration for the API. Some are required.
@@ -142,19 +146,22 @@ func NewResolver(kubeClient *kubernetes.Interface, kubeConfig *rest.Config, conf
 	}, nil
 }
 
-// HasTemplate performs a simple check for the template start delimiter to
-// indicate if the input byte slice has a template. If the startDelim argument is
-// an empty string, the default start delimiter of "{{" will be used.
-func HasTemplate(templateStr []byte, startDelim string) bool {
+// HasTemplate performs a simple check for the template start delimiter or the "$ocm_encrypted" prefix
+// (checkForEncrypted must be set to true) to indicate if the input byte slice has a template. If the startDelim
+// argument is an empty string, the default start delimiter of "{{" will be used.
+func HasTemplate(template []byte, startDelim string, checkForEncrypted bool) bool {
 	if startDelim == "" {
 		startDelim = defaultStartDelim
 	}
 
+	templateStr := string(template)
 	glog.V(glogDefLvl).Infof("HasTemplate template str:  %v", templateStr)
 	glog.V(glogDefLvl).Infof("Checking for the start delimiter:  %s", startDelim)
 
 	hasTemplate := false
-	if strings.Contains(string(templateStr), startDelim) {
+	if strings.Contains(templateStr, startDelim) {
+		hasTemplate = true
+	} else if checkForEncrypted && strings.Contains(templateStr, protectedPrefix) {
 		hasTemplate = true
 	}
 
@@ -224,6 +231,9 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	if t.config.EncryptionMode == EncryptionEnabled {
 		funcMap["fromSecret"] = t.fromSecretProtected
 		funcMap["protect"] = t.protect
+	} else {
+		// In other encryption modes, return a readable error if the protect template function is accidentally used.
+		funcMap["protect"] = func(s string) (string, error) { return "", ErrProtectNotEnabled }
 	}
 
 	for _, funcName := range t.config.DisabledFunctions {
@@ -241,6 +251,13 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 
 	templateStr := string(templateYAMLBytes)
 	glog.V(glogDefLvl).Infof("Initial template str to resolve : %v ", templateStr)
+
+	if t.config.EncryptionMode == DecryptionEnabled {
+		templateStr, err = t.processEncryptedStrs(templateStr)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// process for int or bool
 	if strings.Contains(templateStr, "toInt") || strings.Contains(templateStr, "toBool") {
@@ -339,6 +356,30 @@ func (t *TemplateResolver) processForAutoIndent(str string) string {
 	glog.V(glogDefLvl).Infof("\n processed data :\n%v", processed)
 
 	return processed
+}
+
+// processEncryptedStrs replaces all encrypted strings with the decrypted values.
+func (t *TemplateResolver) processEncryptedStrs(templateStr string) (string, error) {
+	// This catching any encrypted string in the format of $ocm_encrypted:<base64 of the encrypted value>.
+	re := regexp.MustCompile(regexp.QuoteMeta(protectedPrefix) + "([a-zA-Z0-9+/=]+)")
+	// Each submatch will have index 0 be the whole match and index 1 as the base64 of the encrypted value.
+	submatches := re.FindAllStringSubmatch(templateStr, -1)
+
+	processed := templateStr
+
+	for _, submatch := range submatches {
+		match := submatch[0]
+		encryptedValue := submatch[1]
+
+		decryptedValue, err := t.decrypt(encryptedValue)
+		if err != nil {
+			return "", fmt.Errorf("decryption of %s failed: %w", match, err)
+		}
+
+		processed = strings.Replace(processed, match, decryptedValue, 1)
+	}
+
+	return processed, nil
 }
 
 // jsonToYAML converts JSON to YAML using yaml.v3. This is important since
