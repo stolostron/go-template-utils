@@ -8,7 +8,7 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	base64 "encoding/base64"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/golang/glog"
@@ -126,6 +126,38 @@ func (t *TemplateResolver) protect(value string) (string, error) {
 	return protectedPrefix + base64.StdEncoding.EncodeToString(encryptedValue), nil
 }
 
+// decrypt will decrypt a string that was encrypted using the protect method. An error is returned if the base64 or
+// the AES key is invalid.
+func (t *TemplateResolver) decrypt(value string) (string, error) {
+	decodedValue, err := base64.StdEncoding.DecodeString(value)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w: %v", value, ErrInvalidB64OfEncrypted, err)
+	}
+
+	block, err := aes.NewCipher(t.config.AESKey)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrInvalidAESKey, err)
+	}
+
+	// This is already validated in the NewResolver method, but is checked again in case that method was bypassed
+	// to avoid a panic.
+	if len(t.config.InitializationVector) != IVSize {
+		return "", ErrInvalidIV
+	}
+
+	blockMode := cipher.NewCBCDecrypter(block, t.config.InitializationVector)
+
+	decryptedValue := make([]byte, len(decodedValue))
+	blockMode.CryptBlocks(decryptedValue, decodedValue)
+
+	decryptedValue, err = pkcs7Unpad(decryptedValue)
+	if err != nil {
+		return "", err
+	}
+
+	return string(decryptedValue), nil
+}
+
 // pkcs7Pad right-pads the given value to match the input block size for AES encryption. The padding
 // ranges from 1 byte to the number of bytes equal to the block size.
 // Inspired from https://gist.github.com/huyinghuan/7bf174017bf54efb91ece04a48589b22.
@@ -144,4 +176,30 @@ func pkcs7Pad(value []byte, blockSize int) []byte {
 	copy(paddedValue[len(value):], bytes.Repeat([]byte{byte(paddingAmount)}, paddingAmount))
 
 	return paddedValue
+}
+
+// pkcs7Unpad unpads data from the given padded value. The last byte must be the number of bytes of padding to remove.
+// The ErrInvalidPKCS7Padding error is returned if the value does not have valid padding. This could happen if the user
+// did not use the "protect" method to encrypt the data and provided an invalid value.
+// Inspired from https://gist.github.com/huyinghuan/7bf174017bf54efb91ece04a48589b22.
+func pkcs7Unpad(paddedValue []byte) ([]byte, error) {
+	// Determine the amount of padding bytes to remove by checking the value of the last byte.
+	lastByte := paddedValue[len(paddedValue)-1]
+	numPaddingBytes := int(lastByte)
+
+	// Verify that the last byte is a valid padding length.
+	if numPaddingBytes == 0 || numPaddingBytes > len(paddedValue) {
+		return nil, fmt.Errorf("%w: the padding length is invalid", ErrInvalidPKCS7Padding)
+	}
+
+	// Verify that the declared padding is valid by checking that the padding is all the same byte.
+	// i > 1 is the conditional to avoid checking that the last byte is equal to itself.
+	for i := numPaddingBytes; i > 1; i-- {
+		if paddedValue[len(paddedValue)-i] != lastByte {
+			return nil, fmt.Errorf("%w: not all the padding bytes match", ErrInvalidPKCS7Padding)
+		}
+	}
+
+	// Remove the padding from the byte slice.
+	return paddedValue[:len(paddedValue)-numPaddingBytes], nil
 }

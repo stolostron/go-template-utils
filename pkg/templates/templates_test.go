@@ -305,6 +305,34 @@ func TestResolveTemplate(t *testing.T) {
 			nil,
 		},
 		{
+			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
+			Config{AESKey: key, EncryptionMode: DecryptionEnabled, InitializationVector: iv},
+			struct{}{},
+			"value: Raleigh",
+			nil,
+		},
+		{
+			"value: Raleigh", // No encryption string to decrypt
+			Config{AESKey: key, EncryptionMode: DecryptionEnabled, InitializationVector: iv},
+			struct{}{},
+			"value: Raleigh",
+			nil,
+		},
+		{
+			"value: $ocm_encrypted:😱😱😱😱", // Not Base64
+			Config{AESKey: key, EncryptionMode: DecryptionEnabled, InitializationVector: iv},
+			struct{}{},
+			`value: "$ocm_encrypted:\U0001F631\U0001F631\U0001F631\U0001F631"`,
+			nil,
+		},
+		{
+			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==", // Will not be decrypted because of the encryption mode
+			Config{AESKey: key, EncryptionMode: EncryptionEnabled, InitializationVector: iv},
+			struct{}{},
+			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
+			nil,
+		},
+		{
 			`test: '{{ printf "hello %s" "world" }}'`,
 			Config{},
 			123,
@@ -349,6 +377,68 @@ func TestResolveTemplate(t *testing.T) {
 					`invalid key size 1`,
 			),
 		},
+		{
+			`value: '{{ "Raleigh" | protect }}'`,
+			Config{AESKey: key, EncryptionMode: EncryptionDisabled, InitializationVector: iv},
+			struct{}{},
+			"",
+			errors.New(
+				`failed to resolve the template {"value":"{{ \"Raleigh\" | protect }}"}: template: tmpl:1:23: ` +
+					`executing "tmpl" at <protect>: error calling protect: the protect template function is not ` +
+					`enabled in this mode`,
+			),
+		},
+		{
+			`value: '{{ "Raleigh" | protect }}'`,
+			Config{AESKey: key, EncryptionMode: DecryptionEnabled, InitializationVector: iv},
+			struct{}{},
+			"",
+			errors.New(
+				`failed to resolve the template {"value":"{{ \"Raleigh\" | protect }}"}: template: tmpl:1:23: ` +
+					`executing "tmpl" at <protect>: error calling protect: the protect template function is not ` +
+					`enabled in this mode`,
+			),
+		},
+		{
+			"value: $ocm_encrypted:==========",
+			Config{AESKey: key, EncryptionMode: DecryptionEnabled, InitializationVector: iv},
+			struct{}{},
+			"",
+			errors.New(
+				"decryption of $ocm_encrypted:========== failed: ==========: the encrypted string is invalid " +
+					"base64: illegal base64 data at input byte 0",
+			),
+		},
+		{
+			"value: $ocm_encrypted:4Zq4Jugv6XBCGNRrdO/lLs9r9yyAEIMdqycRlVbLaME=",
+			Config{AESKey: []byte{byte('A')}, EncryptionMode: DecryptionEnabled, InitializationVector: iv},
+			struct{}{},
+			"",
+			errors.New(
+				`decryption of $ocm_encrypted:4Zq4Jugv6XBCGNRrdO/lLs9r9yyAEIMdqycRlVbLaME= failed: the AES key is ` +
+					`invalid: crypto/aes: invalid key size 1`,
+			),
+		},
+		{
+			"value: $ocm_encrypted:mXIueuA3HvfBeobZZ0LdzA==",
+			Config{AESKey: key, EncryptionMode: DecryptionEnabled, InitializationVector: iv},
+			struct{}{},
+			"",
+			errors.New(
+				`decryption of $ocm_encrypted:mXIueuA3HvfBeobZZ0LdzA== failed: invalid PCKS7 padding: the padding ` +
+					`length is invalid`,
+			),
+		},
+		{
+			"value: $ocm_encrypted:/X3LA2SczM7eqOLhZKAZXg==",
+			Config{AESKey: key, EncryptionMode: DecryptionEnabled, InitializationVector: iv},
+			struct{}{},
+			"",
+			errors.New(
+				`decryption of $ocm_encrypted:/X3LA2SczM7eqOLhZKAZXg== failed: invalid PCKS7 padding: not all the ` +
+					`padding bytes match`,
+			),
+		},
 	}
 
 	for _, test := range testcases {
@@ -379,21 +469,24 @@ func TestHasTemplate(t *testing.T) {
 	t.Parallel()
 
 	testcases := []struct {
-		input      string
-		startDelim string
-		result     bool
+		input             string
+		startDelim        string
+		checkForEncrypted bool
+		result            bool
 	}{
-		{" I am a sample template ", "{{", false},
-		{" I am a sample template ", "", false},
-		{" I am a {{ sample }}  template ", "{{", true},
-		{`{"msg: "I am a {{ sample }} template"}`, "{{", true},
-		{" I am a {{ sample }}  template ", "", true},
-		{" I am a {{ sample }}  template ", "{{hub", false},
-		{" I am a {{hub sample hub}}  template ", "{{hub", true},
+		{" I am a sample template ", "{{", false, false},
+		{" I am a sample template ", "", false, false},
+		{" I am a {{ sample }}  template ", "{{", false, true},
+		{`{"msg: "I am a {{ sample }} template"}`, "{{", false, true},
+		{" I am a {{ sample }}  template ", "", false, true},
+		{" I am a {{ sample }}  template ", "{{hub", false, false},
+		{" I am a {{hub sample hub}}  template ", "{{hub", false, true},
+		{" I am a $ocm_encrypted:abcdef template ", "", false, false},
+		{" I am a $ocm_encrypted:abcdef template ", "", true, true},
 	}
 
 	for _, test := range testcases {
-		val := HasTemplate([]byte(test.input), test.startDelim)
+		val := HasTemplate([]byte(test.input), test.startDelim, test.checkForEncrypted)
 		if val != test.result {
 			t.Fatalf("expected : %v , got : %v", test.result, val)
 		}
