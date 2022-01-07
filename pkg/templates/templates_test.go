@@ -312,6 +312,15 @@ func TestResolveTemplate(t *testing.T) {
 			nil,
 		},
 		{
+			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==\n" +
+				"value2: $ocm_encrypted:rBaGZbpT4WOXZzFI+XBrgg==\n" +
+				"value3: $ocm_encrypted:rcKUPnLe4rejwXzsm2/g/w==",
+			Config{AESKey: key, DecryptionConcurrency: 5, EncryptionMode: DecryptionEnabled, InitializationVector: iv},
+			struct{}{},
+			"value: Raleigh\nvalue2: Raleigh2\nvalue3: Raleigh3",
+			nil,
+		},
+		{
 			"value: Raleigh", // No encryption string to decrypt
 			Config{AESKey: key, EncryptionMode: DecryptionEnabled, InitializationVector: iv},
 			struct{}{},
