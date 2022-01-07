@@ -25,6 +25,7 @@ import (
 const (
 	defaultStartDelim = "{{"
 	defaultStopDelim  = "}}"
+	IVSize            = 16 // Size in bytes
 	glogDefLvl        = 2
 	protectedPrefix   = "$ocm_encrypted:"
 	yamlIndentation   = 2
@@ -42,7 +43,9 @@ const (
 )
 
 var (
-	ErrAESKeyNotSet  = errors.New("AESKey must be set to use this encryption mode")
+	ErrAESKeyNotSet = errors.New("AESKey must be set to use this encryption mode")
+	// nolint: golint
+	ErrInvalidIV     = errors.New("InitializationVector must be 128 bits")
 	ErrInvalidAESKey = errors.New("the AES key is invalid")
 )
 
@@ -63,11 +66,15 @@ var (
 // - EncryptionMode determines the encryption mode to use. See the package-level EncryptionMode variables to choose
 // from.
 //
+// - InitializationVector is the initialization vector (IV) used in the AES-CBC encryption/decryption. Note that it must
+// be equal to the AES block size which is always 128 bits (16 bytes). This value must be random but does not need to be
+// private. Its purpose is to make the same plaintext value, when encrypted with the same AES key, appear unique. When
+// performing decryption, the IV must be the same as it was for the encryption of the data. Note that all values
+// encrypted in the template will use this same IV, which means that duplicate plaintext values that are encrypted will
+// yield the same encrypted value in the template.
+//
 // - LookupNamespace is the namespace to restrict "lookup" template functions (e.g. fromConfigMap)
 // to. If this is not set (i.e. an empty string), then all namespaces can be used.
-//
-// - Salt is the value to prefix the plaintext value before it is encrypted. When decrypting, the salt is removed
-// from the decrypted value.
 //
 // - StartDelim customizes the start delimiter used to distinguish a template action. This defaults
 // to "{{". If StopDelim is set, this must also be set.
@@ -79,9 +86,9 @@ type Config struct {
 	AESKey                []byte
 	DisabledFunctions     []string
 	EncryptionMode        EncryptionMode
+	InitializationVector  []byte
 	KubeAPIResourceList   []*metav1.APIResourceList
 	LookupNamespace       string
-	Salt                  string
 	StartDelim            string
 	StopDelim             string
 }
@@ -104,9 +111,16 @@ func NewResolver(kubeClient *kubernetes.Interface, kubeConfig *rest.Config, conf
 		return nil, fmt.Errorf("kubeClient must be a non-nil value")
 	}
 
-	mode := config.EncryptionMode
-	if (mode == EncryptionEnabled || mode == DecryptionEnabled) && config.AESKey == nil {
-		return nil, ErrAESKeyNotSet
+	if config.EncryptionMode == EncryptionEnabled || config.EncryptionMode == DecryptionEnabled {
+		if config.AESKey == nil {
+			return nil, ErrAESKeyNotSet
+		}
+
+		// AES uses a 128 bit (16 byte) block size no matter the key size. The initialization vector must be the same
+		// length as the block size.
+		if len(config.InitializationVector) != IVSize {
+			return nil, ErrInvalidIV
+		}
 	}
 
 	if (config.StartDelim != "" && config.StopDelim == "") || (config.StartDelim == "" && config.StopDelim != "") {
