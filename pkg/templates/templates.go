@@ -32,18 +32,6 @@ const (
 	yamlIndentation   = 2
 )
 
-type EncryptionMode uint8
-
-const (
-	// Disables the "protect" template function.
-	EncryptionDisabled EncryptionMode = iota
-	// Enables the "protect" template function and "fromSecret" returns encrypted content.
-	EncryptionEnabled
-	// Enables automatic decrypting of encrypted strings. With this mode, the "protect" template function is not
-	// available and "fromSecret" does not return encrypted content.
-	DecryptionEnabled
-)
-
 var (
 	ErrAESKeyNotSet          = errors.New("AESKey must be set to use this encryption mode")
 	ErrInvalidAESKey         = errors.New("the AES key is invalid")
@@ -66,13 +54,14 @@ var (
 // - DecryptionConcurrency is the concurrency (i.e. number of Goroutines) limit when decrypting encrypted strings. Not
 // setting this value is the equivalent of setting this to 1, which means no concurrency.
 //
+// - DecryptionEnabled enables automatic decrypting of encrypted strings
+//
 // - DisabledFunctions is a slice of default template function names that should be disabled.
 // - KubeAPIResourceList sets the cache for the Kubernetes API resources. If this is
 // set, template processing will not try to rediscover the Kubernetes API resources
 // needed for dynamic client/ GVK lookups.
 //
-// - EncryptionMode determines the encryption mode to use. See the package-level EncryptionMode variables to choose
-// from.
+// - EncryptionEnabled enables the "protect" template function and "fromSecret" returns encrypted content.
 //
 // - InitializationVector is the initialization vector (IV) used in the AES-CBC encryption/decryption. Note that it must
 // be equal to the AES block size which is always 128 bits (16 bytes). This value must be random but does not need to be
@@ -93,8 +82,9 @@ type Config struct {
 	AdditionalIndentation uint
 	AESKey                []byte
 	DecryptionConcurrency uint8
+	DecryptionEnabled     bool
 	DisabledFunctions     []string
-	EncryptionMode        EncryptionMode
+	EncryptionEnabled     bool
 	InitializationVector  []byte
 	KubeAPIResourceList   []*metav1.APIResourceList
 	LookupNamespace       string
@@ -120,7 +110,7 @@ func NewResolver(kubeClient *kubernetes.Interface, kubeConfig *rest.Config, conf
 		return nil, fmt.Errorf("kubeClient must be a non-nil value")
 	}
 
-	if config.EncryptionMode == EncryptionEnabled || config.EncryptionMode == DecryptionEnabled {
+	if config.EncryptionEnabled || config.DecryptionEnabled {
 		if config.AESKey == nil {
 			return nil, ErrAESKeyNotSet
 		}
@@ -233,7 +223,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 		"toBool":           toBool,
 	}
 
-	if t.config.EncryptionMode == EncryptionEnabled {
+	if t.config.EncryptionEnabled {
 		funcMap["fromSecret"] = t.fromSecretProtected
 		funcMap["protect"] = t.protect
 	} else {
@@ -257,7 +247,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	templateStr := string(templateYAMLBytes)
 	glog.V(glogDefLvl).Infof("Initial template str to resolve : %v ", templateStr)
 
-	if t.config.EncryptionMode == DecryptionEnabled {
+	if t.config.DecryptionEnabled {
 		templateStr, err = t.processEncryptedStrs(templateStr)
 		if err != nil {
 			return nil, err
