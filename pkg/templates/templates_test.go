@@ -113,17 +113,21 @@ func TestNewResolverFailures(t *testing.T) {
 		},
 		{
 			&simpleClient,
-			Config{EncryptionEnabled: true},
+			Config{EncryptionConfig: EncryptionConfig{EncryptionEnabled: true}},
 			"AESKey must be set to use this encryption mode",
 		},
 		{
 			&simpleClient,
-			Config{DecryptionEnabled: true},
+			Config{EncryptionConfig: EncryptionConfig{DecryptionEnabled: true}},
 			"AESKey must be set to use this encryption mode",
 		},
 		{
 			&simpleClient,
-			Config{AESKey: bytes.Repeat([]byte{byte('A')}, 256/8), EncryptionEnabled: true},
+			Config{
+				EncryptionConfig: EncryptionConfig{
+					AESKey: bytes.Repeat([]byte{byte('A')}, 256/8), EncryptionEnabled: true,
+				},
+			},
 			"InitializationVector must be 128 bits",
 		},
 	}
@@ -285,28 +289,28 @@ func TestResolveTemplate(t *testing.T) {
 		},
 		{
 			`value: '{{ "Raleigh" | protect }}'`,
-			Config{AESKey: key, EncryptionEnabled: true, InitializationVector: iv},
+			Config{EncryptionConfig: EncryptionConfig{AESKey: key, EncryptionEnabled: true, InitializationVector: iv}},
 			struct{}{},
 			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
 			nil,
 		},
 		{
 			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
-			Config{AESKey: key, EncryptionEnabled: true, InitializationVector: iv},
+			Config{EncryptionConfig: EncryptionConfig{AESKey: key, EncryptionEnabled: true, InitializationVector: iv}},
 			nil,
 			"data: $ocm_encrypted:c6PNhsEfbM9NRUqeJ+HbcECCyVdFnRbLdd+n8r1fS9M=",
 			nil,
 		},
 		{
 			`value: '{{ "" | protect }}'`,
-			Config{AESKey: key, EncryptionEnabled: true, InitializationVector: iv},
+			Config{EncryptionConfig: EncryptionConfig{AESKey: key, EncryptionEnabled: true, InitializationVector: iv}},
 			struct{}{},
 			`value: ""`,
 			nil,
 		},
 		{
 			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
-			Config{AESKey: key, DecryptionEnabled: true, InitializationVector: iv},
+			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
 			struct{}{},
 			"value: Raleigh",
 			nil,
@@ -315,28 +319,32 @@ func TestResolveTemplate(t *testing.T) {
 			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==\n" +
 				"value2: $ocm_encrypted:rBaGZbpT4WOXZzFI+XBrgg==\n" +
 				"value3: $ocm_encrypted:rcKUPnLe4rejwXzsm2/g/w==",
-			Config{AESKey: key, DecryptionConcurrency: 5, DecryptionEnabled: true, InitializationVector: iv},
+			Config{
+				EncryptionConfig: EncryptionConfig{
+					AESKey: key, DecryptionConcurrency: 5, DecryptionEnabled: true, InitializationVector: iv,
+				},
+			},
 			struct{}{},
 			"value: Raleigh\nvalue2: Raleigh2\nvalue3: Raleigh3",
 			nil,
 		},
 		{
 			"value: Raleigh", // No encryption string to decrypt
-			Config{AESKey: key, DecryptionEnabled: true, InitializationVector: iv},
+			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
 			struct{}{},
 			"value: Raleigh",
 			nil,
 		},
 		{
 			"value: $ocm_encrypted:😱😱😱😱", // Not Base64
-			Config{AESKey: key, DecryptionEnabled: true, InitializationVector: iv},
+			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
 			struct{}{},
 			`value: "$ocm_encrypted:\U0001F631\U0001F631\U0001F631\U0001F631"`,
 			nil,
 		},
 		{
 			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==", // Will not be decrypted because of the encryption mode
-			Config{AESKey: key, EncryptionEnabled: true, InitializationVector: iv},
+			Config{EncryptionConfig: EncryptionConfig{AESKey: key, EncryptionEnabled: true, InitializationVector: iv}},
 			struct{}{},
 			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
 			nil,
@@ -344,7 +352,11 @@ func TestResolveTemplate(t *testing.T) {
 		{
 			// Both encryption and decryption are enabled
 			"value: '{{ \"Raleigh\" | protect }}'\nvalue2: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
-			Config{AESKey: key, DecryptionEnabled: true, EncryptionEnabled: true, InitializationVector: iv},
+			Config{
+				EncryptionConfig: EncryptionConfig{
+					AESKey: key, DecryptionEnabled: true, EncryptionEnabled: true, InitializationVector: iv,
+				},
+			},
 			struct{}{},
 			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==\nvalue2: Raleigh",
 			nil,
@@ -385,7 +397,11 @@ func TestResolveTemplate(t *testing.T) {
 		},
 		{
 			`value: '{{ "Raleigh" | protect }}'`,
-			Config{AESKey: []byte{byte('A')}, EncryptionEnabled: true, InitializationVector: iv},
+			Config{
+				EncryptionConfig: EncryptionConfig{
+					AESKey: []byte{byte('A')}, EncryptionEnabled: true, InitializationVector: iv,
+				},
+			},
 			nil,
 			"",
 			errors.New(
@@ -396,7 +412,7 @@ func TestResolveTemplate(t *testing.T) {
 		},
 		{
 			`value: '{{ "Raleigh" | protect }}'`,
-			Config{AESKey: key, InitializationVector: iv},
+			Config{EncryptionConfig: EncryptionConfig{AESKey: key, InitializationVector: iv}},
 			struct{}{},
 			"",
 			errors.New(
@@ -407,7 +423,7 @@ func TestResolveTemplate(t *testing.T) {
 		},
 		{
 			`value: '{{ "Raleigh" | protect }}'`,
-			Config{AESKey: key, DecryptionEnabled: true, InitializationVector: iv},
+			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
 			struct{}{},
 			"",
 			errors.New(
@@ -418,7 +434,7 @@ func TestResolveTemplate(t *testing.T) {
 		},
 		{
 			"value: $ocm_encrypted:==========",
-			Config{AESKey: key, DecryptionEnabled: true, InitializationVector: iv},
+			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
 			struct{}{},
 			"",
 			errors.New(
@@ -428,7 +444,11 @@ func TestResolveTemplate(t *testing.T) {
 		},
 		{
 			"value: $ocm_encrypted:4Zq4Jugv6XBCGNRrdO/lLs9r9yyAEIMdqycRlVbLaME=",
-			Config{AESKey: []byte{byte('A')}, DecryptionEnabled: true, InitializationVector: iv},
+			Config{
+				EncryptionConfig: EncryptionConfig{
+					AESKey: []byte{byte('A')}, DecryptionEnabled: true, InitializationVector: iv,
+				},
+			},
 			struct{}{},
 			"",
 			errors.New(
@@ -438,7 +458,7 @@ func TestResolveTemplate(t *testing.T) {
 		},
 		{
 			"value: $ocm_encrypted:mXIueuA3HvfBeobZZ0LdzA==",
-			Config{AESKey: key, DecryptionEnabled: true, InitializationVector: iv},
+			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
 			struct{}{},
 			"",
 			errors.New(
@@ -448,7 +468,7 @@ func TestResolveTemplate(t *testing.T) {
 		},
 		{
 			"value: $ocm_encrypted:/X3LA2SczM7eqOLhZKAZXg==",
-			Config{AESKey: key, DecryptionEnabled: true, InitializationVector: iv},
+			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
 			struct{}{},
 			"",
 			errors.New(

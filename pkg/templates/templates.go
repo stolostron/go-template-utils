@@ -47,22 +47,12 @@ var (
 // to the indent method. This is useful in situations when the indentation should be relative
 // to a logical starting point in a YAML file.
 //
-// - AESKey is an AES key (e.g. AES-256) to use for the "protect" template function and decrypting
-// such values.
-//
-// - DecryptionConcurrency is the concurrency (i.e. number of Goroutines) limit when decrypting encrypted strings. Not
-// setting this value is the equivalent of setting this to 1, which means no concurrency.
-//
-// - DecryptionEnabled enables automatic decrypting of encrypted strings. AESKey and InitializationVector must also be
-// set if this is enabled.
-//
 // - DisabledFunctions is a slice of default template function names that should be disabled.
 // - KubeAPIResourceList sets the cache for the Kubernetes API resources. If this is
 // set, template processing will not try to rediscover the Kubernetes API resources
 // needed for dynamic client/ GVK lookups.
 //
-// - EncryptionEnabled enables the "protect" template function and "fromSecret" returns encrypted content. AESKey and
-// InitializationVector must also be set if this is enabled.
+// - EncryptionConfig is the configuration for template encryption/decryption functionality.
 //
 // - InitializationVector is the initialization vector (IV) used in the AES-CBC encryption/decryption. Note that it must
 // be equal to the AES block size which is always 128 bits (16 bytes). This value must be random but does not need to be
@@ -81,16 +71,40 @@ var (
 // to "}}". If StartDelim is set, this must also be set.
 type Config struct {
 	AdditionalIndentation uint
+	DisabledFunctions     []string
+	EncryptionConfig
+	KubeAPIResourceList []*metav1.APIResourceList
+	LookupNamespace     string
+	StartDelim          string
+	StopDelim           string
+}
+
+// EncryptionConfig is a struct containing configuration for template encryption/decryption functionality.
+//
+// - AESKey is an AES key (e.g. AES-256) to use for the "protect" template function and decrypting
+// such values.
+//
+// - DecryptionConcurrency is the concurrency (i.e. number of Goroutines) limit when decrypting encrypted strings. Not
+// setting this value is the equivalent of setting this to 1, which means no concurrency.
+//
+// - DecryptionEnabled enables automatic decrypting of encrypted strings. AESKey and InitializationVector must also be
+// set if this is enabled.
+//
+// - EncryptionEnabled enables the "protect" template function and "fromSecret" returns encrypted content. AESKey and
+// InitializationVector must also be set if this is enabled.
+//
+// - InitializationVector is the initialization vector (IV) used in the AES-CBC encryption/decryption. Note that it must
+// be equal to the AES block size which is always 128 bits (16 bytes). This value must be random but does not need to be
+// private. Its purpose is to make the same plaintext value, when encrypted with the same AES key, appear unique. When
+// performing decryption, the IV must be the same as it was for the encryption of the data. Note that all values
+// encrypted in the template will use this same IV, which means that duplicate plaintext values that are encrypted will
+// yield the same encrypted value in the template.
+type EncryptionConfig struct {
 	AESKey                []byte
 	DecryptionConcurrency uint8
 	DecryptionEnabled     bool
-	DisabledFunctions     []string
 	EncryptionEnabled     bool
 	InitializationVector  []byte
-	KubeAPIResourceList   []*metav1.APIResourceList
-	LookupNamespace       string
-	StartDelim            string
-	StopDelim             string
 }
 
 // TemplateResolver is the API for processing templates. It's better to use the NewResolver function
