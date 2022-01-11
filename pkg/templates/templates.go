@@ -5,7 +5,6 @@ package templates
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -351,117 +350,6 @@ func (t *TemplateResolver) processForAutoIndent(str string) string {
 	glog.V(glogDefLvl).Infof("\n processed data :\n%v", processed)
 
 	return processed
-}
-
-// processEncryptedStrs replaces all encrypted strings with the decrypted values. Each decryption is handled
-// concurrently and the concurrency limit is controlled by t.config.DecryptionConcurrency. If a decryption fails,
-// the rest of the decryption is halted and an error is returned.
-func (t *TemplateResolver) processEncryptedStrs(templateStr string) (string, error) {
-	// This catching any encrypted string in the format of $ocm_encrypted:<base64 of the encrypted value>.
-	re := regexp.MustCompile(regexp.QuoteMeta(protectedPrefix) + "([a-zA-Z0-9+/=]+)")
-	// Each submatch will have index 0 be the whole match and index 1 as the base64 of the encrypted value.
-	submatches := re.FindAllStringSubmatch(templateStr, -1)
-
-	if len(submatches) == 0 {
-		return templateStr, nil
-	}
-
-	var numWorkers int
-
-	// Determine how many Goroutines to spawn.
-	if t.config.DecryptionConcurrency <= 1 {
-		numWorkers = 1
-	} else if len(submatches) > int(t.config.DecryptionConcurrency) {
-		numWorkers = int(t.config.DecryptionConcurrency)
-	} else {
-		numWorkers = len(submatches)
-	}
-
-	submatchesChan := make(chan []string, len(submatches))
-	resultsChan := make(chan decryptResult, len(submatches))
-
-	glog.V(glogDefLvl).Infof("Will decrypt %d value(s) with %d Goroutines", len(submatches), numWorkers)
-
-	// Create a context to be able to cancel decryption in case one fails.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Start up all the Goroutines.
-	for i := 0; i < numWorkers; i++ {
-		go t.decryptWrapper(ctx, submatchesChan, resultsChan)
-	}
-
-	// Send all the submatches of all the encrypted strings to the Goroutines to process.
-	for _, submatch := range submatches {
-		submatchesChan <- submatch
-	}
-
-	processed := templateStr
-	processedResults := 0
-
-	for result := range resultsChan {
-		// If an error occurs, stop the Goroutines and return the error.
-		if result.err != nil {
-			// Cancel the context so the Goroutines exit before the channels close.
-			cancel()
-			close(submatchesChan)
-			close(resultsChan)
-			glog.Errorf("Decryption failed %v", result.err)
-
-			return "", fmt.Errorf("decryption of %s failed: %w", result.match, result.err)
-		}
-
-		processed = strings.Replace(processed, result.match, result.plaintext, 1)
-		processedResults++
-
-		// Once the decryption is complete, it's safe to close the channels and stop blocking in this Goroutine.
-		if processedResults == len(submatches) {
-			close(submatchesChan)
-			close(resultsChan)
-		}
-	}
-
-	glog.V(glogDefLvl).Infof("Finished decrypting %d value(s)", len(submatches))
-
-	return processed, nil
-}
-
-// decryptResult is the result sent back on the "results" channel in decryptWrapper.
-type decryptResult struct {
-	match     string
-	plaintext string
-	err       error
-}
-
-// decryptWrapper wraps the decrypt method for concurrency. ctx is the context that will get canceled if one or more
-// decryptions fail. This will halt the Goroutine early. submatches is the channel with the incoming strings to decrypt
-// which gets closed when all the encrypted values have been decrypted. Its values are string slices with the first
-// index being the whole string that will be replaced and second index being the base64 of the encrypted string. results
-// is a channel to communicate back to the calling Goroutine.
-func (t *TemplateResolver) decryptWrapper(
-	ctx context.Context, submatches <-chan []string, results chan<- decryptResult,
-) {
-	for submatch := range submatches {
-		match := submatch[0]
-		encryptedValue := submatch[1]
-		var result decryptResult
-
-		plaintext, err := t.decrypt(encryptedValue)
-		if err != nil {
-			result = decryptResult{match, "", err}
-		} else {
-			result = decryptResult{match, plaintext, nil}
-		}
-
-		select {
-		case <-ctx.Done():
-			// Return when decryption has been canceled.
-			return
-		case results <- result:
-			// Continue on to the next submatch.
-			continue
-		}
-	}
 }
 
 // jsonToYAML converts JSON to YAML using yaml.v3. This is important since
