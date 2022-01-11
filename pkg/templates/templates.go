@@ -48,19 +48,21 @@ var (
 // to a logical starting point in a YAML file.
 //
 // - AESKey is an AES key (e.g. AES-256) to use for the "protect" template function and decrypting
-// such values. If it's not specified, the "protect" template function will be undefined.
+// such values.
 //
 // - DecryptionConcurrency is the concurrency (i.e. number of Goroutines) limit when decrypting encrypted strings. Not
 // setting this value is the equivalent of setting this to 1, which means no concurrency.
 //
-// - DecryptionEnabled enables automatic decrypting of encrypted strings
+// - DecryptionEnabled enables automatic decrypting of encrypted strings. AESKey and InitializationVector must also be
+// set if this is enabled.
 //
 // - DisabledFunctions is a slice of default template function names that should be disabled.
 // - KubeAPIResourceList sets the cache for the Kubernetes API resources. If this is
 // set, template processing will not try to rediscover the Kubernetes API resources
 // needed for dynamic client/ GVK lookups.
 //
-// - EncryptionEnabled enables the "protect" template function and "fromSecret" returns encrypted content.
+// - EncryptionEnabled enables the "protect" template function and "fromSecret" returns encrypted content. AESKey and
+// InitializationVector must also be set if this is enabled.
 //
 // - InitializationVector is the initialization vector (IV) used in the AES-CBC encryption/decryption. Note that it must
 // be equal to the AES block size which is always 128 bits (16 bytes). This value must be random but does not need to be
