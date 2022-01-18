@@ -416,7 +416,7 @@ func (t *TemplateResolver) indent(spaces int, v string) string {
 // This is so that the user gets a nicer error in the event some valid scenario slips through the
 // regex.
 func autoindent(v string) (string, error) {
-	return "", errors.New("an unexpeceted error occurred where autoindent could not be processed")
+	return "", errors.New("an unexpected error occurred where autoindent could not be processed")
 }
 
 func toInt(v interface{}) int {
