@@ -530,6 +530,42 @@ func TestHasTemplate(t *testing.T) {
 	}
 }
 
+func TestUsesEncryption(t *testing.T) {
+	t.Parallel()
+
+	testcases := []struct {
+		input      string
+		startDelim string
+		StopDelim  string
+		result     bool
+	}{
+		{" I am a sample unencrypted template ", "{{", "}}", false},
+		{" I am a sample unencrypted template ", "", "", false},
+		{" I am a {{ sample }}  unencrypted template ", "{{", "}}", false},
+		{" I am a {{ fromSecret test-secret }}  encrypted template ", "{{", "}}", true},
+		{" I am a {{ test-secret | protect }}  encrypted template ", "{{", "}}", true},
+		{`{"msg: "I am a {{ sample }} unencrypted template"}`, "{{", "}}", false},
+		{`{"msg: "I am a {{ fromSecret test-secret }}  encrypted template"}`, "{{", "}}", true},
+		{`{"msg: "I am a {{ test-secret | protect }}  encrypted template"}`, "{{", "}}", true},
+		{" I am a {{ sample }}  unencrypted template ", "", "", false},
+		{" I am a {{ fromSecret test-secret }}  encrypted template ", "", "", true},
+		{" I am a {{ test-secret | protect }}  encrypted template ", "", "", true},
+		{" I am a {{ sample }}  unencrypted template ", "{{hub", "hub}}", false},
+		{" I am a {{ fromSecret test-secret }}  encrypted template ", "{{hub", "hub}}", false},
+		{" I am a {{ test-secret | protect }}  encrypted template ", "{{hub", "hub}}", false},
+		{" I am a {{hub sample hub}}  template ", "{{hub", "hub}}", false},
+		{" I am a {{hub fromSecret test-secret hub}}  template ", "{{hub", "hub}}", true},
+		{" I am a {{hub test-secret | protect hub}}  template ", "{{hub", "hub}}", true},
+	}
+
+	for _, test := range testcases {
+		val := UsesEncryption([]byte(test.input), test.startDelim, test.StopDelim)
+		if val != test.result {
+			t.Fatalf("'%s' expected UsesEncryption : %v , got : %v", test.input, test.result, val)
+		}
+	}
+}
+
 func TestAtoi(t *testing.T) {
 	t.Parallel()
 
