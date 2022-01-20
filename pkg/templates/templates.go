@@ -180,6 +180,34 @@ func HasTemplate(template []byte, startDelim string, checkForEncrypted bool) boo
 	return hasTemplate
 }
 
+// UsesEncryption searches for templates that would generate encrypted values and returns a boolean
+// whether one was found.
+func UsesEncryption(template []byte, startDelim string, stopDelim string) bool {
+	if startDelim == "" {
+		startDelim = defaultStartDelim
+	}
+
+	if stopDelim == "" {
+		stopDelim = defaultStopDelim
+	}
+
+	templateStr := string(template)
+	glog.V(glogDefLvl).Infof("usesEncryption template str:  %v", templateStr)
+	glog.V(glogDefLvl).Infof("Checking for encryption functions")
+
+	// Check for encryption template functions:
+	// {{ fromSecret ... }}
+	// {{ ... | protect }}
+	d1 := regexp.QuoteMeta(startDelim)
+	d2 := regexp.QuoteMeta(stopDelim)
+	re := regexp.MustCompile(d1 + `(\s*fromSecret\s+.*|.*\|\s*protect\s*)` + d2)
+	usesEncryption := re.MatchString(templateStr)
+
+	glog.V(glogDefLvl).Infof("usesEncryption: %v", usesEncryption)
+
+	return usesEncryption
+}
+
 // getValidContext takes an input context struct with string fields and
 // validates it. If is is valid, the context will be returned as is. If the
 // input context is nil, an empty struct will be returned. If it's not valid, an
@@ -416,7 +444,7 @@ func (t *TemplateResolver) indent(spaces int, v string) string {
 // This is so that the user gets a nicer error in the event some valid scenario slips through the
 // regex.
 func autoindent(v string) (string, error) {
-	return "", errors.New("an unexpeceted error occurred where autoindent could not be processed")
+	return "", errors.New("an unexpected error occurred where autoindent could not be processed")
 }
 
 func toInt(v interface{}) int {
