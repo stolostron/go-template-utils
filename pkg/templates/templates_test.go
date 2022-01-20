@@ -111,25 +111,6 @@ func TestNewResolverFailures(t *testing.T) {
 			Config{StartDelim: "{{hub"},
 			"the configurations StartDelim and StopDelim cannot be set independently",
 		},
-		{
-			&simpleClient,
-			Config{EncryptionConfig: EncryptionConfig{EncryptionEnabled: true}},
-			"AESKey must be set to use this encryption mode",
-		},
-		{
-			&simpleClient,
-			Config{EncryptionConfig: EncryptionConfig{DecryptionEnabled: true}},
-			"AESKey must be set to use this encryption mode",
-		},
-		{
-			&simpleClient,
-			Config{
-				EncryptionConfig: EncryptionConfig{
-					AESKey: bytes.Repeat([]byte{byte('A')}, 256/8), EncryptionEnabled: true,
-				},
-			},
-			"InitializationVector must be 128 bits",
-		},
 	}
 
 	for _, test := range testcases {
@@ -383,6 +364,22 @@ func TestResolveTemplate(t *testing.T) {
 			struct{}{},
 			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==\nvalue2: Raleigh",
 			nil,
+		},
+		{
+			// Missing AES Key
+			"{{ fromSecret 'test-secret' }}",
+			Config{
+				EncryptionConfig: EncryptionConfig{EncryptionEnabled: true, InitializationVector: iv},
+			},
+			struct{}{}, "", ErrAESKeyNotSet,
+		},
+		{
+			// Missing initialization vector
+			"{{  'test-secret' | protect }}",
+			Config{
+				EncryptionConfig: EncryptionConfig{AESKey: key, EncryptionEnabled: true},
+			},
+			struct{}{}, "", ErrInvalidIV,
 		},
 		{
 			`test: '{{ printf "hello %s" "world" }}'`,

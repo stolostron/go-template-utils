@@ -128,18 +128,6 @@ func NewResolver(kubeClient *kubernetes.Interface, kubeConfig *rest.Config, conf
 		return nil, fmt.Errorf("kubeClient must be a non-nil value")
 	}
 
-	if config.EncryptionEnabled || config.DecryptionEnabled {
-		if config.AESKey == nil {
-			return nil, ErrAESKeyNotSet
-		}
-
-		// AES uses a 128 bit (16 byte) block size no matter the key size. The initialization vector must be the same
-		// length as the block size.
-		if len(config.InitializationVector) != IVSize {
-			return nil, ErrInvalidIV
-		}
-	}
-
 	if (config.StartDelim != "" && config.StopDelim == "") || (config.StartDelim == "" && config.StopDelim != "") {
 		return nil, fmt.Errorf("the configurations StartDelim and StopDelim cannot be set independently")
 	}
@@ -267,6 +255,20 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 		"atoi":             atoi,
 		"toInt":            toInt,
 		"toBool":           toBool,
+	}
+
+	// Verify encryption settings (since encryption is checked and keys are set per-policy)
+	if UsesEncryption(tmplJSON, t.config.StartDelim, t.config.StopDelim) &&
+		(t.config.EncryptionEnabled || t.config.DecryptionEnabled) {
+		if t.config.AESKey == nil {
+			return nil, ErrAESKeyNotSet
+		}
+
+		// AES uses a 128 bit (16 byte) block size no matter the key size. The initialization vector must be the same
+		// length as the block size.
+		if len(t.config.InitializationVector) != IVSize {
+			return nil, ErrInvalidIV
+		}
 	}
 
 	if t.config.EncryptionEnabled {
