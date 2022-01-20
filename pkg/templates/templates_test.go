@@ -371,7 +371,8 @@ func TestResolveTemplate(t *testing.T) {
 			Config{
 				EncryptionConfig: EncryptionConfig{EncryptionEnabled: true, InitializationVector: iv},
 			},
-			struct{}{}, "", ErrAESKeyNotSet,
+			struct{}{},
+			"", ErrAESKeyNotSet,
 		},
 		{
 			// Missing initialization vector
@@ -379,7 +380,8 @@ func TestResolveTemplate(t *testing.T) {
 			Config{
 				EncryptionConfig: EncryptionConfig{AESKey: key, EncryptionEnabled: true},
 			},
-			struct{}{}, "", ErrInvalidIV,
+			struct{}{},
+			"", ErrInvalidIV,
 		},
 		{
 			`test: '{{ printf "hello %s" "world" }}'`,
@@ -799,4 +801,82 @@ spec:
 	// Output:
 	// Templates rock!
 	// Y2x1c3RlcjAwMDE=
+}
+
+func TestSetEncryptionConfig(t *testing.T) {
+	t.Parallel()
+	// Generate a 256 bit for AES-256. It can't be random so that the test results are deterministic.
+	keyBytesSize := 256 / 8
+	key := bytes.Repeat([]byte{byte('A')}, keyBytesSize)
+	otherKey := bytes.Repeat([]byte{byte('B')}, keyBytesSize)
+	iv := bytes.Repeat([]byte{byte('I')}, IVSize)
+	otherIV := bytes.Repeat([]byte{byte('I')}, IVSize)
+
+	tests := []struct {
+		encryptionConfig EncryptionConfig
+		expectedError    error
+	}{
+		{
+			EncryptionConfig{
+				EncryptionEnabled:    true,
+				AESKey:               key,
+				InitializationVector: iv,
+			}, nil,
+		},
+		{
+			EncryptionConfig{
+				DecryptionEnabled:    true,
+				AESKey:               otherKey,
+				InitializationVector: otherIV,
+			}, nil,
+		},
+		{
+			EncryptionConfig{
+				EncryptionEnabled: false,
+				DecryptionEnabled: false,
+			}, nil,
+		},
+		{
+			EncryptionConfig{
+				EncryptionEnabled: true,
+				AESKey:            []byte{byte('A')},
+			}, ErrInvalidAESKey,
+		},
+		{
+			EncryptionConfig{
+				EncryptionEnabled: true,
+				AESKey:            key,
+			}, ErrIVNotSet,
+		},
+		{
+			EncryptionConfig{
+				EncryptionEnabled:    true,
+				InitializationVector: []byte{byte('A')},
+			}, ErrAESKeyNotSet,
+		},
+		{
+			EncryptionConfig{
+				DecryptionEnabled:    true,
+				AESKey:               otherKey,
+				InitializationVector: []byte{byte('A')},
+			}, ErrInvalidIV,
+		},
+	}
+
+	var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
+
+	config := Config{}
+	resolver, _ := NewResolver(&simpleClient, &rest.Config{}, config)
+
+	for _, test := range tests {
+		err := resolver.SetEncryptionConfig(test.encryptionConfig)
+
+		if err == nil || test.expectedError == nil {
+			if !(err == nil && test.expectedError == nil) {
+				t.Fatalf("expected error: %v, got: %v", test.expectedError, err)
+			}
+		} else if err.Error() != test.expectedError.Error() {
+			t.Fatalf("expected error: %v, got: %v", test.expectedError, err)
+		}
+	}
 }

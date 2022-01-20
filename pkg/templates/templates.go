@@ -5,6 +5,7 @@ package templates
 
 import (
 	"bytes"
+	"crypto/aes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,7 +37,8 @@ var (
 	ErrInvalidAESKey         = errors.New("the AES key is invalid")
 	ErrInvalidB64OfEncrypted = errors.New("the encrypted string is invalid base64")
 	// nolint: golint
-	ErrInvalidIV           = errors.New("InitializationVector must be 128 bits")
+	ErrIVNotSet            = errors.New("initialization vector must be set to use this encryption mode")
+	ErrInvalidIV           = errors.New("initialization vector must be 128 bits")
 	ErrInvalidPKCS7Padding = errors.New("invalid PCKS7 padding")
 	ErrProtectNotEnabled   = errors.New("the protect template function is not enabled in this mode")
 )
@@ -225,6 +227,37 @@ func getValidContext(context interface{}) (ctx interface{}, _ error) {
 	}
 
 	return context, nil
+}
+
+func (t *TemplateResolver) SetEncryptionConfig(encryptionConfig EncryptionConfig) error {
+	glog.V(glogDefLvl).Info("Setting EncryptionConfig for templates")
+
+	if encryptionConfig.EncryptionEnabled || encryptionConfig.DecryptionEnabled {
+		// Ensure AES Key is set
+		if encryptionConfig.AESKey == nil {
+			return ErrAESKeyNotSet
+		}
+		// Validate AES Key
+		_, err := aes.NewCipher(encryptionConfig.AESKey)
+		if err != nil {
+			return ErrInvalidAESKey
+		}
+		// Ensure Initialization Vector is set
+		if encryptionConfig.InitializationVector == nil {
+			return ErrIVNotSet
+		}
+		// AES uses a 128 bit (16 byte) block size no matter the key size. The initialization vector
+		// must be the same length as the block size.
+		if len(encryptionConfig.InitializationVector) != IVSize {
+			return ErrInvalidIV
+		}
+	} else if t.config.EncryptionEnabled || t.config.DecryptionEnabled {
+		glog.V(glogDefLvl).Info("Template encryption/decryption was enabled but has been set to disabled")
+	}
+
+	t.config.EncryptionConfig = encryptionConfig
+
+	return nil
 }
 
 // ResolveTemplate accepts a map marshaled as JSON. It also accepts a struct
