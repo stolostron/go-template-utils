@@ -156,6 +156,7 @@ func TestResolveTemplate(t *testing.T) {
 	// Generate a 256 bit for AES-256. It can't be random so that the test results are deterministic.
 	keyBytesSize := 256 / 8
 	key := bytes.Repeat([]byte{byte('A')}, keyBytesSize)
+	otherKey := bytes.Repeat([]byte{byte('B')}, keyBytesSize)
 	iv := bytes.Repeat([]byte{byte('I')}, IVSize)
 
 	testcases := []struct {
@@ -311,6 +312,28 @@ func TestResolveTemplate(t *testing.T) {
 		{
 			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
 			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
+			struct{}{},
+			"value: Raleigh",
+			nil,
+		},
+		{
+			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
+			Config{
+				EncryptionConfig: EncryptionConfig{
+					AESKey: key, AESKeyFallback: otherKey, DecryptionEnabled: true, InitializationVector: iv,
+				},
+			},
+			struct{}{},
+			"value: Raleigh",
+			nil,
+		},
+		{
+			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
+			Config{
+				EncryptionConfig: EncryptionConfig{
+					AESKey: otherKey, AESKeyFallback: key, DecryptionEnabled: true, InitializationVector: iv,
+				},
+			},
 			struct{}{},
 			"value: Raleigh",
 			nil,
