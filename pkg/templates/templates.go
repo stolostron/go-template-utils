@@ -84,6 +84,8 @@ type Config struct {
 // - AESKey is an AES key (e.g. AES-256) to use for the "protect" template function and decrypting
 // such values.
 //
+// - AESKeyFallback is an AES key to try if the decryption fails using AESKey.
+//
 // - DecryptionConcurrency is the concurrency (i.e. number of Goroutines) limit when decrypting encrypted strings. Not
 // setting this value is the equivalent of setting this to 1, which means no concurrency.
 //
@@ -101,6 +103,7 @@ type Config struct {
 // yield the same encrypted value in the template.
 type EncryptionConfig struct {
 	AESKey                []byte
+	AESKeyFallback        []byte
 	DecryptionConcurrency uint8
 	DecryptionEnabled     bool
 	EncryptionEnabled     bool
