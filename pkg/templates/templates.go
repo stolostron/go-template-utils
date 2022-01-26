@@ -5,6 +5,7 @@ package templates
 
 import (
 	"bytes"
+	"crypto/aes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,7 +37,8 @@ var (
 	ErrInvalidAESKey         = errors.New("the AES key is invalid")
 	ErrInvalidB64OfEncrypted = errors.New("the encrypted string is invalid base64")
 	// nolint: golint
-	ErrInvalidIV           = errors.New("InitializationVector must be 128 bits")
+	ErrIVNotSet            = errors.New("initialization vector must be set to use this encryption mode")
+	ErrInvalidIV           = errors.New("initialization vector must be 128 bits")
 	ErrInvalidPKCS7Padding = errors.New("invalid PCKS7 padding")
 	ErrProtectNotEnabled   = errors.New("the protect template function is not enabled in this mode")
 )
@@ -128,16 +130,9 @@ func NewResolver(kubeClient *kubernetes.Interface, kubeConfig *rest.Config, conf
 		return nil, fmt.Errorf("kubeClient must be a non-nil value")
 	}
 
-	if config.EncryptionEnabled || config.DecryptionEnabled {
-		if config.AESKey == nil {
-			return nil, ErrAESKeyNotSet
-		}
-
-		// AES uses a 128 bit (16 byte) block size no matter the key size. The initialization vector must be the same
-		// length as the block size.
-		if len(config.InitializationVector) != IVSize {
-			return nil, ErrInvalidIV
-		}
+	err := validateEncryptionConfig(config.EncryptionConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error validating EncryptionConfig: %w", err)
 	}
 
 	if (config.StartDelim != "" && config.StopDelim == "") || (config.StartDelim == "" && config.StopDelim != "") {
@@ -239,6 +234,54 @@ func getValidContext(context interface{}) (ctx interface{}, _ error) {
 	return context, nil
 }
 
+func (t *TemplateResolver) SetEncryptionConfig(encryptionConfig EncryptionConfig) error {
+	glog.V(glogDefLvl).Info("Setting EncryptionConfig for templates")
+
+	err := validateEncryptionConfig(encryptionConfig)
+	if err != nil {
+		return err
+	}
+
+	t.config.EncryptionConfig = encryptionConfig
+
+	return nil
+}
+
+func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
+	if encryptionConfig.EncryptionEnabled || encryptionConfig.DecryptionEnabled {
+		// Ensure AES Key is set
+		if encryptionConfig.AESKey == nil {
+			return ErrAESKeyNotSet
+		}
+		// Validate AES Key
+		_, err := aes.NewCipher(encryptionConfig.AESKey)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidAESKey, err)
+		}
+		// Ensure Initialization Vector is set
+		if encryptionConfig.InitializationVector == nil {
+			return ErrIVNotSet
+		}
+		// AES uses a 128 bit (16 byte) block size no matter the key size. The initialization vector
+		// must be the same length as the block size.
+		if len(encryptionConfig.InitializationVector) != IVSize {
+			return ErrInvalidIV
+		}
+
+		if encryptionConfig.EncryptionEnabled {
+			glog.V(glogDefLvl).Info("Template encryption is enabled")
+		}
+
+		if encryptionConfig.DecryptionEnabled {
+			glog.V(glogDefLvl).Info("Template decryption is enabled")
+		}
+	} else {
+		glog.V(glogDefLvl).Info("Template encryption and decryption is disabled")
+	}
+
+	return nil
+}
+
 // ResolveTemplate accepts a map marshaled as JSON. It also accepts a struct
 // with string fields that will be made available when the template is processed.
 // For example, if the argument is `struct{ClusterName string}{"cluster1"}`,
@@ -296,7 +339,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	if t.config.DecryptionEnabled {
 		templateStr, err = t.processEncryptedStrs(templateStr)
 		if err != nil {
-			return nil, err
+			return []byte(""), err
 		}
 	}
 

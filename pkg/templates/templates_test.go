@@ -114,12 +114,12 @@ func TestNewResolverFailures(t *testing.T) {
 		{
 			&simpleClient,
 			Config{EncryptionConfig: EncryptionConfig{EncryptionEnabled: true}},
-			"AESKey must be set to use this encryption mode",
+			"error validating EncryptionConfig: AESKey must be set to use this encryption mode",
 		},
 		{
 			&simpleClient,
 			Config{EncryptionConfig: EncryptionConfig{DecryptionEnabled: true}},
-			"AESKey must be set to use this encryption mode",
+			"error validating EncryptionConfig: AESKey must be set to use this encryption mode",
 		},
 		{
 			&simpleClient,
@@ -128,7 +128,7 @@ func TestNewResolverFailures(t *testing.T) {
 					AESKey: bytes.Repeat([]byte{byte('A')}, 256/8), EncryptionEnabled: true,
 				},
 			},
-			"InitializationVector must be 128 bits",
+			"error validating EncryptionConfig: initialization vector must be set to use this encryption mode",
 		},
 	}
 
@@ -420,21 +420,6 @@ func TestResolveTemplate(t *testing.T) {
 		},
 		{
 			`value: '{{ "Raleigh" | protect }}'`,
-			Config{
-				EncryptionConfig: EncryptionConfig{
-					AESKey: []byte{byte('A')}, EncryptionEnabled: true, InitializationVector: iv,
-				},
-			},
-			nil,
-			"",
-			errors.New(
-				`failed to resolve the template {"value":"{{ \"Raleigh\" | protect }}"}: template: tmpl:1:23: ` +
-					`executing "tmpl" at <protect>: error calling protect: the AES key is invalid: crypto/aes: ` +
-					`invalid key size 1`,
-			),
-		},
-		{
-			`value: '{{ "Raleigh" | protect }}'`,
 			Config{EncryptionConfig: EncryptionConfig{AESKey: key, InitializationVector: iv}},
 			struct{}{},
 			"",
@@ -466,20 +451,6 @@ func TestResolveTemplate(t *testing.T) {
 			),
 		},
 		{
-			"value: $ocm_encrypted:4Zq4Jugv6XBCGNRrdO/lLs9r9yyAEIMdqycRlVbLaME=",
-			Config{
-				EncryptionConfig: EncryptionConfig{
-					AESKey: []byte{byte('A')}, DecryptionEnabled: true, InitializationVector: iv,
-				},
-			},
-			struct{}{},
-			"",
-			errors.New(
-				`decryption of $ocm_encrypted:4Zq4Jugv6XBCGNRrdO/lLs9r9yyAEIMdqycRlVbLaME= failed: the AES key is ` +
-					`invalid: crypto/aes: invalid key size 1`,
-			),
-		},
-		{
 			"value: $ocm_encrypted:mXIueuA3HvfBeobZZ0LdzA==",
 			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
 			struct{}{},
@@ -502,7 +473,11 @@ func TestResolveTemplate(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		tmplStr, _ := yamlToJSON([]byte(test.inputTmpl))
+		tmplStr, err := yamlToJSON([]byte(test.inputTmpl))
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
+
 		resolver := getTemplateResolver(test.config)
 
 		val, err := resolver.ResolveTemplate(tmplStr, test.ctx)
@@ -515,11 +490,14 @@ func TestResolveTemplate(t *testing.T) {
 				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 			}
 		} else {
-			val, _ := jsonToYAML(val)
+			val, err := jsonToYAML(val)
+			if err != nil {
+				t.Fatalf(err.Error())
+			}
 			valStr := strings.TrimSuffix(string(val), "\n")
 
 			if valStr != test.expectedResult {
-				t.Fatalf("expected : %s , got : %s", test.expectedResult, val)
+				t.Fatalf("%s expected : '%s' , got : '%s'", test.inputTmpl, test.expectedResult, val)
 			}
 		}
 	}
@@ -802,4 +780,82 @@ spec:
 	// Output:
 	// Templates rock!
 	// Y2x1c3RlcjAwMDE=
+}
+
+func TestSetEncryptionConfig(t *testing.T) {
+	t.Parallel()
+	// Generate a 256 bit for AES-256. It can't be random so that the test results are deterministic.
+	keyBytesSize := 256 / 8
+	key := bytes.Repeat([]byte{byte('A')}, keyBytesSize)
+	otherKey := bytes.Repeat([]byte{byte('B')}, keyBytesSize)
+	iv := bytes.Repeat([]byte{byte('I')}, IVSize)
+	otherIV := bytes.Repeat([]byte{byte('I')}, IVSize)
+
+	tests := []struct {
+		encryptionConfig EncryptionConfig
+		expectedError    error
+	}{
+		{
+			EncryptionConfig{
+				EncryptionEnabled:    true,
+				AESKey:               key,
+				InitializationVector: iv,
+			}, nil,
+		},
+		{
+			EncryptionConfig{
+				DecryptionEnabled:    true,
+				AESKey:               otherKey,
+				InitializationVector: otherIV,
+			}, nil,
+		},
+		{
+			EncryptionConfig{
+				EncryptionEnabled: false,
+				DecryptionEnabled: false,
+			}, nil,
+		},
+		{
+			EncryptionConfig{
+				EncryptionEnabled: true,
+				AESKey:            []byte{byte('A')},
+			}, fmt.Errorf("%w: %s", ErrInvalidAESKey, "crypto/aes: invalid key size 1"),
+		},
+		{
+			EncryptionConfig{
+				EncryptionEnabled: true,
+				AESKey:            key,
+			}, ErrIVNotSet,
+		},
+		{
+			EncryptionConfig{
+				EncryptionEnabled:    true,
+				InitializationVector: []byte{byte('A')},
+			}, ErrAESKeyNotSet,
+		},
+		{
+			EncryptionConfig{
+				DecryptionEnabled:    true,
+				AESKey:               otherKey,
+				InitializationVector: []byte{byte('A')},
+			}, ErrInvalidIV,
+		},
+	}
+
+	var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
+
+	config := Config{}
+	resolver, _ := NewResolver(&simpleClient, &rest.Config{}, config)
+
+	for _, test := range tests {
+		err := resolver.SetEncryptionConfig(test.encryptionConfig)
+
+		if err == nil || test.expectedError == nil {
+			if !(err == nil && test.expectedError == nil) {
+				t.Fatalf("expected error: %v, got: %v", test.expectedError, err)
+			}
+		} else if err.Error() != test.expectedError.Error() {
+			t.Fatalf("expected error: %v, got: %v", test.expectedError, err)
+		}
+	}
 }
