@@ -294,13 +294,13 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	if UsesEncryption(tmplJSON, t.config.StartDelim, t.config.StopDelim) &&
 		(t.config.EncryptionEnabled || t.config.DecryptionEnabled) {
 		if t.config.AESKey == nil {
-			return nil, ErrAESKeyNotSet
+			return []byte(""), ErrAESKeyNotSet
 		}
 
 		// AES uses a 128 bit (16 byte) block size no matter the key size. The initialization vector must be the same
 		// length as the block size.
 		if len(t.config.InitializationVector) != IVSize {
-			return nil, ErrInvalidIV
+			return []byte(""), ErrInvalidIV
 		}
 	}
 
@@ -331,7 +331,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	if t.config.DecryptionEnabled {
 		templateStr, err = t.processEncryptedStrs(templateStr)
 		if err != nil {
-			return nil, err
+			return []byte(""), err
 		}
 	}
 

@@ -111,6 +111,25 @@ func TestNewResolverFailures(t *testing.T) {
 			Config{StartDelim: "{{hub"},
 			"the configurations StartDelim and StopDelim cannot be set independently",
 		},
+		{
+			&simpleClient,
+			Config{EncryptionConfig: EncryptionConfig{EncryptionEnabled: true}},
+			"error validating EncryptionConfig: AESKey must be set to use this encryption mode",
+		},
+		{
+			&simpleClient,
+			Config{EncryptionConfig: EncryptionConfig{DecryptionEnabled: true}},
+			"error validating EncryptionConfig: AESKey must be set to use this encryption mode",
+		},
+		{
+			&simpleClient,
+			Config{
+				EncryptionConfig: EncryptionConfig{
+					AESKey: bytes.Repeat([]byte{byte('A')}, 256/8), EncryptionEnabled: true,
+				},
+			},
+			"error validating EncryptionConfig: initialization vector must be set to use this encryption mode",
+		},
 	}
 
 	for _, test := range testcases {
@@ -366,24 +385,6 @@ func TestResolveTemplate(t *testing.T) {
 			nil,
 		},
 		{
-			// Missing AES Key
-			"{{ fromSecret 'test-secret' }}",
-			Config{
-				EncryptionConfig: EncryptionConfig{EncryptionEnabled: true, InitializationVector: iv},
-			},
-			struct{}{},
-			"", ErrAESKeyNotSet,
-		},
-		{
-			// Missing initialization vector
-			"{{  'test-secret' | protect }}",
-			Config{
-				EncryptionConfig: EncryptionConfig{AESKey: key, EncryptionEnabled: true},
-			},
-			struct{}{},
-			"", ErrInvalidIV,
-		},
-		{
 			`test: '{{ printf "hello %s" "world" }}'`,
 			Config{},
 			123,
@@ -419,21 +420,6 @@ func TestResolveTemplate(t *testing.T) {
 		},
 		{
 			`value: '{{ "Raleigh" | protect }}'`,
-			Config{
-				EncryptionConfig: EncryptionConfig{
-					AESKey: []byte{byte('A')}, EncryptionEnabled: true, InitializationVector: iv,
-				},
-			},
-			nil,
-			"",
-			errors.New(
-				`failed to resolve the template {"value":"{{ \"Raleigh\" | protect }}"}: template: tmpl:1:23: ` +
-					`executing "tmpl" at <protect>: error calling protect: the AES key is invalid: crypto/aes: ` +
-					`invalid key size 1`,
-			),
-		},
-		{
-			`value: '{{ "Raleigh" | protect }}'`,
 			Config{EncryptionConfig: EncryptionConfig{AESKey: key, InitializationVector: iv}},
 			struct{}{},
 			"",
@@ -465,20 +451,6 @@ func TestResolveTemplate(t *testing.T) {
 			),
 		},
 		{
-			"value: $ocm_encrypted:4Zq4Jugv6XBCGNRrdO/lLs9r9yyAEIMdqycRlVbLaME=",
-			Config{
-				EncryptionConfig: EncryptionConfig{
-					AESKey: []byte{byte('A')}, DecryptionEnabled: true, InitializationVector: iv,
-				},
-			},
-			struct{}{},
-			"",
-			errors.New(
-				`decryption of $ocm_encrypted:4Zq4Jugv6XBCGNRrdO/lLs9r9yyAEIMdqycRlVbLaME= failed: the AES key is ` +
-					`invalid: crypto/aes: invalid key size 1`,
-			),
-		},
-		{
 			"value: $ocm_encrypted:mXIueuA3HvfBeobZZ0LdzA==",
 			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
 			struct{}{},
@@ -501,7 +473,11 @@ func TestResolveTemplate(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		tmplStr, _ := yamlToJSON([]byte(test.inputTmpl))
+		tmplStr, err := yamlToJSON([]byte(test.inputTmpl))
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
+
 		resolver := getTemplateResolver(test.config)
 
 		val, err := resolver.ResolveTemplate(tmplStr, test.ctx)
@@ -514,11 +490,14 @@ func TestResolveTemplate(t *testing.T) {
 				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 			}
 		} else {
-			val, _ := jsonToYAML(val)
+			val, err := jsonToYAML(val)
+			if err != nil {
+				t.Fatalf(err.Error())
+			}
 			valStr := strings.TrimSuffix(string(val), "\n")
 
 			if valStr != test.expectedResult {
-				t.Fatalf("expected : %s , got : %s", test.expectedResult, val)
+				t.Fatalf("%s expected : '%s' , got : '%s'", test.inputTmpl, test.expectedResult, val)
 			}
 		}
 	}
@@ -840,7 +819,7 @@ func TestSetEncryptionConfig(t *testing.T) {
 			EncryptionConfig{
 				EncryptionEnabled: true,
 				AESKey:            []byte{byte('A')},
-			}, ErrInvalidAESKey,
+			}, fmt.Errorf("%w: %s", ErrInvalidAESKey, "crypto/aes: invalid key size 1"),
 		},
 		{
 			EncryptionConfig{
