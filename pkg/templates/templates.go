@@ -234,6 +234,10 @@ func getValidContext(context interface{}) (ctx interface{}, _ error) {
 	return context, nil
 }
 
+// SetEncryptionConfig accepts an EncryptionConfig struct and validates it to ensure that if
+// encryption and/or decryption are enabled that the AES Key and Initialization Vector are valid. If
+// validation passes, SetEncryptionConfig updates the EncryptionConfig in the TemplateResolver
+// configuration. Otherwise, an error is returned and the configuration is unchanged.
 func (t *TemplateResolver) SetEncryptionConfig(encryptionConfig EncryptionConfig) error {
 	glog.V(glogDefLvl).Info("Setting EncryptionConfig for templates")
 
@@ -247,6 +251,8 @@ func (t *TemplateResolver) SetEncryptionConfig(encryptionConfig EncryptionConfig
 	return nil
 }
 
+// validateEncryptionConfig validates an EncryptionConfig struct to to ensure that if encryption
+// and/or decryption are enabled that the AES Key and Initialization Vector are valid.
 func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
 	if encryptionConfig.EncryptionEnabled || encryptionConfig.DecryptionEnabled {
 		// Ensure AES Key is set
