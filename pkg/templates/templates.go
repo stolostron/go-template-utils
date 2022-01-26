@@ -264,6 +264,15 @@ func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
 		if err != nil {
 			return fmt.Errorf("%w: %v", ErrInvalidAESKey, err)
 		}
+
+		// Validate the fallback AES Key
+		if encryptionConfig.AESKeyFallback != nil {
+			_, err = aes.NewCipher(encryptionConfig.AESKeyFallback)
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrInvalidAESKey, err)
+			}
+		}
+
 		// Ensure Initialization Vector is set
 		if encryptionConfig.InitializationVector == nil {
 			return ErrIVNotSet

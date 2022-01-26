@@ -825,6 +825,13 @@ func TestSetEncryptionConfig(t *testing.T) {
 			EncryptionConfig{
 				EncryptionEnabled: true,
 				AESKey:            key,
+				AESKeyFallback:    []byte{byte('A')},
+			}, fmt.Errorf("%w: %s", ErrInvalidAESKey, "crypto/aes: invalid key size 1"),
+		},
+		{
+			EncryptionConfig{
+				EncryptionEnabled: true,
+				AESKey:            key,
 			}, ErrIVNotSet,
 		},
 		{
