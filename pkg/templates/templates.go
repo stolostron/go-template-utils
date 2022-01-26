@@ -130,6 +130,11 @@ func NewResolver(kubeClient *kubernetes.Interface, kubeConfig *rest.Config, conf
 		return nil, fmt.Errorf("kubeClient must be a non-nil value")
 	}
 
+	err := validateEncryptionConfig(config.EncryptionConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error validating EncryptionConfig: %w", err)
+	}
+
 	if (config.StartDelim != "" && config.StopDelim == "") || (config.StartDelim == "" && config.StopDelim != "") {
 		return nil, fmt.Errorf("the configurations StartDelim and StopDelim cannot be set independently")
 	}
@@ -232,6 +237,17 @@ func getValidContext(context interface{}) (ctx interface{}, _ error) {
 func (t *TemplateResolver) SetEncryptionConfig(encryptionConfig EncryptionConfig) error {
 	glog.V(glogDefLvl).Info("Setting EncryptionConfig for templates")
 
+	err := validateEncryptionConfig(encryptionConfig)
+	if err != nil {
+		return err
+	}
+
+	t.config.EncryptionConfig = encryptionConfig
+
+	return nil
+}
+
+func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
 	if encryptionConfig.EncryptionEnabled || encryptionConfig.DecryptionEnabled {
 		// Ensure AES Key is set
 		if encryptionConfig.AESKey == nil {
@@ -240,7 +256,7 @@ func (t *TemplateResolver) SetEncryptionConfig(encryptionConfig EncryptionConfig
 		// Validate AES Key
 		_, err := aes.NewCipher(encryptionConfig.AESKey)
 		if err != nil {
-			return ErrInvalidAESKey
+			return fmt.Errorf("%w: %v", ErrInvalidAESKey, err)
 		}
 		// Ensure Initialization Vector is set
 		if encryptionConfig.InitializationVector == nil {
@@ -251,11 +267,17 @@ func (t *TemplateResolver) SetEncryptionConfig(encryptionConfig EncryptionConfig
 		if len(encryptionConfig.InitializationVector) != IVSize {
 			return ErrInvalidIV
 		}
-	} else if t.config.EncryptionEnabled || t.config.DecryptionEnabled {
-		glog.V(glogDefLvl).Info("Template encryption/decryption was enabled but has been set to disabled")
-	}
 
-	t.config.EncryptionConfig = encryptionConfig
+		if encryptionConfig.EncryptionEnabled {
+			glog.V(glogDefLvl).Info("Template encryption is enabled")
+		}
+
+		if encryptionConfig.DecryptionEnabled {
+			glog.V(glogDefLvl).Info("Template decryption is enabled")
+		}
+	} else {
+		glog.V(glogDefLvl).Info("Template encryption and decryption is disabled")
+	}
 
 	return nil
 }
@@ -288,20 +310,6 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 		"atoi":             atoi,
 		"toInt":            toInt,
 		"toBool":           toBool,
-	}
-
-	// Verify encryption settings (since encryption is checked and keys are set per-policy)
-	if UsesEncryption(tmplJSON, t.config.StartDelim, t.config.StopDelim) &&
-		(t.config.EncryptionEnabled || t.config.DecryptionEnabled) {
-		if t.config.AESKey == nil {
-			return []byte(""), ErrAESKeyNotSet
-		}
-
-		// AES uses a 128 bit (16 byte) block size no matter the key size. The initialization vector must be the same
-		// length as the block size.
-		if len(t.config.InitializationVector) != IVSize {
-			return []byte(""), ErrInvalidIV
-		}
 	}
 
 	if t.config.EncryptionEnabled {
