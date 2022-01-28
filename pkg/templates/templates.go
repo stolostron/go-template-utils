@@ -427,7 +427,7 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 	d1 := regexp.QuoteMeta(t.config.StartDelim)
 	d2 := regexp.QuoteMeta(t.config.StopDelim)
 	re := regexp.MustCompile(
-		`:\s+(?:[\|>][-]?\s+)?(?:[']?\s*)(` + d1 + `.*?\s+\|\s+(?:toInt|toBool).*` + d2 + `)(?:\s*[']?)`,
+		`:\s+(?:[\|>][-]?\s+)?(?:'?\s*)(` + d1 + `.*\|\s*(?:toInt|toBool).*` + d2 + `)(?:\s*'?)`,
 	)
 	glog.V(glogDefLvl).Infof("\n Pattern: %v\n", re.String())
 
