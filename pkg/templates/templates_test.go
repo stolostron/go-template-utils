@@ -618,22 +618,51 @@ func TestProcessForDataTypes(t *testing.T) {
 		config         Config
 		expectedResult string
 	}{
-		{`key : "{{ "1" | toBool }}"`, config, `key : {{ "1" | toBool }}`},
+		{
+			`key : '{{ "1" | toBool }}'`,
+			config,
+			`key : {{ "1" | toBool }}`,
+		},
 		{
 			`key : |
-			"{{ "6" | toInt }}"`,
+			'{{ "6" | toInt }}'`,
 			config,
 			`key : {{ "6" | toInt }}`,
 		},
 		{
-			`key1 : "{{ "1" | toInt }}"
-		  key2 : |-
+			`key1 : '{{ "1" | toInt }}'
+		     key2 : |-
 		 		{{ "test" | toBool | toInt }}`,
 			config,
 			`key1 : {{ "1" | toInt }}
-		  key2 : {{ "test" | toBool | toInt }}`,
+		     key2 : {{ "test" | toBool | toInt }}`,
 		},
-		{`key : "{{hub "1" | toBool hub}}"`, hubConfig, `key : {{hub "1" | toBool hub}}`},
+		{
+			`key : '{{hub "1" | toBool hub}}'`,
+			hubConfig,
+			`key : {{hub "1" | toBool hub}}`,
+		},
+		{
+			`key : '{{ if fromClusterClaim "something"}} 1 {{ else }} {{ 2 | toInt }} {{ end }} }}'`,
+			config,
+			`key : {{ if fromClusterClaim "something"}} 1 {{ else }} {{ 2 | toInt }} {{ end }} }}`,
+		},
+		{
+			`key1 : '{{ "something"}} {{ "false" | toBool }} {{ else }} {{ "true" | toBool }} {{ end }} }}'
+		     key2 : '{{ "blah" | print }}'`,
+			config,
+			`key1 : {{ "something"}} {{ "false" | toBool }} {{ else }} {{ "true" | toBool }} {{ end }} }}
+		     key2 : '{{ "blah" | print }}'`,
+		},
+		{
+			`key1 : 'testval1'
+		     key2 : '{{with fromConfigMap "namespace" "name" "key" }} {{ . | toInt }} {{ else }} 2 {{ end }} }}'
+		     key3 : '{{ "blah" | toBool }}'`,
+			config,
+			`key1 : 'testval1'
+		     key2 : {{with fromConfigMap "namespace" "name" "key" }} {{ . | toInt }} {{ else }} 2 {{ end }} }}
+		     key3 : {{ "blah" | toBool }}`,
+		},
 	}
 
 	for _, test := range testcases {

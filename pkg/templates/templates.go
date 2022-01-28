@@ -402,19 +402,32 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 
 //nolint: wsl
 func (t *TemplateResolver) processForDataTypes(str string) string {
-	// the idea is to remove the quotes enclosing the template if it ends in toBool ot ToInt
+	// the idea is to remove the quotes enclosing the template if it has toBool ot ToInt
 	// quotes around the resolved template forces the value to be a string..
 	// so removal of these quotes allows yaml to process the datatype correctly..
 
 	// the below pattern searches for optional block scalars | or >.. followed by the quoted template ,
-	// and replaces it with just the template txt thats inside in the quotes
-	// ex-1 key : "{{ "6" | toInt }}"  .. is replaced with  key : {{ "6" | toInt }}
+	// and replaces it with just the template txt thats inside the outer quotes
+	// ex-1 key : '{{ "6" | toInt }}'  .. is replaced with  key : {{ "6" | toInt }}
 	// ex-2 key : |
-	//						"{{ "true" | toBool }}" .. is replaced with key : {{ "true" | toBool }}
+	//						'{{ "true" | toBool }}' .. is replaced with key : {{ "true" | toBool }}
+
+	//NOTES : on testing it was found that
+	// outer quotes around key-values are always single quotes
+	// even if the user input is with  double quotes , the yaml processed and saved with single quotes
+
+	// This regex relies on the yaml being wellformed
+	// It supports all the usecases previously supported and
+	// the additional usecases around  single-line template constructs  like ifelse, with etc
+
+	// another approach to consider could be to add a prefix marker to the string during yaml pre-processing
+	// and post process the yaml to remove the marker and the quotes , this way you are removing quotes
+	// around the final resolved template value and not having to handle variations in template constructs.
+
 	d1 := regexp.QuoteMeta(t.config.StartDelim)
 	d2 := regexp.QuoteMeta(t.config.StopDelim)
 	re := regexp.MustCompile(
-		`:\s+(?:[\|>][-]?\s+)?(?:['|"]\s*)?(` + d1 + `.*?\s+\|\s+(?:toInt|toBool)\s*` + d2 + `)(?:\s*['|"])?`,
+		`:\s+(?:[\|>][-]?\s+)?(?:[']?\s*)(` + d1 + `.*?\s+\|\s+(?:toInt|toBool).*` + d2 + `)(?:\s*[']?)`,
 	)
 	glog.V(glogDefLvl).Infof("\n Pattern: %v\n", re.String())
 
