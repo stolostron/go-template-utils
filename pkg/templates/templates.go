@@ -416,18 +416,10 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 	// outer quotes around key-values are always single quotes
 	// even if the user input is with  double quotes , the yaml processed and saved with single quotes
 
-	// This regex relies on the yaml being wellformed
-	// It supports all the usecases previously supported and
-	// the additional usecases around  single-line template constructs  like ifelse, with etc
-
-	// another approach to consider could be to add a prefix marker to the string during yaml pre-processing
-	// and post process the yaml to remove the marker and the quotes , this way you are removing quotes
-	// around the final resolved template value and not having to handle variations in template constructs.
-
 	d1 := regexp.QuoteMeta(t.config.StartDelim)
 	d2 := regexp.QuoteMeta(t.config.StopDelim)
 	re := regexp.MustCompile(
-		`:\s+(?:[\|>][-]?\s+)?(?:'?\s*)(` + d1 + `.*\|\s*(?:toInt|toBool).*` + d2 + `)(?:\s*'?)`,
+		`:\s+(?:[\|>]-?\s+)?(?:'?\s*)(` + d1 + `.*\|\s*(?:toInt|toBool).*` + d2 + `)(?:\s*'?)`,
 	)
 	glog.V(glogDefLvl).Infof("\n Pattern: %v\n", re.String())
 
