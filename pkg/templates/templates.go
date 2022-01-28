@@ -412,7 +412,7 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 	// ex-2 key : |
 	//						'{{ "true" | toBool }}' .. is replaced with key : {{ "true" | toBool }}
 
-	//NOTES : on testing it was found that
+	// NOTES : on testing it was found that
 	// outer quotes around key-values are always single quotes
 	// even if the user input is with  double quotes , the yaml processed and saved with single quotes
 
