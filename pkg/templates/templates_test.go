@@ -359,6 +359,13 @@ func TestResolveTemplate(t *testing.T) {
 			nil,
 		},
 		{
+			"value: $ocm_encrypted:x7Ix9DQueY+gf08PM6VSVA==", // Encrypted multiline string
+			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
+			struct{}{},
+			"value: Hello\\nRaleigh",
+			nil,
+		},
+		{
 			"value: $ocm_encrypted:😱😱😱😱", // Not Base64
 			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
 			struct{}{},

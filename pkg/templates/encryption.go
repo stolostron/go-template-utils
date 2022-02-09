@@ -247,6 +247,9 @@ func (t *TemplateResolver) decryptWrapper(
 		if err != nil {
 			result = decryptResult{match, "", err}
 		} else {
+			// Escape new lines so that they do not affect the structure of the YAML document. This also allows piping
+			// the decrypted value to template function.
+			plaintext = strings.ReplaceAll(plaintext, "\n", "\\n")
 			result = decryptResult{match, plaintext, nil}
 		}
 
