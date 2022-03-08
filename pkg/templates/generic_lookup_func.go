@@ -61,6 +61,11 @@ func (t *TemplateResolver) lookup(
 	// get dynamic Client for the given GVK and namespace
 	dclient, dclientErr := t.getDynamicClient(apiversion, kind, ns)
 	if dclientErr != nil {
+		// Treat a missing API resource as if an object was not found.
+		if errors.Is(dclientErr, ErrMissingAPIResource) {
+			return result, nil
+		}
+
 		return result, dclientErr
 	}
 
@@ -171,6 +176,8 @@ func (t *TemplateResolver) findAPIResource(gvk schema.GroupVersionKind) (metav1.
 
 	glog.V(glogDefLvl).Infof("GroupVersion is: %v", groupVersion)
 
+	found := false
+
 	for _, apiResGroup := range apiResList {
 		if apiResGroup.GroupVersion == groupVersion {
 			for _, apiRes := range apiResGroup.APIResources {
@@ -178,14 +185,26 @@ func (t *TemplateResolver) findAPIResource(gvk schema.GroupVersionKind) (metav1.
 					apiResource = apiRes
 					apiResource.Group = gvk.Group
 					apiResource.Version = gvk.Version
+					found = true
+
+					glog.V(glogDefLvl).Infof("found the APIResource: %v", apiResource)
 
 					break
 				}
 			}
+
+			// If the kind isn't found in the matching group version, then the kind doesn't exist.
+			break
 		}
 	}
 
-	glog.V(glogDefLvl).Infof("found APIResource :  %v", apiResource)
+	if !found {
+		glog.V(glogDefLvl).Infof("The APIResource for the GVK wasn't found: %v", gvk)
+
+		t.missingAPIResource = true
+
+		return apiResource, ErrMissingAPIResource
+	}
 
 	return apiResource, nil
 }
