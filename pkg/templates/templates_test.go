@@ -477,6 +477,13 @@ func TestResolveTemplate(t *testing.T) {
 					`padding bytes match`,
 			),
 		},
+		{
+			`value: '{{ lookup "v1" "NotAResource" "namespace" "object" }}'`,
+			Config{KubeAPIResourceList: []*metav1.APIResourceList{}},
+			struct{}{},
+			"",
+			ErrMissingAPIResource,
+		},
 	}
 
 	for _, test := range testcases {
@@ -900,5 +907,20 @@ func TestSetEncryptionConfig(t *testing.T) {
 		} else if err.Error() != test.expectedError.Error() {
 			t.Fatalf("expected error: %v, got: %v", test.expectedError, err)
 		}
+	}
+}
+
+func TestSetKubeAPIResourceList(t *testing.T) {
+	resolver := TemplateResolver{}
+
+	if len(resolver.config.KubeAPIResourceList) != 0 {
+		t.Fatalf("expected the initial value of config.KubeAPIResourceList to be empty")
+	}
+
+	apiResourceList := []*metav1.APIResourceList{{}}
+	resolver.SetKubeAPIResourceList(apiResourceList)
+
+	if len(resolver.config.KubeAPIResourceList) != 1 {
+		t.Fatalf("expected the set value of config.KubeAPIResourceList to have one entry")
 	}
 }

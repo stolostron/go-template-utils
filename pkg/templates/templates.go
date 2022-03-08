@@ -36,11 +36,11 @@ var (
 	ErrAESKeyNotSet          = errors.New("AESKey must be set to use this encryption mode")
 	ErrInvalidAESKey         = errors.New("the AES key is invalid")
 	ErrInvalidB64OfEncrypted = errors.New("the encrypted string is invalid base64")
-	// nolint: golint
-	ErrIVNotSet            = errors.New("initialization vector must be set to use this encryption mode")
-	ErrInvalidIV           = errors.New("initialization vector must be 128 bits")
-	ErrInvalidPKCS7Padding = errors.New("invalid PCKS7 padding")
-	ErrProtectNotEnabled   = errors.New("the protect template function is not enabled in this mode")
+	ErrIVNotSet              = errors.New("initialization vector must be set to use this encryption mode")
+	ErrInvalidIV             = errors.New("initialization vector must be 128 bits")
+	ErrInvalidPKCS7Padding   = errors.New("invalid PCKS7 padding")
+	ErrMissingAPIResource    = errors.New("one or more API resources are not installed on the API server")
+	ErrProtectNotEnabled     = errors.New("the protect template function is not enabled in this mode")
 )
 
 // Config is a struct containing configuration for the API. Some are required.
@@ -118,6 +118,9 @@ type TemplateResolver struct {
 	kubeClient *kubernetes.Interface
 	kubeConfig *rest.Config
 	config     Config
+	// Denotes if the lookup template function encountered an API resource that is not installed on
+	// the Kubernetes API server.
+	missingAPIResource bool
 }
 
 // NewResolver creates a new TemplateResolver instance, which is the API for processing templates.
@@ -234,6 +237,12 @@ func getValidContext(context interface{}) (ctx interface{}, _ error) {
 	return context, nil
 }
 
+// SetKubeAPIResourceList overrides the KubeAPIResourceList value on the TemplateResolver
+// configuration.
+func (t *TemplateResolver) SetKubeAPIResourceList(resourceList []*metav1.APIResourceList) {
+	t.config.KubeAPIResourceList = resourceList
+}
+
 // SetEncryptionConfig accepts an EncryptionConfig struct and validates it to ensure that if
 // encryption and/or decryption are enabled that the AES Key and Initialization Vector are valid. If
 // validation passes, SetEncryptionConfig updates the EncryptionConfig in the TemplateResolver
@@ -303,9 +312,15 @@ func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
 // the value `cluster1` would be available with `{{ .ClusterName }}`. This can
 // also be `nil` if no fields should be made available.
 //
-// ResolveTemplate will process any template strings in the map and return the processed map.
+// ResolveTemplate will process any template strings in the map and return the processed map. The
+// ErrMissingAPIResource is returned when one or more "lookup" calls referenced an API resource
+// which isn't installed on the Kubernetes API server. In this case, the resolved template is still
+// returned.
 func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{}) ([]byte, error) {
 	glog.V(glogDefLvl).Infof("ResolveTemplate for: %v", tmplJSON)
+
+	// Always reset this value on each ResolveTemplate call.
+	t.missingAPIResource = false
 
 	ctx, err := getValidContext(context)
 	if err != nil {
@@ -395,6 +410,10 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	resolvedTemplateBytes, err := yamlToJSON([]byte(resolvedTemplateStr))
 	if err != nil {
 		return []byte(""), fmt.Errorf("failed to convert the resolved template back to YAML: %w", err)
+	}
+
+	if t.missingAPIResource {
+		return resolvedTemplateBytes, ErrMissingAPIResource
 	}
 
 	return resolvedTemplateBytes, nil
