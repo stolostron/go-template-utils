@@ -33,14 +33,17 @@ const (
 )
 
 var (
-	ErrAESKeyNotSet          = errors.New("AESKey must be set to use this encryption mode")
-	ErrInvalidAESKey         = errors.New("the AES key is invalid")
-	ErrInvalidB64OfEncrypted = errors.New("the encrypted string is invalid base64")
-	ErrIVNotSet              = errors.New("initialization vector must be set to use this encryption mode")
-	ErrInvalidIV             = errors.New("initialization vector must be 128 bits")
-	ErrInvalidPKCS7Padding   = errors.New("invalid PCKS7 padding")
-	ErrMissingAPIResource    = errors.New("one or more API resources are not installed on the API server")
-	ErrProtectNotEnabled     = errors.New("the protect template function is not enabled in this mode")
+	ErrAESKeyNotSet                      = errors.New("AESKey must be set to use this encryption mode")
+	ErrInvalidAESKey                     = errors.New("the AES key is invalid")
+	ErrInvalidB64OfEncrypted             = errors.New("the encrypted string is invalid base64")
+	ErrIVNotSet                          = errors.New("initialization vector must be set to use this encryption mode")
+	ErrInvalidIV                         = errors.New("initialization vector must be 128 bits")
+	ErrInvalidPKCS7Padding               = errors.New("invalid PCKS7 padding")
+	ErrMissingAPIResource                = errors.New("one or more API resources are not installed on the API server")
+	ErrMissingAPIResourceInvalidTemplate = errors.New(
+		"one or more API resources are not installed on the API server which could have led to the templating error",
+	)
+	ErrProtectNotEnabled = errors.New("the protect template function is not enabled in this mode")
 )
 
 // Config is a struct containing configuration for the API. Some are required.
@@ -315,7 +318,8 @@ func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
 // ResolveTemplate will process any template strings in the map and return the processed map. The
 // ErrMissingAPIResource is returned when one or more "lookup" calls referenced an API resource
 // which isn't installed on the Kubernetes API server. In this case, the resolved template is still
-// returned.
+// returned. ErrMissingAPIResourceInvalidTemplate can also be returned in this case but it also means the template
+// failed to resolve, so the resolved template will not be returned.
 func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{}) ([]byte, error) {
 	glog.V(glogDefLvl).Infof("ResolveTemplate for: %v", tmplJSON)
 
@@ -399,6 +403,10 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	if err != nil {
 		tmplJSONStr := string(tmplJSON)
 		glog.Errorf("error resolving the template %v,\n template str %v,\n error: %v", tmplJSONStr, templateStr, err)
+
+		if t.missingAPIResource {
+			return []byte(""), fmt.Errorf("%w: %v: %v", ErrMissingAPIResourceInvalidTemplate, err, tmplJSONStr)
+		}
 
 		return []byte(""), fmt.Errorf("failed to resolve the template %v: %w", tmplJSONStr, err)
 	}
