@@ -484,6 +484,18 @@ func TestResolveTemplate(t *testing.T) {
 			"",
 			ErrMissingAPIResource,
 		},
+		{
+			`value: '{{ index (lookup "v1" "NotAResource" "namespace" "object").data.list 2 }}'`,
+			Config{KubeAPIResourceList: []*metav1.APIResourceList{}},
+			struct{}{},
+			"",
+			errors.New(
+				`one or more API resources are not installed on the API server which could have led to the ` +
+					`templating error: template: tmpl:1:11: executing "tmpl" at <index (lookup "v1" "NotAResource" ` +
+					`"namespace" "object").data.list 2>: error calling index: index of untyped nil: ` +
+					`{"value":"{{ index (lookup \"v1\" \"NotAResource\" \"namespace\" \"object\").data.list 2 }}"}`,
+			),
+		},
 	}
 
 	for _, test := range testcases {
