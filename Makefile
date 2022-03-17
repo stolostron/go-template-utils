@@ -1,9 +1,8 @@
 # Copyright (c) 2020 Red Hat, Inc.
 # Copyright Contributors to the Open Cluster Management project
 
-PWD := $(shell pwd)
 BASE_DIR := $(shell basename $(PWD))
-export PATH=$(shell echo $$PATH):$(PWD)/bin
+export PATH := $(PWD)/bin:$(PATH)
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
 # Keep an existing GOPATH, make a private one if it is undefined
