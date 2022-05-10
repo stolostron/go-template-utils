@@ -1,43 +1,43 @@
 # Copyright (c) 2020 Red Hat, Inc.
 # Copyright Contributors to the Open Cluster Management project
 
-BASE_DIR := $(shell basename $(PWD))
-export PATH := $(PWD)/bin:$(PATH)
-PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+PWD := $(shell pwd)
+LOCAL_BIN ?= $(PWD)/bin
 
 # Keep an existing GOPATH, make a private one if it is undefined
 GOPATH_DEFAULT := $(PWD)/.go
 export GOPATH ?= $(GOPATH_DEFAULT)
 GOBIN_DEFAULT := $(GOPATH)/bin
 export GOBIN ?= $(GOBIN_DEFAULT)
-export PATH := $(PATH):$(GOBIN)
+export PATH := $(LOCAL_BIN):$(GOBIN):$(PATH)
 TESTARGS_DEFAULT := "-v"
 export TESTARGS ?= $(TESTARGS_DEFAULT)
 
-.PHONY: fmt lint fmt-dependencies lint-dependencies test
-
 include build/common/Makefile.common.mk
 
-# go-get-tool will 'go get' any package $2 and install it to $1.
+# go-get-tool will 'go install' any package $1 and install it to LOCAL_BIN.
 define go-get-tool
-@[ -f $(1) ] || { \
-set -e ;\
-TMP_DIR=$$(mktemp -d) ;\
-cd $$TMP_DIR ;\
-go mod init tmp ;\
-echo "Downloading $(2)" ;\
-GOBIN=$(PROJECT_DIR)/bin go get $(2) ;\
-rm -rf $$TMP_DIR ;\
-}
+@set -e ;\
+echo "Checking installation of $(1)" ;\
+GOBIN=$(LOCAL_BIN) go install $(1)
 endef
+
+############################################################
+# clean section
+############################################################
+
+.PHONY: clean
+clean:
+	-rm bin/*
+	-rm -r vendor/
 
 ############################################################
 # format section
 ############################################################
 
 fmt-dependencies:
-	$(call go-get-tool,$(PWD)/bin/gci,github.com/daixiang0/gci@v0.2.9)
-	$(call go-get-tool,$(PWD)/bin/gofumpt,mvdan.cc/gofumpt@v0.2.0)
+	$(call go-get-tool,github.com/daixiang0/gci@v0.2.9)
+	$(call go-get-tool,mvdan.cc/gofumpt@v0.2.0)
 
 fmt: fmt-dependencies
 	find . -not \( -path "./.go" -prune \) -name "*.go" | xargs gofmt -s -w
@@ -49,7 +49,7 @@ fmt: fmt-dependencies
 ############################################################
 
 lint-dependencies:
-	$(call go-get-tool,$(PWD)/bin/golangci-lint,github.com/golangci/golangci-lint/cmd/golangci-lint@v1.41.1)
+	$(call go-get-tool,github.com/golangci/golangci-lint/cmd/golangci-lint@v1.41.1)
 
 lint: lint-dependencies lint-all
 
@@ -58,4 +58,4 @@ lint: lint-dependencies lint-all
 ############################################################
 
 test:
-	@go test $(TESTARGS) ./...
+	go test $(TESTARGS) ./...
