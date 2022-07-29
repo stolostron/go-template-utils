@@ -346,6 +346,11 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 		"toBool":           toBool,
 	}
 
+	// Add all the functions from sprig we will support
+	for _, fname := range exportedSprigFunctions {
+		funcMap[fname] = getSprigFunc(fname)
+	}
+
 	if t.config.EncryptionEnabled {
 		funcMap["fromSecret"] = t.fromSecretProtected
 		funcMap["protect"] = t.protect
