@@ -222,7 +222,7 @@ func (t *TemplateResolver) discoverAPIResources() ([]*metav1.APIResourceList, er
 		return nil, fmt.Errorf("failed to create the discovery client: %w", ddErr)
 	}
 
-	apiresourcelist, apiresourcelistErr := dd.ServerResources()
+	_, apiresourcelist, apiresourcelistErr := dd.ServerGroupsAndResources()
 	if apiresourcelistErr != nil {
 		glog.Errorf("Failed to retrieve apiresourcelist with err: %v", apiresourcelistErr)
 
