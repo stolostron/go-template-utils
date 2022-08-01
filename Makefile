@@ -36,12 +36,12 @@ clean:
 ############################################################
 
 fmt-dependencies:
-	$(call go-get-tool,github.com/daixiang0/gci@v0.2.9)
-	$(call go-get-tool,mvdan.cc/gofumpt@v0.2.0)
+	$(call go-get-tool,github.com/daixiang0/gci@v0.6.0)
+	$(call go-get-tool,mvdan.cc/gofumpt@v0.3.1)
 
 fmt: fmt-dependencies
 	find . -not \( -path "./.go" -prune \) -name "*.go" | xargs gofmt -s -w
-	find . -not \( -path "./.go" -prune \) -name "*.go" | xargs gci -w -local "$(shell cat go.mod | head -1 | cut -d " " -f 2)"
+	find . -not \( -path "./.go" -prune \) -name "*.go" | xargs gci write -s standard -s default -s "prefix($(shell cat go.mod | head -1 | cut -d " " -f 2))"
 	find . -not \( -path "./.go" -prune \) -name "*.go" | xargs gofumpt -l -w
 
 ############################################################
@@ -49,7 +49,7 @@ fmt: fmt-dependencies
 ############################################################
 
 lint-dependencies:
-	$(call go-get-tool,github.com/golangci/golangci-lint/cmd/golangci-lint@v1.41.1)
+	$(call go-get-tool,github.com/golangci/golangci-lint/cmd/golangci-lint@v1.47.3)
 
 lint: lint-dependencies lint-all
 
