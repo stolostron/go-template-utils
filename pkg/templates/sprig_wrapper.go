@@ -4,7 +4,7 @@
 package templates
 
 import (
-	"github.com/Masterminds/sprig/v3"
+	sprig "github.com/Masterminds/sprig/v3"
 )
 
 var (
