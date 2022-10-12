@@ -151,12 +151,13 @@ data:
 			panic(err)
 		}
 
-		policyResolvedJSON, err := resolver.ResolveTemplate(policyJSON, nil)
+		resolvedResult, err := resolver.ResolveTemplate(policyJSON, nil)
 		if err != nil {
 			t.Fatalf("Failed to process the policy YAML: %v\n", err)
 			panic(err)
 		}
 
+		policyResolvedJSON := resolvedResult.resolvedJSON
 		var policyResolved interface{}
 		err = yaml.Unmarshal(policyResolvedJSON, &policyResolved)
 

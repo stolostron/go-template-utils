@@ -17,8 +17,10 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/spf13/cast"
+	"github.com/stolostron/kubernetes-dependency-watches/client"
 	yaml "gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -124,6 +126,12 @@ type TemplateResolver struct {
 	// Denotes if the lookup template function encountered an API resource that is not installed on
 	// the Kubernetes API server.
 	missingAPIResource bool
+	referencedObjs     []client.ObjectIdentifier
+}
+
+type TemplateResult struct {
+	resolvedJSON   []byte
+	referencedObjs []client.ObjectIdentifier
 }
 
 // NewResolver creates a new TemplateResolver instance, which is the API for processing templates.
@@ -320,15 +328,18 @@ func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
 // which isn't installed on the Kubernetes API server. In this case, the resolved template is still
 // returned. ErrMissingAPIResourceInvalidTemplate can also be returned in this case but it also means the template
 // failed to resolve, so the resolved template will not be returned.
-func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{}) ([]byte, error) {
+func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{}) (TemplateResult, error) {
 	glog.V(glogDefLvl).Infof("ResolveTemplate for: %v", tmplJSON)
 
 	// Always reset this value on each ResolveTemplate call.
 	t.missingAPIResource = false
+	t.referencedObjs = []client.ObjectIdentifier{}
+
+	var resolvedResult TemplateResult
 
 	ctx, err := getValidContext(context)
 	if err != nil {
-		return []byte(""), err
+		return resolvedResult, err
 	}
 
 	// Build Map of supported template functions
@@ -369,7 +380,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	// convert the JSON to YAML
 	templateYAMLBytes, err := jsonToYAML(tmplJSON)
 	if err != nil {
-		return []byte(""), fmt.Errorf("failed to convert the policy template to YAML: %w", err)
+		return resolvedResult, fmt.Errorf("failed to convert the policy template to YAML: %w", err)
 	}
 
 	templateStr := string(templateYAMLBytes)
@@ -378,7 +389,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	if t.config.DecryptionEnabled {
 		templateStr, err = t.processEncryptedStrs(templateStr)
 		if err != nil {
-			return []byte(""), err
+			return resolvedResult, err
 		}
 	}
 
@@ -399,7 +410,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 			"error parsing template JSON string %v,\n template str %v,\n error: %v", tmplJSONStr, templateStr, err,
 		)
 
-		return []byte(""), fmt.Errorf("failed to parse the template JSON string %v: %w", tmplJSONStr, err)
+		return resolvedResult, fmt.Errorf("failed to parse the template JSON string %v: %w", tmplJSONStr, err)
 	}
 
 	var buf strings.Builder
@@ -410,10 +421,10 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 		glog.Errorf("error resolving the template %v,\n template str %v,\n error: %v", tmplJSONStr, templateStr, err)
 
 		if t.missingAPIResource {
-			return []byte(""), fmt.Errorf("%w: %v: %v", ErrMissingAPIResourceInvalidTemplate, err, tmplJSONStr)
+			return resolvedResult, fmt.Errorf("%w: %v: %v", ErrMissingAPIResourceInvalidTemplate, err, tmplJSONStr)
 		}
 
-		return []byte(""), fmt.Errorf("failed to resolve the template %v: %w", tmplJSONStr, err)
+		return resolvedResult, fmt.Errorf("failed to resolve the template %v: %w", tmplJSONStr, err)
 	}
 
 	resolvedTemplateStr := buf.String()
@@ -422,14 +433,17 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 
 	resolvedTemplateBytes, err := yamlToJSON([]byte(resolvedTemplateStr))
 	if err != nil {
-		return []byte(""), fmt.Errorf("failed to convert the resolved template back to YAML: %w", err)
+		return resolvedResult, fmt.Errorf("failed to convert the resolved template back to YAML: %w", err)
 	}
 
 	if t.missingAPIResource {
-		return resolvedTemplateBytes, ErrMissingAPIResource
+		return resolvedResult, ErrMissingAPIResource
 	}
 
-	return resolvedTemplateBytes, nil
+	resolvedResult.resolvedJSON = resolvedTemplateBytes
+	resolvedResult.referencedObjs = t.referencedObjs
+
+	return resolvedResult, nil
 }
 
 //nolint: wsl
@@ -559,4 +573,17 @@ func toBool(a string) bool {
 	b, _ := strconv.ParseBool(a)
 
 	return b
+}
+
+func (t *TemplateResolver) addToReferencedObs(apiversion string, kind string, namespace string, name string) {
+	gvk := schema.FromAPIVersionAndKind(apiversion, kind)
+
+	objID := client.ObjectIdentifier{
+		Group:     gvk.Group,
+		Version:   gvk.Version,
+		Kind:      kind,
+		Namespace: namespace,
+		Name:      name,
+	}
+	t.referencedObjs = append(t.referencedObjs, objID)
 }
