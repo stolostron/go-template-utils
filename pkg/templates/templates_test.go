@@ -541,6 +541,7 @@ func TestResolveTemplate(t *testing.T) {
 
 func TestReferencedObjs(t *testing.T) {
 	t.Parallel()
+
 	testcases := []struct {
 		inputTmpl       string
 		config          Config
@@ -552,8 +553,12 @@ func TestReferencedObjs(t *testing.T) {
 			Config{},
 			nil,
 			[]client.ObjectIdentifier{
-				client.ObjectIdentifier{
-					"", "v1", "Secret", "testns", "testsecret",
+				{
+					Group:     "",
+					Version:   "v1",
+					Kind:      "Secret",
+					Namespace: "testns",
+					Name:      "testsecret",
 				},
 			},
 		},
@@ -562,8 +567,12 @@ func TestReferencedObjs(t *testing.T) {
 			Config{},
 			nil,
 			[]client.ObjectIdentifier{
-				client.ObjectIdentifier{
-					"", "v1", "ConfigMap", "testns", "testconfigmap",
+				{
+					Group:     "",
+					Version:   "v1",
+					Kind:      "ConfigMap",
+					Namespace: "testns",
+					Name:      "testconfigmap",
 				},
 			},
 		},
@@ -573,11 +582,19 @@ param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
 			Config{},
 			nil,
 			[]client.ObjectIdentifier{
-				client.ObjectIdentifier{
-					"", "v1", "Secret", "testns", "testsecret",
+				{
+					Group:     "",
+					Version:   "v1",
+					Kind:      "Secret",
+					Namespace: "testns",
+					Name:      "testsecret",
 				},
-				client.ObjectIdentifier{
-					"", "v1", "ConfigMap", "testns", "testconfigmap",
+				{
+					Group:     "",
+					Version:   "v1",
+					Kind:      "ConfigMap",
+					Namespace: "testns",
+					Name:      "testconfigmap",
 				},
 			},
 		},
@@ -884,6 +901,7 @@ spec:
 
 	tmplResult, err := resolver.ResolveTemplate(policyJSON, templateContext)
 	policyResolvedJSON := tmplResult.resolvedJSON
+
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)
 		panic(err)

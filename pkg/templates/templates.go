@@ -446,7 +446,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	return resolvedResult, nil
 }
 
-//nolint: wsl
+// nolint: wsl
 func (t *TemplateResolver) processForDataTypes(str string) string {
 	// the idea is to remove the quotes enclosing the template if it has toBool ot ToInt
 	// quotes around the resolved template forces the value to be a string..
