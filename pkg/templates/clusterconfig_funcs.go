@@ -51,6 +51,8 @@ func (t *TemplateResolver) fromClusterClaim(claimname string) (string, error) {
 	}
 
 	if _, ok := spec["value"]; ok {
+		t.addToReferencedObs(getObj.GetAPIVersion(), getObj.GetKind(), "", claimname)
+
 		return spec["value"].(string), nil
 	}
 

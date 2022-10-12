@@ -9,9 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/stolostron/kubernetes-dependency-watches/client"
 	yaml "gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,6 +41,10 @@ func getTemplateResolver(c Config) *TemplateResolver {
 
 	// secret
 	secret := corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "testsecret",
 		},
@@ -56,6 +62,10 @@ func getTemplateResolver(c Config) *TemplateResolver {
 
 	// configmap
 	configmap := corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "testconfigmap",
 		},
@@ -505,8 +515,8 @@ func TestResolveTemplate(t *testing.T) {
 		}
 
 		resolver := getTemplateResolver(test.config)
+		tmplResult, err := resolver.ResolveTemplate(tmplStr, test.ctx)
 
-		val, err := resolver.ResolveTemplate(tmplStr, test.ctx)
 		if err != nil {
 			if test.expectedErr == nil {
 				t.Fatalf(err.Error())
@@ -516,7 +526,7 @@ func TestResolveTemplate(t *testing.T) {
 				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 			}
 		} else {
-			val, err := jsonToYAML(val)
+			val, err := jsonToYAML(tmplResult.resolvedJSON)
 			if err != nil {
 				t.Fatalf(err.Error())
 			}
@@ -524,6 +534,78 @@ func TestResolveTemplate(t *testing.T) {
 
 			if valStr != test.expectedResult {
 				t.Fatalf("%s expected : '%s' , got : '%s'", test.inputTmpl, test.expectedResult, val)
+			}
+		}
+	}
+}
+
+func TestReferencedObjs(t *testing.T) {
+	t.Parallel()
+	testcases := []struct {
+		inputTmpl       string
+		config          Config
+		ctx             interface{}
+		expectedRefObjs []client.ObjectIdentifier
+	}{
+		{
+			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
+			Config{},
+			nil,
+			[]client.ObjectIdentifier{
+				client.ObjectIdentifier{
+					"", "v1", "Secret", "testns", "testsecret",
+				},
+			},
+		},
+		{
+			`param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
+			Config{},
+			nil,
+			[]client.ObjectIdentifier{
+				client.ObjectIdentifier{
+					"", "v1", "ConfigMap", "testns", "testconfigmap",
+				},
+			},
+		},
+		{
+			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'
+param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
+			Config{},
+			nil,
+			[]client.ObjectIdentifier{
+				client.ObjectIdentifier{
+					"", "v1", "Secret", "testns", "testsecret",
+				},
+				client.ObjectIdentifier{
+					"", "v1", "ConfigMap", "testns", "testconfigmap",
+				},
+			},
+		},
+		{
+			`config1: '{{ "testdata" | base64enc  }}'`,
+			Config{},
+			nil,
+			[]client.ObjectIdentifier{},
+		},
+	}
+
+	for _, test := range testcases {
+		tmplStr, err := yamlToJSON([]byte(test.inputTmpl))
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
+
+		resolver := getTemplateResolver(test.config)
+
+		tmplResult, err := resolver.ResolveTemplate(tmplStr, test.ctx)
+		if err != nil {
+			t.Fatalf(err.Error())
+		} else {
+			referencedObjs := tmplResult.referencedObjs
+
+			if len(referencedObjs) != len(test.expectedRefObjs) ||
+				((len(referencedObjs) != 0) && !reflect.DeepEqual(referencedObjs, test.expectedRefObjs)) {
+				t.Errorf("got %q slice but expected %q", referencedObjs, test.expectedRefObjs)
 			}
 		}
 	}
@@ -800,7 +882,8 @@ spec:
 
 	templateContext := struct{ ClusterName string }{ClusterName: "cluster0001"}
 
-	policyResolvedJSON, err := resolver.ResolveTemplate(policyJSON, templateContext)
+	tmplResult, err := resolver.ResolveTemplate(policyJSON, templateContext)
+	policyResolvedJSON := tmplResult.resolvedJSON
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)
 		panic(err)
