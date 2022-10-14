@@ -534,7 +534,7 @@ func TestResolveTemplate(t *testing.T) {
 				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 			}
 		} else {
-			val, err := jsonToYAML(tmplResult.resolvedJSON)
+			val, err := jsonToYAML(tmplResult.ResolvedJSON)
 			if err != nil {
 				t.Fatalf(err.Error())
 			}
@@ -547,7 +547,7 @@ func TestResolveTemplate(t *testing.T) {
 	}
 }
 
-func TestReferencedObjs(t *testing.T) {
+func TestReferencedObjects(t *testing.T) {
 	t.Parallel()
 
 	testcases := []struct {
@@ -626,7 +626,7 @@ param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
 		if err != nil {
 			t.Fatalf(err.Error())
 		} else {
-			referencedObjs := tmplResult.referencedObjs
+			referencedObjs := tmplResult.ReferencedObjects
 
 			if len(referencedObjs) != len(test.expectedRefObjs) ||
 				((len(referencedObjs) != 0) && !reflect.DeepEqual(referencedObjs, test.expectedRefObjs)) {
@@ -908,7 +908,7 @@ spec:
 	templateContext := struct{ ClusterName string }{ClusterName: "cluster0001"}
 
 	tmplResult, err := resolver.ResolveTemplate(policyJSON, templateContext)
-	policyResolvedJSON := tmplResult.resolvedJSON
+	policyResolvedJSON := tmplResult.ResolvedJSON
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)
