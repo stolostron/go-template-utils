@@ -539,7 +539,7 @@ func TestResolveTemplate(t *testing.T) {
 	}
 }
 
-func TestReferencedObjs(t *testing.T) {
+func TestReferencedObjects(t *testing.T) {
 	t.Parallel()
 
 	testcases := []struct {
@@ -618,7 +618,7 @@ param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
 		if err != nil {
 			t.Fatalf(err.Error())
 		} else {
-			referencedObjs := tmplResult.ReferencedObjs
+			referencedObjs := tmplResult.ReferencedObjects
 
 			if len(referencedObjs) != len(test.expectedRefObjs) ||
 				((len(referencedObjs) != 0) && !reflect.DeepEqual(referencedObjs, test.expectedRefObjs)) {

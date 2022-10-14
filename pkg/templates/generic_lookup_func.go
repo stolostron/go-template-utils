@@ -77,14 +77,14 @@ func (t *TemplateResolver) lookup(
 		getObj, lookupErr := dclient.Get(context.TODO(), rsrcname, metav1.GetOptions{})
 		if lookupErr == nil {
 			result = getObj.UnstructuredContent()
-			t.addToReferencedObs(getObj.GetAPIVersion(), getObj.GetKind(), ns, getObj.GetName())
+			t.addToReferencedObjects(getObj.GetAPIVersion(), getObj.GetKind(), ns, getObj.GetName())
 		}
 	} else {
 		listObj, lookupErr := dclient.List(context.TODO(), metav1.ListOptions{})
 		if lookupErr == nil {
 			result = listObj.UnstructuredContent()
 			for _, item := range listObj.Items {
-				t.addToReferencedObs(item.GetAPIVersion(), item.GetKind(), ns, item.GetName())
+				t.addToReferencedObjects(item.GetAPIVersion(), item.GetKind(), ns, item.GetName())
 			}
 		}
 	}
