@@ -130,8 +130,8 @@ type TemplateResolver struct {
 }
 
 type TemplateResult struct {
-	resolvedJSON   []byte
-	referencedObjs []client.ObjectIdentifier
+	ResolvedJSON   []byte
+	ReferencedObjs []client.ObjectIdentifier
 }
 
 // NewResolver creates a new TemplateResolver instance, which is the API for processing templates.
@@ -440,8 +440,8 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 		return resolvedResult, ErrMissingAPIResource
 	}
 
-	resolvedResult.resolvedJSON = resolvedTemplateBytes
-	resolvedResult.referencedObjs = t.referencedObjs
+	resolvedResult.ResolvedJSON = resolvedTemplateBytes
+	resolvedResult.ReferencedObjs = t.referencedObjs
 
 	return resolvedResult, nil
 }

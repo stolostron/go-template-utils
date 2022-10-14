@@ -38,7 +38,7 @@ func (t *TemplateResolver) fromSecret(namespace string, secretname string, key s
 	sEnc := base64.StdEncoding.EncodeToString(keyVal)
 
 	// add this Secret to list of  Objs referenced by the template
-	t.addToReferencedObs(secret.APIVersion, secret.Kind, secret.Namespace, secret.Name)
+	t.addToReferencedObs("/v1", "Secret", secret.Namespace, secret.Name)
 
 	return sEnc, nil
 }
@@ -78,7 +78,7 @@ func (t *TemplateResolver) fromConfigMap(namespace string, cmapname string, key 
 	glog.V(glogDefLvl).Infof("Configmap Key:%v, Value: %v", key, keyVal)
 
 	// add this Configmap to list of  Objs referenced by the template
-	t.addToReferencedObs(configmap.APIVersion, configmap.Kind, namespace, cmapname)
+	t.addToReferencedObs("/v1", "ConfigMap", namespace, cmapname)
 
 	return keyVal, nil
 }
