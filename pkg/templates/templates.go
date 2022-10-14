@@ -126,12 +126,12 @@ type TemplateResolver struct {
 	// Denotes if the lookup template function encountered an API resource that is not installed on
 	// the Kubernetes API server.
 	missingAPIResource bool
-	referencedObjs     []client.ObjectIdentifier
+	referencedObjects  []client.ObjectIdentifier
 }
 
 type TemplateResult struct {
-	resolvedJSON   []byte
-	referencedObjs []client.ObjectIdentifier
+	ResolvedJSON      []byte
+	ReferencedObjects []client.ObjectIdentifier
 }
 
 // NewResolver creates a new TemplateResolver instance, which is the API for processing templates.
@@ -333,7 +333,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 
 	// Always reset this value on each ResolveTemplate call.
 	t.missingAPIResource = false
-	t.referencedObjs = []client.ObjectIdentifier{}
+	t.referencedObjects = []client.ObjectIdentifier{}
 
 	var resolvedResult TemplateResult
 
@@ -443,8 +443,8 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 		return resolvedResult, ErrMissingAPIResource
 	}
 
-	resolvedResult.resolvedJSON = resolvedTemplateBytes
-	resolvedResult.referencedObjs = t.referencedObjs
+	resolvedResult.ResolvedJSON = resolvedTemplateBytes
+	resolvedResult.ReferencedObjects = t.referencedObjects
 
 	return resolvedResult, nil
 }
@@ -584,7 +584,7 @@ func toLiteral(a string) string {
 	return a
 }
 
-func (t *TemplateResolver) addToReferencedObs(apiversion string, kind string, namespace string, name string) {
+func (t *TemplateResolver) addToReferencedObjects(apiversion string, kind string, namespace string, name string) {
 	gvk := schema.FromAPIVersionAndKind(apiversion, kind)
 
 	objID := client.ObjectIdentifier{
@@ -594,5 +594,5 @@ func (t *TemplateResolver) addToReferencedObs(apiversion string, kind string, na
 		Namespace: namespace,
 		Name:      name,
 	}
-	t.referencedObjs = append(t.referencedObjs, objID)
+	t.referencedObjects = append(t.referencedObjects, objID)
 }

@@ -157,7 +157,7 @@ data:
 			panic(err)
 		}
 
-		policyResolvedJSON := resolvedResult.resolvedJSON
+		policyResolvedJSON := resolvedResult.ResolvedJSON
 		var policyResolved interface{}
 		err = yaml.Unmarshal(policyResolvedJSON, &policyResolved)
 
