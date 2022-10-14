@@ -344,6 +344,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 		"atoi":             atoi,
 		"toInt":            toInt,
 		"toBool":           toBool,
+		"toLiteral":        toLiteral,
 	}
 
 	// Add all the functions from sprig we will support
@@ -383,7 +384,9 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	}
 
 	// process for int or bool
-	if strings.Contains(templateStr, "toInt") || strings.Contains(templateStr, "toBool") {
+	if strings.Contains(templateStr, "toInt") ||
+		strings.Contains(templateStr, "toBool") ||
+		strings.Contains(templateStr, "toLiteral") {
 		templateStr = t.processForDataTypes(templateStr)
 	}
 
@@ -434,9 +437,9 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 
 // nolint: wsl
 func (t *TemplateResolver) processForDataTypes(str string) string {
-	// the idea is to remove the quotes enclosing the template if it has toBool ot ToInt
-	// quotes around the resolved template forces the value to be a string..
-	// so removal of these quotes allows yaml to process the datatype correctly..
+	// The idea is to remove the quotes enclosing the template if it has toBool, toInt, or toLiteral.
+	// Quotes around the resolved template forces the value to be a string so removal of these quotes allows YAML to
+	// process the datatype correctly.
 
 	// the below pattern searches for optional block scalars | or >.. followed by the quoted template ,
 	// and replaces it with just the template txt thats inside the outer quotes
@@ -451,7 +454,7 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 	d1 := regexp.QuoteMeta(t.config.StartDelim)
 	d2 := regexp.QuoteMeta(t.config.StopDelim)
 	re := regexp.MustCompile(
-		`:\s+(?:[\|>]-?\s+)?(?:'?\s*)(` + d1 + `.*\|\s*(?:toInt|toBool).*` + d2 + `)(?:\s*'?)`,
+		`:\s+(?:[\|>]-?\s+)?(?:'?\s*)(` + d1 + `.*\|\s*(?:toInt|toBool|toLiteral).*` + d2 + `)(?:\s*'?)`,
 	)
 	glog.V(glogDefLvl).Infof("\n Pattern: %v\n", re.String())
 
@@ -559,4 +562,10 @@ func toBool(a string) bool {
 	b, _ := strconv.ParseBool(a)
 
 	return b
+}
+
+// toLiteral just returns the input string as it is, however, this template function will be used to detect when
+// to remove quotes around the template string after the template is processed.
+func toLiteral(a string) string {
+	return a
 }
