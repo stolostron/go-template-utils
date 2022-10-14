@@ -70,8 +70,9 @@ func getTemplateResolver(c Config) *TemplateResolver {
 			Name: "testconfigmap",
 		},
 		Data: map[string]string{
-			"cmkey1": "cmkey1Val",
-			"cmkey2": "cmkey2Val",
+			"cmkey1":         "cmkey1Val",
+			"cmkey2":         "cmkey2Val",
+			"ingressSources": "[10.10.10.10, 1.1.1.1]",
 		},
 	}
 
@@ -188,6 +189,13 @@ func TestResolveTemplate(t *testing.T) {
 			Config{},
 			nil,
 			"param: cmkey1Val",
+			nil,
+		},
+		{
+			`param: '{{ fromConfigMap "testns" "testconfigmap" "ingressSources" | toLiteral }}'`,
+			Config{},
+			nil,
+			"param:\n  - 10.10.10.10\n  - 1.1.1.1",
 			nil,
 		},
 		{

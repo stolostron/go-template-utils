@@ -59,3 +59,8 @@ Additionally, the following custom functions are supported:
 - `toInt` parses an input string and returns an integer but also removes any
   quotes around the map value. For example, `key: "{{ "6" | toInt }}"` =>
   `key: 6`.
+- `toLiteral` removes any quotes around the template string after it is
+  processed. For example, `key: "{{ "[10.10.10.10, 1.1.1.1]" | toLiteral }}` =>
+  `key: [10.10.10.10, 1.1.1.1]`. A good use-case for this is when a `ConfigMap`
+  field contains a JSON string that you want to literally replace the
+  template with and have it treated as the underlying JSON type.
