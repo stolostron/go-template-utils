@@ -419,6 +419,9 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	var buf strings.Builder
 
 	err = tmpl.Execute(&buf, ctx)
+
+	resolvedResult.ReferencedObjects = t.referencedObjects
+
 	if err != nil {
 		tmplJSONStr := string(tmplJSON)
 		glog.Errorf("error resolving the template %v,\n template str %v,\n error: %v", tmplJSONStr, templateStr, err)
@@ -444,7 +447,6 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	}
 
 	resolvedResult.ResolvedJSON = resolvedTemplateBytes
-	resolvedResult.ReferencedObjects = t.referencedObjects
 
 	return resolvedResult, nil
 }

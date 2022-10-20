@@ -554,12 +554,14 @@ func TestReferencedObjects(t *testing.T) {
 		inputTmpl       string
 		config          Config
 		ctx             interface{}
+		errExpected     bool
 		expectedRefObjs []client.ObjectIdentifier
 	}{
 		{
 			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
 			Config{},
 			nil,
+			false,
 			[]client.ObjectIdentifier{
 				{
 					Group:     "",
@@ -574,6 +576,7 @@ func TestReferencedObjects(t *testing.T) {
 			`param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
 			Config{},
 			nil,
+			false,
 			[]client.ObjectIdentifier{
 				{
 					Group:     "",
@@ -585,10 +588,11 @@ func TestReferencedObjects(t *testing.T) {
 			},
 		},
 		{
-			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'
-param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
+			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'` + "\n" +
+				`param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
 			Config{},
 			nil,
+			false,
 			[]client.ObjectIdentifier{
 				{
 					Group:     "",
@@ -610,7 +614,24 @@ param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
 			`config1: '{{ "testdata" | base64enc  }}'`,
 			Config{},
 			nil,
+			false,
 			[]client.ObjectIdentifier{},
+		},
+		{
+			`data: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'` + "\n" +
+				`otherdata: '{{ fromConfigMap "testns" "does-not-exist" "cmkey23" }}'`,
+			Config{},
+			nil,
+			true,
+			[]client.ObjectIdentifier{
+				{
+					Group:     "",
+					Version:   "v1",
+					Kind:      "ConfigMap",
+					Namespace: "testns",
+					Name:      "testconfigmap",
+				},
+			},
 		},
 	}
 
@@ -624,14 +645,18 @@ param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
 
 		tmplResult, err := resolver.ResolveTemplate(tmplStr, test.ctx)
 		if err != nil {
-			t.Fatalf(err.Error())
-		} else {
-			referencedObjs := tmplResult.ReferencedObjects
-
-			if len(referencedObjs) != len(test.expectedRefObjs) ||
-				((len(referencedObjs) != 0) && !reflect.DeepEqual(referencedObjs, test.expectedRefObjs)) {
-				t.Errorf("got %q slice but expected %q", referencedObjs, test.expectedRefObjs)
+			if !test.errExpected {
+				t.Fatalf(err.Error())
 			}
+		} else if test.errExpected {
+			t.Fatalf("An error was expected but one was not received")
+		}
+
+		referencedObjs := tmplResult.ReferencedObjects
+
+		if len(referencedObjs) != len(test.expectedRefObjs) ||
+			((len(referencedObjs) != 0) && !reflect.DeepEqual(referencedObjs, test.expectedRefObjs)) {
+			t.Errorf("got %q slice but expected %q", referencedObjs, test.expectedRefObjs)
 		}
 	}
 }
