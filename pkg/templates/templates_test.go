@@ -126,7 +126,7 @@ func doResolveTest(t *testing.T, test resolveTestCase) {
 			t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 		}
 	} else {
-		val, err := jsonToYAML(tmplResult.ResolvedJSON)
+		val, err := JSONToYAML(tmplResult.ResolvedJSON)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
@@ -321,6 +321,30 @@ func TestResolveTemplateWithConfig(t *testing.T) {
 
 			doResolveTest(t, test)
 		})
+	}
+}
+
+func TestSetInputIsYAML(t *testing.T) {
+	t.Parallel()
+
+	tmplStr := `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`
+
+	resolver, err := NewResolver(&k8sClient, k8sConfig, Config{})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	resolver.SetInputIsYAML(true)
+
+	tmplResult, err := resolver.ResolveTemplate([]byte(tmplStr), nil)
+	if err != nil {
+		t.Fatalf("Got an unexpected error: %v", err)
+	}
+
+	expected := `{"data":"c2VjcmV0a2V5MVZhbA=="}`
+
+	if string(tmplResult.ResolvedJSON) != expected {
+		t.Fatalf("expected `%s` but got `%s`", expected, string(tmplResult.ResolvedJSON))
 	}
 }
 

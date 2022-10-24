@@ -18,3 +18,4 @@ vendor/
 
 bin/
 gosec.json
+policy-example.yaml

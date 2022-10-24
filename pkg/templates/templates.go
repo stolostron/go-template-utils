@@ -302,6 +302,13 @@ func (t *TemplateResolver) SetEncryptionConfig(encryptionConfig EncryptionConfig
 	return nil
 }
 
+// SetInputIsYAML sets the resolver's inputIsYAML configuration value.
+func (t *TemplateResolver) SetInputIsYAML(inputIsYAML bool) {
+	klog.V(2).Infof("Setting InputIsYAML to %t", inputIsYAML)
+
+	t.config.InputIsYAML = inputIsYAML
+}
+
 // validateEncryptionConfig validates an EncryptionConfig struct to ensure that if encryption
 // and/or decryption are enabled that the AES Key and Initialization Vector are valid.
 func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
@@ -416,7 +423,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplRaw []byte, context interface{}) 
 	var templateStr string
 
 	if !t.config.InputIsYAML {
-		templateYAMLBytes, err := jsonToYAML(tmplRaw)
+		templateYAMLBytes, err := JSONToYAML(tmplRaw)
 		if err != nil {
 			return resolvedResult, fmt.Errorf("failed to convert the policy template to YAML: %w", err)
 		}
@@ -554,9 +561,9 @@ func (t *TemplateResolver) processForAutoIndent(str string) string {
 	return processed
 }
 
-// jsonToYAML converts JSON to YAML using yaml.v3. This is important since
+// JSONToYAML converts JSON to YAML using yaml.v3. This is important since
 // line wrapping is disabled in v3.
-func jsonToYAML(j []byte) ([]byte, error) {
+func JSONToYAML(j []byte) ([]byte, error) {
 	// Convert the JSON to an object
 	var jsonObj interface{}
 
