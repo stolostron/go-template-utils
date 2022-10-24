@@ -43,7 +43,8 @@ var (
 	ErrMissingAPIResourceInvalidTemplate = errors.New(
 		"one or more API resources are not installed on the API server which could have led to the templating error",
 	)
-	ErrProtectNotEnabled = errors.New("the protect template function is not enabled in this mode")
+	ErrProtectNotEnabled  = errors.New("the protect template function is not enabled in this mode")
+	ErrNewLinesNotAllowed = errors.New("new lines are not allowed in the string passed to the toLiteral function")
 )
 
 // Config is a struct containing configuration for the API. Some are required.
@@ -566,6 +567,10 @@ func toBool(a string) bool {
 
 // toLiteral just returns the input string as it is, however, this template function will be used to detect when
 // to remove quotes around the template string after the template is processed.
-func toLiteral(a string) string {
-	return a
+func toLiteral(a string) (string, error) {
+	if strings.Contains(a, "\n") {
+		return "", ErrNewLinesNotAllowed
+	}
+
+	return a, nil
 }
