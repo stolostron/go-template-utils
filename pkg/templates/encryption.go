@@ -13,7 +13,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 )
 
 // protect encrypts the input value using AES-CBC. If a salt is set on t.config.Salt, it will prefix the plaintext
@@ -177,7 +177,7 @@ func (t *TemplateResolver) processEncryptedStrs(templateStr string) (string, err
 	submatchesChan := make(chan []string, len(submatches))
 	resultsChan := make(chan decryptResult, len(submatches))
 
-	glog.V(glogDefLvl).Infof("Will decrypt %d value(s) with %d Goroutines", len(submatches), numWorkers)
+	klog.V(2).Infof("Will decrypt %d value(s) with %d Goroutines", len(submatches), numWorkers)
 
 	// Create a context to be able to cancel decryption in case one fails.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -203,7 +203,7 @@ func (t *TemplateResolver) processEncryptedStrs(templateStr string) (string, err
 			cancel()
 			close(submatchesChan)
 			close(resultsChan)
-			glog.Errorf("Decryption failed %v", result.err)
+			klog.Errorf("Decryption failed %v", result.err)
 
 			return "", fmt.Errorf("decryption of %s failed: %w", result.match, result.err)
 		}
@@ -218,7 +218,7 @@ func (t *TemplateResolver) processEncryptedStrs(templateStr string) (string, err
 		}
 	}
 
-	glog.V(glogDefLvl).Infof("Finished decrypting %d value(s)", len(submatches))
+	klog.V(2).Infof("Finished decrypting %d value(s)", len(submatches))
 
 	return processed, nil
 }

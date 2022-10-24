@@ -15,7 +15,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/golang/glog"
 	"github.com/spf13/cast"
 	"github.com/stolostron/kubernetes-dependency-watches/client"
 	yaml "gopkg.in/yaml.v3"
@@ -23,13 +22,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog"
 )
 
 const (
 	defaultStartDelim = "{{"
 	defaultStopDelim  = "}}"
 	IVSize            = 16 // Size in bytes
-	glogDefLvl        = 2
 	protectedPrefix   = "$ocm_encrypted:"
 	yamlIndentation   = 2
 )
@@ -160,7 +159,7 @@ func NewResolver(kubeClient *kubernetes.Interface, kubeConfig *rest.Config, conf
 		config.StopDelim = defaultStopDelim
 	}
 
-	glog.V(glogDefLvl).Infof("Using the delimiters of %s and %s", config.StartDelim, config.StopDelim)
+	klog.V(2).Infof("Using the delimiters of %s and %s", config.StartDelim, config.StopDelim)
 
 	return &TemplateResolver{
 		kubeClient: kubeClient,
@@ -178,8 +177,8 @@ func HasTemplate(template []byte, startDelim string, checkForEncrypted bool) boo
 	}
 
 	templateStr := string(template)
-	glog.V(glogDefLvl).Infof("HasTemplate template str:  %v", templateStr)
-	glog.V(glogDefLvl).Infof("Checking for the start delimiter:  %s", startDelim)
+	klog.V(2).Infof("HasTemplate template str:  %v", templateStr)
+	klog.V(2).Infof("Checking for the start delimiter:  %s", startDelim)
 
 	hasTemplate := false
 	if strings.Contains(templateStr, startDelim) {
@@ -188,7 +187,7 @@ func HasTemplate(template []byte, startDelim string, checkForEncrypted bool) boo
 		hasTemplate = true
 	}
 
-	glog.V(glogDefLvl).Infof("hasTemplate: %v", hasTemplate)
+	klog.V(2).Infof("hasTemplate: %v", hasTemplate)
 
 	return hasTemplate
 }
@@ -205,8 +204,8 @@ func UsesEncryption(template []byte, startDelim string, stopDelim string) bool {
 	}
 
 	templateStr := string(template)
-	glog.V(glogDefLvl).Infof("usesEncryption template str:  %v", templateStr)
-	glog.V(glogDefLvl).Infof("Checking for encryption functions")
+	klog.V(2).Infof("usesEncryption template str:  %v", templateStr)
+	klog.V(2).Infof("Checking for encryption functions")
 
 	// Check for encryption template functions:
 	// {{ fromSecret ... }}
@@ -216,7 +215,7 @@ func UsesEncryption(template []byte, startDelim string, stopDelim string) bool {
 	re := regexp.MustCompile(d1 + `(\s*fromSecret\s+.*|.*\|\s*protect\s*)` + d2)
 	usesEncryption := re.MatchString(templateStr)
 
-	glog.V(glogDefLvl).Infof("usesEncryption: %v", usesEncryption)
+	klog.V(2).Infof("usesEncryption: %v", usesEncryption)
 
 	return usesEncryption
 }
@@ -260,7 +259,7 @@ func (t *TemplateResolver) SetKubeAPIResourceList(resourceList []*metav1.APIReso
 // validation passes, SetEncryptionConfig updates the EncryptionConfig in the TemplateResolver
 // configuration. Otherwise, an error is returned and the configuration is unchanged.
 func (t *TemplateResolver) SetEncryptionConfig(encryptionConfig EncryptionConfig) error {
-	glog.V(glogDefLvl).Info("Setting EncryptionConfig for templates")
+	klog.V(2).Info("Setting EncryptionConfig for templates")
 
 	err := validateEncryptionConfig(encryptionConfig)
 	if err != nil {
@@ -305,14 +304,14 @@ func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
 		}
 
 		if encryptionConfig.EncryptionEnabled {
-			glog.V(glogDefLvl).Info("Template encryption is enabled")
+			klog.V(2).Info("Template encryption is enabled")
 		}
 
 		if encryptionConfig.DecryptionEnabled {
-			glog.V(glogDefLvl).Info("Template decryption is enabled")
+			klog.V(2).Info("Template decryption is enabled")
 		}
 	} else {
-		glog.V(glogDefLvl).Info("Template encryption and decryption is disabled")
+		klog.V(2).Info("Template encryption and decryption is disabled")
 	}
 
 	return nil
@@ -330,7 +329,7 @@ func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
 // returned. ErrMissingAPIResourceInvalidTemplate can also be returned in this case but it also means the template
 // failed to resolve, so the resolved template will not be returned.
 func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{}) (TemplateResult, error) {
-	glog.V(glogDefLvl).Infof("ResolveTemplate for: %v", tmplJSON)
+	klog.V(2).Infof("ResolveTemplate for: %v", string(tmplJSON))
 
 	// Always reset this value on each ResolveTemplate call.
 	t.missingAPIResource = false
@@ -386,7 +385,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	}
 
 	templateStr := string(templateYAMLBytes)
-	glog.V(glogDefLvl).Infof("Initial template str to resolve : %v ", templateStr)
+	klog.V(2).Infof("Initial template str to resolve : %v ", templateStr)
 
 	if t.config.DecryptionEnabled {
 		templateStr, err = t.processEncryptedStrs(templateStr)
@@ -410,7 +409,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	tmpl, err = tmpl.Parse(templateStr)
 	if err != nil {
 		tmplJSONStr := string(tmplJSON)
-		glog.Errorf(
+		klog.Errorf(
 			"error parsing template JSON string %v,\n template str %v,\n error: %v", tmplJSONStr, templateStr, err,
 		)
 
@@ -425,7 +424,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 
 	if err != nil {
 		tmplJSONStr := string(tmplJSON)
-		glog.Errorf("error resolving the template %v,\n template str %v,\n error: %v", tmplJSONStr, templateStr, err)
+		klog.Errorf("error resolving the template %v,\n template str %v,\n error: %v", tmplJSONStr, templateStr, err)
 
 		if t.missingAPIResource {
 			return resolvedResult, fmt.Errorf("%w: %v: %v", ErrMissingAPIResourceInvalidTemplate, err, tmplJSONStr)
@@ -435,7 +434,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	}
 
 	resolvedTemplateStr := buf.String()
-	glog.V(glogDefLvl).Infof("resolved template str: %v ", resolvedTemplateStr)
+	klog.V(3).Infof("resolved template str: %v ", resolvedTemplateStr)
 	// unmarshall before returning
 
 	resolvedTemplateBytes, err := yamlToJSON([]byte(resolvedTemplateStr))
@@ -473,13 +472,13 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 	re := regexp.MustCompile(
 		`:\s+(?:[\|>]-?\s+)?(?:'?\s*)(` + d1 + `.*\|\s*(?:toInt|toBool|toLiteral).*` + d2 + `)(?:\s*'?)`,
 	)
-	glog.V(glogDefLvl).Infof("\n Pattern: %v\n", re.String())
+	klog.V(2).Infof("\n Pattern: %v\n", re.String())
 
 	submatchall := re.FindAllStringSubmatch(str, -1)
-	glog.V(glogDefLvl).Infof("\n All Submatches:\n%v", submatchall)
+	klog.V(2).Infof("\n All Submatches:\n%v", submatchall)
 
 	processeddata := re.ReplaceAllString(str, ": $1")
-	glog.V(glogDefLvl).Infof("\n processed data :\n%v", processeddata)
+	klog.V(2).Infof("\n processed data :\n%v", processeddata)
 
 	return processeddata
 }
@@ -495,12 +494,12 @@ func (t *TemplateResolver) processForAutoIndent(str string) string {
 	// `config: '{{ "hello\nworld" | autoindent }}'`. In that event, `autoindent` will change to
 	// `indent 1`, but `indent` properly handles this.
 	re := regexp.MustCompile(`( *)(?:'|")?(` + d1 + `.*\| *autoindent *` + d2 + `)`)
-	glog.V(glogDefLvl).Infof("\n Pattern: %v\n", re.String())
+	klog.V(2).Infof("\n Pattern: %v\n", re.String())
 
 	submatches := re.FindAllStringSubmatch(str, -1)
 	processed := str
 
-	glog.V(glogDefLvl).Infof("\n All Submatches:\n%v", submatches)
+	klog.V(2).Infof("\n All Submatches:\n%v", submatches)
 
 	for _, submatch := range submatches {
 		numSpaces := len(submatch[1]) - int(t.config.AdditionalIndentation)
@@ -509,7 +508,7 @@ func (t *TemplateResolver) processForAutoIndent(str string) string {
 		processed = strings.Replace(processed, matchStr, newMatchStr, 1)
 	}
 
-	glog.V(glogDefLvl).Infof("\n processed data :\n%v", processed)
+	klog.V(2).Infof("\n processed data :\n%v", processed)
 
 	return processed
 }

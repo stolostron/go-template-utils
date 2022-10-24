@@ -8,8 +8,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog"
 )
 
 // retrieve the Spec value for the given clusterclaim.
@@ -36,7 +36,7 @@ func (t *TemplateResolver) fromClusterClaim(claimname string) (string, error) {
 
 	getObj, getErr := dclient.Get(context.TODO(), claimname, metav1.GetOptions{})
 	if getErr != nil {
-		glog.Errorf("Error retrieving clusterclaim : %v, %v", claimname, getErr)
+		klog.Errorf("Error retrieving clusterclaim : %v, %v", claimname, getErr)
 
 		return "", fmt.Errorf("failed to retrieve the cluster claim %s: %w", claimname, getErr)
 	}
@@ -45,7 +45,7 @@ func (t *TemplateResolver) fromClusterClaim(claimname string) (string, error) {
 
 	spec, ok := result["spec"].(map[string]interface{})
 	if !ok {
-		glog.Errorf("The clusterclaim %s has an unexpected format", claimname)
+		klog.Errorf("The clusterclaim %s has an unexpected format", claimname)
 
 		return "", fmt.Errorf("unexpected cluster claim format: %s", claimname)
 	}

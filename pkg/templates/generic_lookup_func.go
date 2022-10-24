@@ -8,12 +8,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/golang/glog"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/klog"
 )
 
 // getNamespace checks that the target namespace is allowed based on the configured
@@ -35,7 +35,7 @@ func (t *TemplateResolver) getNamespace(funcName, namespace string) (string, err
 				funcName,
 				t.config.LookupNamespace,
 			)
-			glog.Error(msg)
+			klog.Error(msg)
 
 			return "", errors.New(msg)
 		}
@@ -49,7 +49,7 @@ func (t *TemplateResolver) lookup(
 ) (
 	map[string]interface{}, error,
 ) {
-	glog.V(glogDefLvl).Infof("lookup :  %v, %v, %v, %v", apiversion, kind, namespace, rsrcname)
+	klog.V(2).Infof("lookup :  %v, %v, %v, %v", apiversion, kind, namespace, rsrcname)
 
 	result := make(map[string]interface{})
 
@@ -95,7 +95,7 @@ func (t *TemplateResolver) lookup(
 		}
 	}
 
-	glog.V(glogDefLvl).Infof("lookup result:  %v", result)
+	klog.V(2).Infof("lookup result:  %v", result)
 
 	return result, lookupErr
 }
@@ -110,7 +110,7 @@ func (t *TemplateResolver) getDynamicClient(
 
 	gvk := schema.FromAPIVersionAndKind(apiversion, kind)
 
-	glog.V(glogDefLvl).Infof("GVK is:  %v", gvk)
+	klog.V(2).Infof("GVK is:  %v", gvk)
 
 	// we have GVK but We need GVR i.e resourcename for kind inorder to create dynamicClient
 	// find ApiResource for given GVK
@@ -124,12 +124,12 @@ func (t *TemplateResolver) getDynamicClient(
 		Version:  apiResource.Version,
 		Resource: apiResource.Name,
 	}
-	glog.V(glogDefLvl).Infof("GVR is:  %v", gvr)
+	klog.V(2).Infof("GVR is:  %v", gvr)
 
 	// get Dynamic Client
 	dclientIntf, dclientErr := dynamic.NewForConfig(t.kubeConfig)
 	if dclientErr != nil {
-		glog.Errorf("Failed to get dynamic client with err: %v", dclientErr)
+		klog.Errorf("Failed to get dynamic client with err: %v", dclientErr)
 
 		return nil, fmt.Errorf("failed to get the dynamic client: %w", dclientErr)
 	}
@@ -144,13 +144,13 @@ func (t *TemplateResolver) getDynamicClient(
 		dclient = dclientNsRes
 	}
 
-	glog.V(glogDefLvl).Infof("dynamic client: %v", dclient)
+	klog.V(2).Infof("dynamic client: %v", dclient)
 
 	return dclient, nil
 }
 
 func (t *TemplateResolver) findAPIResource(gvk schema.GroupVersionKind) (metav1.APIResource, error) {
-	glog.V(glogDefLvl).Infof("GVK is: %v", gvk)
+	klog.V(2).Infof("GVK is: %v", gvk)
 
 	apiResource := metav1.APIResource{}
 
@@ -174,7 +174,7 @@ func (t *TemplateResolver) findAPIResource(gvk schema.GroupVersionKind) (metav1.
 		groupVersion = gvk.Version
 	}
 
-	glog.V(glogDefLvl).Infof("GroupVersion is: %v", groupVersion)
+	klog.V(2).Infof("GroupVersion is: %v", groupVersion)
 
 	found := false
 
@@ -187,7 +187,7 @@ func (t *TemplateResolver) findAPIResource(gvk schema.GroupVersionKind) (metav1.
 					apiResource.Version = gvk.Version
 					found = true
 
-					glog.V(glogDefLvl).Infof("found the APIResource: %v", apiResource)
+					klog.V(2).Infof("found the APIResource: %v", apiResource)
 
 					break
 				}
@@ -199,7 +199,7 @@ func (t *TemplateResolver) findAPIResource(gvk schema.GroupVersionKind) (metav1.
 	}
 
 	if !found {
-		glog.V(glogDefLvl).Infof("The APIResource for the GVK wasn't found: %v", gvk)
+		klog.V(2).Infof("The APIResource for the GVK wasn't found: %v", gvk)
 
 		t.missingAPIResource = true
 
@@ -213,23 +213,23 @@ func (t *TemplateResolver) findAPIResource(gvk schema.GroupVersionKind) (metav1.
 // So this func shouldnt  execute in the configpolicy flow
 // including this just for completeness.
 func (t *TemplateResolver) discoverAPIResources() ([]*metav1.APIResourceList, error) {
-	glog.V(glogDefLvl).Infof("discover APIResources")
+	klog.V(2).Infof("discover APIResources")
 
 	dd, ddErr := discovery.NewDiscoveryClientForConfig(t.kubeConfig)
 	if ddErr != nil {
-		glog.Errorf("Failed to create the discovery client with err: %v", ddErr)
+		klog.Errorf("Failed to create the discovery client with err: %v", ddErr)
 
 		return nil, fmt.Errorf("failed to create the discovery client: %w", ddErr)
 	}
 
 	_, apiresourcelist, apiresourcelistErr := dd.ServerGroupsAndResources()
 	if apiresourcelistErr != nil {
-		glog.Errorf("Failed to retrieve apiresourcelist with err: %v", apiresourcelistErr)
+		klog.Errorf("Failed to retrieve apiresourcelist with err: %v", apiresourcelistErr)
 
 		return nil, fmt.Errorf("failed to retrieve apiresourcelist: %w", apiresourcelistErr)
 	}
 
-	glog.V(glogDefLvl).Infof("discovered APIResources: %v", apiresourcelist)
+	klog.V(2).Infof("discovered APIResources: %v", apiresourcelist)
 
 	return apiresourcelist, nil
 }
