@@ -8,13 +8,13 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog"
 )
 
 // retrieves the value of the key in the given Secret, namespace.
 func (t *TemplateResolver) fromSecret(namespace string, secretname string, key string) (string, error) {
-	glog.V(glogDefLvl).Infof("fromSecret for namespace: %v, secretname: %v, key:%v", namespace, secretname, key)
+	klog.V(2).Infof("fromSecret for namespace: %v, secretname: %v, key:%v", namespace, secretname, key)
 
 	ns, err := t.getNamespace("fromSecret", namespace)
 	if err != nil {
@@ -25,7 +25,7 @@ func (t *TemplateResolver) fromSecret(namespace string, secretname string, key s
 	secret, getErr := secretsClient.Get(context.TODO(), secretname, metav1.GetOptions{})
 
 	if getErr != nil {
-		glog.Errorf("Error Getting secret:  %v", getErr)
+		klog.Errorf("Error Getting secret:  %v", getErr)
 		err := fmt.Errorf("failed to get the secret %s from %s: %w", secretname, ns, getErr)
 
 		return "", err
@@ -55,7 +55,7 @@ func (t *TemplateResolver) fromSecretProtected(namespace string, secretName stri
 
 // retrieves value for the key in the given Configmap, namespace.
 func (t *TemplateResolver) fromConfigMap(namespace string, cmapname string, key string) (string, error) {
-	glog.V(glogDefLvl).Infof("fromConfigMap for namespace: %v, configmap name: %v, key:%v", namespace, cmapname, key)
+	klog.V(2).Infof("fromConfigMap for namespace: %v, configmap name: %v, key:%v", namespace, cmapname, key)
 
 	ns, err := t.getNamespace("fromConfigMap", namespace)
 	if err != nil {
@@ -66,16 +66,16 @@ func (t *TemplateResolver) fromConfigMap(namespace string, cmapname string, key 
 	configmap, getErr := configmapsClient.Get(context.TODO(), cmapname, metav1.GetOptions{})
 
 	if getErr != nil {
-		glog.Errorf("Error getting configmap:  %v", getErr)
+		klog.Errorf("Error getting configmap:  %v", getErr)
 		err := fmt.Errorf("failed getting the ConfigMap %s from %s: %w", cmapname, ns, getErr)
 
 		return "", err
 	}
 
-	glog.V(glogDefLvl).Infof("Configmap is %v", configmap)
+	klog.V(2).Infof("Configmap is %v", configmap)
 
 	keyVal := configmap.Data[key]
-	glog.V(glogDefLvl).Infof("Configmap Key:%v, Value: %v", key, keyVal)
+	klog.V(2).Infof("Configmap Key:%v, Value: %v", key, keyVal)
 
 	// add this Configmap to list of  Objs referenced by the template
 	t.addToReferencedObjects("/v1", "ConfigMap", namespace, cmapname)
