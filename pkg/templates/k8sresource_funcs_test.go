@@ -43,7 +43,11 @@ func TestFromSecret(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		resolver := getTemplateResolver(Config{LookupNamespace: test.lookupNamespace})
+		resolver, err := NewResolver(&k8sClient, k8sConfig, Config{LookupNamespace: test.lookupNamespace})
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
+
 		val, err := resolver.fromSecret(test.inputNs, test.inputCMname, test.inputKey)
 
 		if err != nil {
@@ -94,7 +98,11 @@ func TestFromConfigMap(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		resolver := getTemplateResolver(Config{LookupNamespace: test.lookupNamespace})
+		resolver, err := NewResolver(&k8sClient, k8sConfig, Config{LookupNamespace: test.lookupNamespace})
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
+
 		val, err := resolver.fromConfigMap(test.inputNs, test.inputCMname, test.inputKey)
 
 		if err != nil {

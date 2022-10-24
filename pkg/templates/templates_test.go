@@ -5,7 +5,6 @@ package templates
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -15,85 +14,14 @@ import (
 
 	"github.com/stolostron/kubernetes-dependency-watches/client"
 	yaml "gopkg.in/yaml.v3"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	fake "k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/rest"
 )
-
-func getTemplateResolver(c Config) *TemplateResolver {
-	var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
-
-	// setup test resources
-
-	testns := "testns"
-	ns := corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: testns,
-		},
-	}
-
-	_, err := simpleClient.CoreV1().Namespaces().Create(context.TODO(), &ns, metav1.CreateOptions{})
-	if err != nil {
-		panic(err.Error())
-	}
-
-	// secret
-	secret := corev1.Secret{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Secret",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "testsecret",
-		},
-		Data: map[string][]byte{
-			"secretkey1": []byte("secretkey1Val"),
-			"secretkey2": []byte("secretkey2Val"),
-		},
-		Type: "Opaque",
-	}
-
-	_, err = simpleClient.CoreV1().Secrets(testns).Create(context.TODO(), &secret, metav1.CreateOptions{})
-	if err != nil {
-		panic(err.Error())
-	}
-
-	// configmap
-	configmap := corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ConfigMap",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "testconfigmap",
-		},
-		Data: map[string]string{
-			"cmkey1":         "cmkey1Val",
-			"cmkey2":         "cmkey2Val",
-			"ingressSources": "[10.10.10.10, 1.1.1.1]",
-		},
-	}
-
-	_, err = simpleClient.CoreV1().ConfigMaps(testns).Create(context.TODO(), &configmap, metav1.CreateOptions{})
-	if err != nil {
-		panic(err.Error())
-	}
-
-	resolver, err := NewResolver(&simpleClient, &rest.Config{}, c)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	return resolver
-}
 
 func TestNewResolver(t *testing.T) {
 	t.Parallel()
-	var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
 
-	resolver, err := NewResolver(&simpleClient, &rest.Config{}, Config{})
+	resolver, err := NewResolver(&k8sClient, k8sConfig, Config{})
 	if err != nil {
 		t.Fatalf("No error was expected: %v", err)
 	}
@@ -109,7 +37,6 @@ func TestNewResolver(t *testing.T) {
 
 func TestNewResolverFailures(t *testing.T) {
 	t.Parallel()
-	var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
 
 	testcases := []struct {
 		kubeClient  *kubernetes.Interface
@@ -118,22 +45,22 @@ func TestNewResolverFailures(t *testing.T) {
 	}{
 		{nil, Config{}, "kubeClient must be a non-nil value"},
 		{
-			&simpleClient,
+			&k8sClient,
 			Config{StartDelim: "{{hub"},
 			"the configurations StartDelim and StopDelim cannot be set independently",
 		},
 		{
-			&simpleClient,
+			&k8sClient,
 			Config{EncryptionConfig: EncryptionConfig{EncryptionEnabled: true}},
 			"error validating EncryptionConfig: AESKey must be set to use this encryption mode",
 		},
 		{
-			&simpleClient,
+			&k8sClient,
 			Config{EncryptionConfig: EncryptionConfig{DecryptionEnabled: true}},
 			"error validating EncryptionConfig: AESKey must be set to use this encryption mode",
 		},
 		{
-			&simpleClient,
+			&k8sClient,
 			Config{
 				EncryptionConfig: EncryptionConfig{
 					AESKey: bytes.Repeat([]byte{byte('A')}, 256/8), EncryptionEnabled: true,
@@ -149,7 +76,7 @@ func TestNewResolverFailures(t *testing.T) {
 		testName := fmt.Sprintf("expectedErr=%s", test.expectedErr)
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
-			_, err := NewResolver(test.kubeClient, &rest.Config{}, test.config)
+			_, err := NewResolver(test.kubeClient, k8sConfig, test.config)
 			if err == nil {
 				t.Fatal("No error was provided")
 			}
@@ -529,7 +456,11 @@ func TestResolveTemplate(t *testing.T) {
 			t.Fatalf(err.Error())
 		}
 
-		resolver := getTemplateResolver(test.config)
+		resolver, err := NewResolver(&k8sClient, k8sConfig, test.config)
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
+
 		tmplResult, err := resolver.ResolveTemplate(tmplStr, test.ctx)
 
 		if err != nil {
@@ -574,7 +505,7 @@ func TestReferencedObjects(t *testing.T) {
 					Group:     "",
 					Version:   "v1",
 					Kind:      "Secret",
-					Namespace: "testns",
+					Namespace: testNs,
 					Name:      "testsecret",
 				},
 			},
@@ -589,7 +520,7 @@ func TestReferencedObjects(t *testing.T) {
 					Group:     "",
 					Version:   "v1",
 					Kind:      "ConfigMap",
-					Namespace: "testns",
+					Namespace: testNs,
 					Name:      "testconfigmap",
 				},
 			},
@@ -605,14 +536,14 @@ func TestReferencedObjects(t *testing.T) {
 					Group:     "",
 					Version:   "v1",
 					Kind:      "Secret",
-					Namespace: "testns",
+					Namespace: testNs,
 					Name:      "testsecret",
 				},
 				{
 					Group:     "",
 					Version:   "v1",
 					Kind:      "ConfigMap",
-					Namespace: "testns",
+					Namespace: testNs,
 					Name:      "testconfigmap",
 				},
 			},
@@ -635,7 +566,7 @@ func TestReferencedObjects(t *testing.T) {
 					Group:     "",
 					Version:   "v1",
 					Kind:      "ConfigMap",
-					Namespace: "testns",
+					Namespace: testNs,
 					Name:      "testconfigmap",
 				},
 			},
@@ -648,7 +579,10 @@ func TestReferencedObjects(t *testing.T) {
 			t.Fatalf(err.Error())
 		}
 
-		resolver := getTemplateResolver(test.config)
+		resolver, err := NewResolver(&k8sClient, k8sConfig, test.config)
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
 
 		tmplResult, err := resolver.ResolveTemplate(tmplStr, test.ctx)
 		if err != nil {
@@ -831,7 +765,11 @@ func TestProcessForDataTypes(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		resolver := getTemplateResolver(test.config)
+		resolver, err := NewResolver(&k8sClient, k8sConfig, test.config)
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
+
 		val := resolver.processForDataTypes(test.input)
 
 		if val != test.expectedResult {
@@ -870,10 +808,8 @@ func TestGetNamespace(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
-
 		config := Config{LookupNamespace: test.configuredNamespace}
-		resolver, _ := NewResolver(&simpleClient, &rest.Config{}, config)
+		resolver, _ := NewResolver(&k8sClient, k8sConfig, config)
 
 		ns, err := resolver.getNamespace(test.funcName, test.actualNamespace)
 
@@ -927,11 +863,7 @@ spec:
 		panic(err)
 	}
 
-	// This example uses the fake Kubernetes client, but in production, use a
-	// real Kubernetes configuration and client
-	var k8sClient kubernetes.Interface = fake.NewSimpleClientset()
-
-	resolver, err := NewResolver(&k8sClient, &rest.Config{}, Config{})
+	resolver, err := NewResolver(&k8sClient, k8sConfig, Config{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to instantiate the templatesResolver struct: %v\n", err)
 		panic(err)
@@ -1046,10 +978,8 @@ func TestSetEncryptionConfig(t *testing.T) {
 		},
 	}
 
-	var simpleClient kubernetes.Interface = fake.NewSimpleClientset()
-
 	config := Config{}
-	resolver, _ := NewResolver(&simpleClient, &rest.Config{}, config)
+	resolver, _ := NewResolver(&k8sClient, k8sConfig, config)
 
 	for _, test := range tests {
 		err := resolver.SetEncryptionConfig(test.encryptionConfig)

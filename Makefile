@@ -4,6 +4,9 @@
 PWD := $(shell pwd)
 LOCAL_BIN ?= $(PWD)/bin
 
+# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
+ENVTEST_K8S_VERSION = 1.23.x
+
 # Keep an existing GOPATH, make a private one if it is undefined
 GOPATH_DEFAULT := $(PWD)/.go
 export GOPATH ?= $(GOPATH_DEFAULT)
@@ -14,6 +17,12 @@ TESTARGS_DEFAULT := "-v"
 export TESTARGS ?= $(TESTARGS_DEFAULT)
 
 include build/common/Makefile.common.mk
+
+# Setting SHELL to bash allows bash commands to be executed by recipes.
+# This is a requirement for 'setup-envtest.sh' in the test target.
+# Options are set to exit when a recipe line exits non-zero or a piped command fails.
+SHELL = /usr/bin/env bash -o pipefail
+.SHELLFLAGS = -ec
 
 # go-get-tool will 'go install' any package $1 and install it to LOCAL_BIN.
 define go-get-tool
@@ -56,14 +65,21 @@ lint: lint-dependencies lint-all
 ############################################################
 # test section
 ############################################################
+
+ENVTEST = $(LOCAL_BIN)/setup-envtest
 GOSEC = $(LOCAL_BIN)/gosec
 
-test:
-	go test $(TESTARGS) ./...
+.PHONY: test
+test: envtest
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test $(TESTARGS) ./...
 
 .PHONY: test-coverage
 test-coverage: TESTARGS = -v -json -cover -covermode=atomic -coverprofile=coverage.out
 test-coverage: test
+
+.PHONY: envtest
+envtest: ## Download envtest-setup locally if necessary.
+	$(call go-get-tool,sigs.k8s.io/controller-runtime/tools/setup-envtest@latest)
 
 .PHONY: gosec
 gosec:
