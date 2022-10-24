@@ -48,8 +48,8 @@ Additionally, the following custom functions are supported:
 - `fromConfigMap` returns the value of a key inside a `ConfigMap`. For example,
   `{{ fromConfigMap "namespace" "config-map-name" "key" }}`.
 - `fromSecret` returns the value of a key inside a `Secret`. For example,
-  `{{ fromSecret "namespace" "secret-name" "key" }}`. If the `EncryptionMode` is set
-  to `EncryptionEnabled`, this will return an encrypted value.
+  `{{ fromSecret "namespace" "secret-name" "key" }}`. If the `EncryptionMode` is
+  set to `EncryptionEnabled`, this will return an encrypted value.
 - `lookup` is a generic lookup function for any Kubernetes object. For example,
   `{{ (lookup "v1" "Secret" "namespace" "name").Data.key }}`.
 - `protect` is a function that encrypts any string using AES-CBC.
@@ -62,5 +62,157 @@ Additionally, the following custom functions are supported:
 - `toLiteral` removes any quotes around the template string after it is
   processed. For example, `key: "{{ "[10.10.10.10, 1.1.1.1]" | toLiteral }}` =>
   `key: [10.10.10.10, 1.1.1.1]`. A good use-case for this is when a `ConfigMap`
-  field contains a JSON string that you want to literally replace the
-  template with and have it treated as the underlying JSON type.
+  field contains a JSON string that you want to literally replace the template
+  with and have it treated as the underlying JSON type.
+
+## CLI (Experimental)
+
+The client CLI tool is used to help during policy development involving
+templates. Note that the generated output is only partially validated for
+syntax.
+
+### Managed Cluster Templates Example
+
+```bash
+kubectl -n default create configmap cool-car --from-literal=model=Shelby\ Mustang
+kubectl -n default create configmap not-cool-car --from-literal=model=Pinto
+
+cat <<EOF > policy-example.yaml
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: label-configmaps
+spec:
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: label-configmaps
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{- range (lookup "v1" "ConfigMap" "default" "").items }}
+            {{- if and .data.model (contains "Mustang" .data.model) }}
+            - complianceType: musthave
+              objectDefinition:
+                kind: ConfigMap
+                apiVersion: v1
+                metadata:
+                  name: {{ .metadata.name }}
+                  namespace: {{ .metadata.namespace }}
+                  labels:
+                    ford.com/model: Mustang
+            {{- end }}
+            {{- end }}
+EOF
+
+go run experimental/client.go policy-example.yaml
+```
+
+The output should be:
+
+```yaml
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: label-configmaps
+spec:
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: label-configmaps
+        spec:
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  labels:
+                    ford.com/model: Mustang
+                  name: cool-car
+                  namespace: default
+          remediationAction: enforce
+          severity: low
+```
+
+### Hub and Managed Cluster Templates Example
+
+```bash
+kubectl -n default create configmap cool-car --from-literal=model=Shelby\ Mustang
+kubectl -n default create configmap not-cool-car --from-literal=model=Pinto
+
+cat <<EOF > policy-example.yaml
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: label-configmaps
+  namespace: policies
+spec:
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: label-configmaps
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{- range (lookup "v1" "ConfigMap" "default" "").items }}
+            {{- if and .data.model (contains "Mustang" .data.model) }}
+            - complianceType: musthave
+              objectDefinition:
+                kind: ConfigMap
+                apiVersion: v1
+                metadata:
+                  name: {{ .metadata.name }}
+                  namespace: {{ .metadata.namespace }}
+                  labels:
+                    cluster-name: {{hub .ManagedClusterName hub}}
+                    ford.com/model: Mustang
+            {{- end }}
+            {{- end }}
+EOF
+
+go run experimental/client.go -hub-kubeconfig ~/.kube/config -cluster-name local-cluster policy-example.yaml
+```
+
+The output should be:
+
+```yaml
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: label-configmaps
+  namespace: policies
+spec:
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: label-configmaps
+        spec:
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  labels:
+                    cluster-name: local-cluster
+                    ford.com/model: Mustang
+                  name: cool-car
+                  namespace: default
+          remediationAction: enforce
+          severity: low
+```
