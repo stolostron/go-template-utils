@@ -189,6 +189,13 @@ func TestResolveTemplate(t *testing.T) {
 			nil,
 		},
 		{
+			`param: '{{ "something\n  with\n  new\n lines\n" | toLiteral }}'`,
+			Config{},
+			nil,
+			"",
+			ErrNewLinesNotAllowed,
+		},
+		{
 			`config1: '{{ "testdata" | base64enc  }}'`,
 			Config{},
 			nil,
@@ -520,7 +527,7 @@ func TestResolveTemplate(t *testing.T) {
 				t.Fatalf(err.Error())
 			}
 
-			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
+			if !(errors.Is(err, test.expectedErr) || strings.EqualFold(test.expectedErr.Error(), err.Error())) {
 				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 			}
 		} else {
