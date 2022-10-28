@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 )
@@ -25,6 +26,12 @@ func (t *TemplateResolver) fromSecret(namespace string, secretname string, key s
 	secret, getErr := secretsClient.Get(context.TODO(), secretname, metav1.GetOptions{})
 
 	if getErr != nil {
+		if k8serrors.IsNotFound(getErr) {
+			// Add to the referenced objects if the object isn't found since the consumer may want to watch the object
+			// and resolve the templates again once it is present.
+			t.addToReferencedObjects("/v1", "Secret", ns, secretname)
+		}
+
 		klog.Errorf("Error Getting secret:  %v", getErr)
 		err := fmt.Errorf("failed to get the secret %s from %s: %w", secretname, ns, getErr)
 
@@ -66,6 +73,12 @@ func (t *TemplateResolver) fromConfigMap(namespace string, cmapname string, key 
 	configmap, getErr := configmapsClient.Get(context.TODO(), cmapname, metav1.GetOptions{})
 
 	if getErr != nil {
+		if k8serrors.IsNotFound(getErr) {
+			// Add to the referenced objects if the object isn't found since the consumer may want to watch the object
+			// and resolve the templates again once it is present.
+			t.addToReferencedObjects("/v1", "ConfigMap", ns, cmapname)
+		}
+
 		klog.Errorf("Error getting configmap:  %v", getErr)
 		err := fmt.Errorf("failed getting the ConfigMap %s from %s: %w", cmapname, ns, getErr)
 

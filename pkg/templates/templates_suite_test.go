@@ -7,6 +7,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -15,11 +18,16 @@ import (
 const testNs = "testns"
 
 var (
-	k8sConfig *rest.Config
-	k8sClient kubernetes.Interface
-	testEnv   *envtest.Environment
-	ctx       context.Context
-	cancel    context.CancelFunc
+	k8sConfig       *rest.Config
+	k8sClient       kubernetes.Interface
+	testEnv         *envtest.Environment
+	ctx             context.Context
+	cancel          context.CancelFunc
+	clusterClaimGVR = schema.GroupVersionResource{
+		Group:    "cluster.open-cluster-management.io",
+		Version:  "v1alpha1",
+		Resource: "clusterclaims",
+	}
 )
 
 func TestMain(m *testing.M) {
@@ -35,7 +43,9 @@ func testMain(m *testing.M) int {
 }
 
 func setUp() {
-	testEnv = &envtest.Environment{}
+	testEnv = &envtest.Environment{
+		CRDDirectoryPaths: []string{"../../test_data/crds/clusterclaim.yaml"},
+	}
 
 	var err error
 	k8sConfig, err = testEnv.Start()
@@ -103,6 +113,29 @@ func setUp() {
 	}
 
 	_, err = k8sClient.CoreV1().ConfigMaps(testNs).Create(ctx, &configmap, metav1.CreateOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	k8sDynClient, err := dynamic.NewForConfig(k8sConfig)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	clusterClaim := unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "cluster.open-cluster-management.io/v1alpha1",
+			"kind":       "ClusterClaim",
+			"metadata": map[string]interface{}{
+				"name": "env",
+			},
+			"spec": map[string]interface{}{
+				"value": "dev",
+			},
+		},
+	}
+
+	_, err = k8sDynClient.Resource(clusterClaimGVR).Create(ctx, &clusterClaim, metav1.CreateOptions{})
 	if err != nil {
 		panic(err.Error())
 	}

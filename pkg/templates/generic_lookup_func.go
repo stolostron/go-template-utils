@@ -75,9 +75,15 @@ func (t *TemplateResolver) lookup(
 
 	if rsrcname != "" {
 		getObj, lookupErr := dclient.Get(context.TODO(), rsrcname, metav1.GetOptions{})
-		if lookupErr == nil {
+		if lookupErr != nil {
+			if apierrors.IsNotFound(lookupErr) {
+				// Add to the referenced objects if the object isn't found since the consumer may want to watch the
+				// object and resolve the templates again once it is present.
+				t.addToReferencedObjects(apiversion, kind, ns, rsrcname)
+			}
+		} else {
 			result = getObj.UnstructuredContent()
-			t.addToReferencedObjects(getObj.GetAPIVersion(), getObj.GetKind(), ns, getObj.GetName())
+			t.addToReferencedObjects(apiversion, kind, ns, rsrcname)
 		}
 	} else {
 		listObj, lookupErr := dclient.List(context.TODO(), metav1.ListOptions{})

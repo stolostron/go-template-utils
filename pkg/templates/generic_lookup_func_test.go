@@ -19,10 +19,11 @@ func TestLookup(t *testing.T) {
 		lookupNamespace  string
 		expectedObjCount int
 		expectedErr      error
+		expectedExists   bool
 	}{
-		{"testns", "v1", "ConfigMap", "testconfigmap", "", 1, nil},
-		{"testns", "v1", "Secret", "testsecret", "", 1, nil},
-		{"testns", "v1", "Secret", "idontexist", "", 0, nil},
+		{"testns", "v1", "ConfigMap", "testconfigmap", "", 1, nil, true},
+		{"testns", "v1", "Secret", "testsecret", "", 1, nil, true},
+		{"testns", "v1", "Secret", "idontexist", "", 1, nil, false},
 		{
 			"testns",
 			"v1",
@@ -31,6 +32,7 @@ func TestLookup(t *testing.T) {
 			"policies-ns",
 			0,
 			errors.New("the namespace argument passed to lookup is restricted to policies-ns"),
+			false,
 		},
 	}
 
@@ -54,10 +56,18 @@ func TestLookup(t *testing.T) {
 			t.Fatalf("An error was expected but not returned %s", test.expectedErr)
 		}
 
+		if test.expectedExists {
+			if len(val) == 0 {
+				t.Fatal("An object was expected but not returned")
+			}
+		} else if len(val) != 0 {
+			t.Fatal("An object was unexpected but one was returned")
+		}
+
 		if len(resolver.referencedObjects) != test.expectedObjCount {
 			t.Fatalf("expected referenced object count: %d , got : %d",
 				test.expectedObjCount, len(resolver.referencedObjects))
-		} else if test.expectedObjCount != 0 {
+		} else if test.expectedExists && test.expectedObjCount != 0 {
 			valMetadata := val["metadata"].(map[string]interface{})
 			if val["apiVersion"] != test.inputAPIVersion || val["kind"] != test.inputKind ||
 				valMetadata["name"] != test.inputName || valMetadata["namespace"] != test.inputNs {
