@@ -497,15 +497,11 @@ func TestReferencedObjects(t *testing.T) {
 
 	testcases := []struct {
 		inputTmpl       string
-		config          Config
-		ctx             interface{}
 		errExpected     bool
 		expectedRefObjs []client.ObjectIdentifier
 	}{
 		{
 			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
-			Config{},
-			nil,
 			false,
 			[]client.ObjectIdentifier{
 				{
@@ -519,8 +515,6 @@ func TestReferencedObjects(t *testing.T) {
 		},
 		{
 			`data: '{{ fromSecret "testns" "does-not-exist" "secretkey1" }}'`,
-			Config{},
-			nil,
 			true,
 			[]client.ObjectIdentifier{
 				{
@@ -534,8 +528,6 @@ func TestReferencedObjects(t *testing.T) {
 		},
 		{
 			`param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
-			Config{},
-			nil,
 			false,
 			[]client.ObjectIdentifier{
 				{
@@ -550,8 +542,6 @@ func TestReferencedObjects(t *testing.T) {
 		{
 			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'` + "\n" +
 				`param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
-			Config{},
-			nil,
 			false,
 			[]client.ObjectIdentifier{
 				{
@@ -572,16 +562,12 @@ func TestReferencedObjects(t *testing.T) {
 		},
 		{
 			`config1: '{{ "testdata" | base64enc  }}'`,
-			Config{},
-			nil,
 			false,
 			[]client.ObjectIdentifier{},
 		},
 		{
 			`data: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'` + "\n" +
 				`otherdata: '{{ fromConfigMap "testns" "does-not-exist" "cmkey23" }}'`,
-			Config{},
-			nil,
 			true,
 			[]client.ObjectIdentifier{
 				{
@@ -602,8 +588,6 @@ func TestReferencedObjects(t *testing.T) {
 		},
 		{
 			`value: '{{ fromClusterClaim "env" }}'`,
-			Config{},
-			nil,
 			false,
 			[]client.ObjectIdentifier{
 				{
@@ -617,8 +601,6 @@ func TestReferencedObjects(t *testing.T) {
 		},
 		{
 			`data: '{{ fromClusterClaim "does-not-exist" }}'`,
-			Config{},
-			nil,
 			true,
 			[]client.ObjectIdentifier{
 				{
@@ -638,12 +620,12 @@ func TestReferencedObjects(t *testing.T) {
 			t.Fatalf(err.Error())
 		}
 
-		resolver, err := NewResolver(&k8sClient, k8sConfig, test.config)
+		resolver, err := NewResolver(&k8sClient, k8sConfig, Config{})
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 
-		tmplResult, err := resolver.ResolveTemplate(tmplStr, test.ctx)
+		tmplResult, err := resolver.ResolveTemplate(tmplStr, nil)
 		if err != nil {
 			if !test.errExpected {
 				t.Fatalf(err.Error())
