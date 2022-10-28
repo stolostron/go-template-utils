@@ -291,6 +291,13 @@ func TestResolveTemplate(t *testing.T) {
 			nil,
 		},
 		{
+			`value: '{{ fromClusterClaim "env" }}'`,
+			Config{},
+			struct{}{},
+			"value: dev",
+			nil,
+		},
+		{
 			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==\n" +
 				"value2: $ocm_encrypted:rBaGZbpT4WOXZzFI+XBrgg==\n" +
 				"value3: $ocm_encrypted:rcKUPnLe4rejwXzsm2/g/w==",
@@ -511,6 +518,21 @@ func TestReferencedObjects(t *testing.T) {
 			},
 		},
 		{
+			`data: '{{ fromSecret "testns" "does-not-exist" "secretkey1" }}'`,
+			Config{},
+			nil,
+			true,
+			[]client.ObjectIdentifier{
+				{
+					Group:     "",
+					Version:   "v1",
+					Kind:      "Secret",
+					Namespace: testNs,
+					Name:      "does-not-exist",
+				},
+			},
+		},
+		{
 			`param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
 			Config{},
 			nil,
@@ -568,6 +590,43 @@ func TestReferencedObjects(t *testing.T) {
 					Kind:      "ConfigMap",
 					Namespace: testNs,
 					Name:      "testconfigmap",
+				},
+				{
+					Group:     "",
+					Version:   "v1",
+					Kind:      "ConfigMap",
+					Namespace: testNs,
+					Name:      "does-not-exist",
+				},
+			},
+		},
+		{
+			`value: '{{ fromClusterClaim "env" }}'`,
+			Config{},
+			nil,
+			false,
+			[]client.ObjectIdentifier{
+				{
+					Group:     "cluster.open-cluster-management.io",
+					Version:   "v1alpha1",
+					Kind:      "ClusterClaim",
+					Namespace: "",
+					Name:      "env",
+				},
+			},
+		},
+		{
+			`data: '{{ fromClusterClaim "does-not-exist" }}'`,
+			Config{},
+			nil,
+			true,
+			[]client.ObjectIdentifier{
+				{
+					Group:     "cluster.open-cluster-management.io",
+					Version:   "v1alpha1",
+					Kind:      "ClusterClaim",
+					Namespace: "",
+					Name:      "does-not-exist",
 				},
 			},
 		},

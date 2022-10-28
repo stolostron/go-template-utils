@@ -8,9 +8,12 @@ import (
 	"errors"
 	"fmt"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 )
+
+const clusterClaimAPIVersion string = "cluster.open-cluster-management.io/v1alpha1"
 
 // retrieve the Spec value for the given clusterclaim.
 func (t *TemplateResolver) fromClusterClaim(claimname string) (string, error) {
@@ -23,11 +26,7 @@ func (t *TemplateResolver) fromClusterClaim(claimname string) (string, error) {
 		return "", errors.New(msg)
 	}
 
-	dclient, dclientErr := t.getDynamicClient(
-		"cluster.open-cluster-management.io/v1alpha1",
-		"ClusterClaim",
-		"",
-	)
+	dclient, dclientErr := t.getDynamicClient(clusterClaimAPIVersion, "ClusterClaim", "")
 	if dclientErr != nil {
 		err := fmt.Errorf("failed to get the cluster claim %s: %w", claimname, dclientErr)
 
@@ -36,6 +35,12 @@ func (t *TemplateResolver) fromClusterClaim(claimname string) (string, error) {
 
 	getObj, getErr := dclient.Get(context.TODO(), claimname, metav1.GetOptions{})
 	if getErr != nil {
+		if k8serrors.IsNotFound(getErr) {
+			// Add to the referenced objects if the object isn't found since the consumer may want to watch the object
+			// and resolve the templates again once it is present.
+			t.addToReferencedObjects(clusterClaimAPIVersion, "ClusterClaim", "", claimname)
+		}
+
 		klog.Errorf("Error retrieving clusterclaim : %v, %v", claimname, getErr)
 
 		return "", fmt.Errorf("failed to retrieve the cluster claim %s: %w", claimname, getErr)
@@ -50,11 +55,13 @@ func (t *TemplateResolver) fromClusterClaim(claimname string) (string, error) {
 		return "", fmt.Errorf("unexpected cluster claim format: %s", claimname)
 	}
 
-	if _, ok := spec["value"]; ok {
-		t.addToReferencedObjects(getObj.GetAPIVersion(), getObj.GetKind(), "", claimname)
+	var value string
 
-		return spec["value"].(string), nil
+	if _, ok := spec["value"]; ok {
+		value = spec["value"].(string)
 	}
 
-	return "", nil
+	t.addToReferencedObjects(clusterClaimAPIVersion, "ClusterClaim", "", claimname)
+
+	return value, nil
 }
