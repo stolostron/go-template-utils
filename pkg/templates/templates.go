@@ -79,7 +79,7 @@ var (
 //
 // - InputIsYAML can be set to true to indicate that the input to the template is already in YAML format and thus does
 // not need to be converted from JSON to YAML before template processing occurs. This should be set to true when
-// passingraw YAML directly to the template resolver.
+// passing raw YAML directly to the template resolver.
 type Config struct {
 	AdditionalIndentation uint
 	DisabledFunctions     []string
