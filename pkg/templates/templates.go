@@ -76,6 +76,10 @@ var (
 //
 // - StopDelim customizes the stop delimiter used to distinguish a template action. This defaults
 // to "}}". If StartDelim is set, this must also be set.
+//
+// - InputIsYAML can be set to true to indicate that the input to the template is already in YAML format and thus does
+// not need to be converted from JSON to YAML before template processing occurs. This should be set to true when
+// passingraw YAML directly to the template resolver.
 type Config struct {
 	AdditionalIndentation uint
 	DisabledFunctions     []string
@@ -84,6 +88,7 @@ type Config struct {
 	LookupNamespace     string
 	StartDelim          string
 	StopDelim           string
+	InputIsYAML         bool
 }
 
 // EncryptionConfig is a struct containing configuration for template encryption/decryption functionality.
@@ -317,7 +322,7 @@ func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
 	return nil
 }
 
-// ResolveTemplate accepts a map marshaled as JSON. It also accepts a struct
+// ResolveTemplate accepts a map marshaled as JSON or YAML. It also accepts a struct
 // with string fields that will be made available when the template is processed.
 // For example, if the argument is `struct{ClusterName string}{"cluster1"}`,
 // the value `cluster1` would be available with `{{ .ClusterName }}`. This can
@@ -328,8 +333,8 @@ func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
 // which isn't installed on the Kubernetes API server. In this case, the resolved template is still
 // returned. ErrMissingAPIResourceInvalidTemplate can also be returned in this case but it also means the template
 // failed to resolve, so the resolved template will not be returned.
-func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{}) (TemplateResult, error) {
-	klog.V(2).Infof("ResolveTemplate for: %v", string(tmplJSON))
+func (t *TemplateResolver) ResolveTemplate(tmplRaw []byte, context interface{}) (TemplateResult, error) {
+	klog.V(2).Infof("ResolveTemplate for: %v", string(tmplRaw))
 
 	// Always reset this value on each ResolveTemplate call.
 	t.missingAPIResource = false
@@ -378,13 +383,20 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	// create template processor and Initialize function map
 	tmpl := template.New("tmpl").Delims(t.config.StartDelim, t.config.StopDelim).Funcs(funcMap)
 
-	// convert the JSON to YAML
-	templateYAMLBytes, err := jsonToYAML(tmplJSON)
-	if err != nil {
-		return resolvedResult, fmt.Errorf("failed to convert the policy template to YAML: %w", err)
+	// convert the JSON to YAML if necessary
+	var templateStr string
+
+	if !t.config.InputIsYAML {
+		templateYAMLBytes, err := jsonToYAML(tmplRaw)
+		if err != nil {
+			return resolvedResult, fmt.Errorf("failed to convert the policy template to YAML: %w", err)
+		}
+
+		templateStr = string(templateYAMLBytes)
+	} else {
+		templateStr = string(tmplRaw)
 	}
 
-	templateStr := string(templateYAMLBytes)
 	klog.V(2).Infof("Initial template str to resolve : %v ", templateStr)
 
 	if t.config.DecryptionEnabled {
@@ -408,12 +420,12 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 
 	tmpl, err = tmpl.Parse(templateStr)
 	if err != nil {
-		tmplJSONStr := string(tmplJSON)
+		tmplRawStr := string(tmplRaw)
 		klog.Errorf(
-			"error parsing template JSON string %v,\n template str %v,\n error: %v", tmplJSONStr, templateStr, err,
+			"error parsing template string %v,\n template str %v,\n error: %v", tmplRawStr, templateStr, err,
 		)
 
-		return resolvedResult, fmt.Errorf("failed to parse the template JSON string %v: %w", tmplJSONStr, err)
+		return resolvedResult, fmt.Errorf("failed to parse the template JSON string %v: %w", tmplRawStr, err)
 	}
 
 	var buf strings.Builder
@@ -423,14 +435,14 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 	resolvedResult.ReferencedObjects = t.referencedObjects
 
 	if err != nil {
-		tmplJSONStr := string(tmplJSON)
-		klog.Errorf("error resolving the template %v,\n template str %v,\n error: %v", tmplJSONStr, templateStr, err)
+		tmplRawStr := string(tmplRaw)
+		klog.Errorf("error resolving the template %v,\n template str %v,\n error: %v", tmplRawStr, templateStr, err)
 
 		if t.missingAPIResource {
-			return resolvedResult, fmt.Errorf("%w: %v: %v", ErrMissingAPIResourceInvalidTemplate, err, tmplJSONStr)
+			return resolvedResult, fmt.Errorf("%w: %v: %v", ErrMissingAPIResourceInvalidTemplate, err, tmplRawStr)
 		}
 
-		return resolvedResult, fmt.Errorf("failed to resolve the template %v: %w", tmplJSONStr, err)
+		return resolvedResult, fmt.Errorf("failed to resolve the template %v: %w", tmplRawStr, err)
 	}
 
 	resolvedTemplateStr := buf.String()
@@ -439,7 +451,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplJSON []byte, context interface{})
 
 	resolvedTemplateBytes, err := yamlToJSON([]byte(resolvedTemplateStr))
 	if err != nil {
-		return resolvedResult, fmt.Errorf("failed to convert the resolved template back to YAML: %w", err)
+		return resolvedResult, fmt.Errorf("failed to convert the resolved template to JSON: %w", err)
 	}
 
 	if t.missingAPIResource {

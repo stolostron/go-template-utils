@@ -455,12 +455,39 @@ func TestResolveTemplate(t *testing.T) {
 					`{"value":"{{ index (lookup \"v1\" \"NotAResource\" \"namespace\" \"object\").data.list 2 }}"}`,
 			),
 		},
+		{
+			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
+			Config{InputIsYAML: true},
+			nil,
+			"data: c2VjcmV0a2V5MVZhbA==",
+			nil,
+		},
+		{
+			`param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
+			Config{InputIsYAML: true},
+			nil,
+			"param: cmkey1Val",
+			nil,
+		},
+		{
+			`config2: '{{ "dGVzdGRhdGE=" | base64dec  }}'`,
+			Config{InputIsYAML: true},
+			nil,
+			"config2: testdata",
+			nil,
+		},
 	}
 
 	for _, test := range testcases {
-		tmplStr, err := yamlToJSON([]byte(test.inputTmpl))
-		if err != nil {
-			t.Fatalf(err.Error())
+		tmplStr := []byte(test.inputTmpl)
+
+		if !test.config.InputIsYAML {
+			var err error
+			tmplStr, err = yamlToJSON([]byte(test.inputTmpl))
+
+			if err != nil {
+				t.Fatalf(err.Error())
+			}
 		}
 
 		resolver, err := NewResolver(&k8sClient, k8sConfig, test.config)
