@@ -214,10 +214,11 @@ func UsesEncryption(template []byte, startDelim string, stopDelim string) bool {
 
 	// Check for encryption template functions:
 	// {{ fromSecret ... }}
+	// {{ copySecretData ... }}
 	// {{ ... | protect }}
 	d1 := regexp.QuoteMeta(startDelim)
 	d2 := regexp.QuoteMeta(stopDelim)
-	re := regexp.MustCompile(d1 + `(\s*fromSecret\s+.*|.*\|\s*protect\s*)` + d2)
+	re := regexp.MustCompile(d1 + `(\s*fromSecret\s+.*|\s*copySecretData\s+.*|.*\|\s*protect\s*)` + d2)
 	usesEncryption := re.MatchString(templateStr)
 
 	klog.V(2).Infof("usesEncryption: %v", usesEncryption)
@@ -349,18 +350,20 @@ func (t *TemplateResolver) ResolveTemplate(tmplRaw []byte, context interface{}) 
 
 	// Build Map of supported template functions
 	funcMap := template.FuncMap{
-		"fromSecret":       t.fromSecret,
-		"fromConfigMap":    t.fromConfigMap,
-		"fromClusterClaim": t.fromClusterClaim,
-		"lookup":           t.lookup,
-		"base64enc":        base64encode,
-		"base64dec":        base64decode,
-		"autoindent":       autoindent,
-		"indent":           t.indent,
-		"atoi":             atoi,
-		"toInt":            toInt,
-		"toBool":           toBool,
-		"toLiteral":        toLiteral,
+		"copyConfigMapData": t.copyConfigMapData,
+		"copySecretData":    t.copySecretData,
+		"fromSecret":        t.fromSecret,
+		"fromConfigMap":     t.fromConfigMap,
+		"fromClusterClaim":  t.fromClusterClaim,
+		"lookup":            t.lookup,
+		"base64enc":         base64encode,
+		"base64dec":         base64decode,
+		"autoindent":        autoindent,
+		"indent":            t.indent,
+		"atoi":              atoi,
+		"toInt":             toInt,
+		"toBool":            toBool,
+		"toLiteral":         toLiteral,
 	}
 
 	// Add all the functions from sprig we will support
@@ -371,6 +374,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplRaw []byte, context interface{}) 
 	if t.config.EncryptionEnabled {
 		funcMap["fromSecret"] = t.fromSecretProtected
 		funcMap["protect"] = t.protect
+		funcMap["copySecretData"] = t.copySecretDataProtected
 	} else {
 		// In other encryption modes, return a readable error if the protect template function is accidentally used.
 		funcMap["protect"] = func(s string) (string, error) { return "", ErrProtectNotEnabled }
@@ -406,12 +410,9 @@ func (t *TemplateResolver) ResolveTemplate(tmplRaw []byte, context interface{}) 
 		}
 	}
 
-	// process for int or bool
-	if strings.Contains(templateStr, "toInt") ||
-		strings.Contains(templateStr, "toBool") ||
-		strings.Contains(templateStr, "toLiteral") {
-		templateStr = t.processForDataTypes(templateStr)
-	}
+	// processForDataTypes handles scenarios where quotes need to be removed for
+	// special data types or cases where multiple values are returned
+	templateStr = t.processForDataTypes(templateStr)
 
 	// convert `autoindent` placeholders to `indent N`
 	if strings.Contains(templateStr, "autoindent") {
@@ -428,7 +429,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplRaw []byte, context interface{}) 
 		return resolvedResult, fmt.Errorf("failed to parse the template JSON string %v: %w", tmplRawStr, err)
 	}
 
-	var buf strings.Builder
+	var buf bytes.Buffer
 
 	err = tmpl.Execute(&buf, ctx)
 
@@ -449,7 +450,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplRaw []byte, context interface{}) 
 	klog.V(3).Infof("resolved template str: %v ", resolvedTemplateStr)
 	// unmarshall before returning
 
-	resolvedTemplateBytes, err := yamlToJSON([]byte(resolvedTemplateStr))
+	resolvedTemplateBytes, err := yamlToJSON(buf.Bytes())
 	if err != nil {
 		return resolvedResult, fmt.Errorf("failed to convert the resolved template to JSON: %w", err)
 	}
@@ -481,12 +482,15 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 
 	d1 := regexp.QuoteMeta(t.config.StartDelim)
 	d2 := regexp.QuoteMeta(t.config.StopDelim)
-	re := regexp.MustCompile(
-		`:\s+(?:[\|>]-?\s+)?(?:'?\s*)(` + d1 + `.*\|\s*(?:toInt|toBool|toLiteral).*` + d2 + `)(?:\s*'?)`,
-	)
+	// nolint: lll
+	expression := `:\s+(?:[\|>]-?\s+)?(?:'?\s*)(` + d1 + `(?:.*\|\s*(?:toInt|toBool|toLiteral)|(?:.*(?:copyConfigMapData|copySecretData))).*` + d2 + `)(?:\s*'?)`
+	re := regexp.MustCompile(expression)
 	klog.V(2).Infof("\n Pattern: %v\n", re.String())
 
 	submatchall := re.FindAllStringSubmatch(str, -1)
+	if submatchall == nil {
+		return str
+	}
 	klog.V(2).Infof("\n All Submatches:\n%v", submatchall)
 
 	processeddata := re.ReplaceAllString(str, ": $1")
