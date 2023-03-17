@@ -245,14 +245,9 @@ func TestResolveTemplateErrors(t *testing.T) {
 			expectedErr: ErrMissingAPIResource,
 		},
 		"missing_api_resource_nested": {
-			inputTmpl: `value: '{{ index (lookup "v1" "NotAResource" "namespace" "object").data.list 2 }}'`,
-			config:    Config{KubeAPIResourceList: []*metav1.APIResourceList{}},
-			expectedErr: errors.New(
-				`one or more API resources are not installed on the API server which could have led to the ` +
-					`templating error: template: tmpl:1:11: executing "tmpl" at <index (lookup "v1" "NotAResource" ` +
-					`"namespace" "object").data.list 2>: error calling index: index of untyped nil: ` +
-					`{"value":"{{ index (lookup \"v1\" \"NotAResource\" \"namespace\" \"object\").data.list 2 }}"}`,
-			),
+			inputTmpl:   `value: '{{ index (lookup "v1" "NotAResource" "namespace" "object").data.list 2 }}'`,
+			config:      Config{KubeAPIResourceList: []*metav1.APIResourceList{}},
+			expectedErr: ErrMissingAPIResourceInvalidTemplate,
 		},
 	}
 
@@ -473,46 +468,29 @@ func TestResolveTemplateWithCrypto(t *testing.T) {
 			expectedResult: "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==\nvalue2: Raleigh",
 		},
 		"protect_not_enabled": {
-			inputTmpl: `value: '{{ "Raleigh" | protect }}'`,
-			config:    Config{EncryptionConfig: EncryptionConfig{AESKey: key, InitializationVector: iv}},
-			expectedErr: errors.New(
-				`failed to resolve the template {"value":"{{ \"Raleigh\" | protect }}"}: template: tmpl:1:23: ` +
-					`executing "tmpl" at <protect>: error calling protect: the protect template function is not ` +
-					`enabled in this mode`,
-			),
+			inputTmpl:   `value: '{{ "Raleigh" | protect }}'`,
+			config:      Config{EncryptionConfig: EncryptionConfig{AESKey: key, InitializationVector: iv}},
+			expectedErr: ErrProtectNotEnabled,
 		},
 		"protect_not_enabled2": {
-			inputTmpl: `value: '{{ "Raleigh" | protect }}'`,
-			config:    decrypt,
-			expectedErr: errors.New(
-				`failed to resolve the template {"value":"{{ \"Raleigh\" | protect }}"}: template: tmpl:1:23: ` +
-					`executing "tmpl" at <protect>: error calling protect: the protect template function is not ` +
-					`enabled in this mode`,
-			),
+			inputTmpl:   `value: '{{ "Raleigh" | protect }}'`,
+			config:      decrypt,
+			expectedErr: ErrProtectNotEnabled,
 		},
 		"encrypt_fails_illegalbase64": {
-			inputTmpl: "value: $ocm_encrypted:==========",
-			config:    decrypt,
-			expectedErr: errors.New(
-				"decryption of $ocm_encrypted:========== failed: ==========: the encrypted string is invalid " +
-					"base64: illegal base64 data at input byte 0",
-			),
+			inputTmpl:   "value: $ocm_encrypted:==========",
+			config:      decrypt,
+			expectedErr: ErrInvalidB64OfEncrypted,
 		},
 		"encrypt_fails_invalidpaddinglength": {
-			inputTmpl: "value: $ocm_encrypted:mXIueuA3HvfBeobZZ0LdzA==",
-			config:    decrypt,
-			expectedErr: errors.New(
-				`decryption of $ocm_encrypted:mXIueuA3HvfBeobZZ0LdzA== failed: invalid PCKS7 padding: the padding ` +
-					`length is invalid`,
-			),
+			inputTmpl:   "value: $ocm_encrypted:mXIueuA3HvfBeobZZ0LdzA==",
+			config:      decrypt,
+			expectedErr: ErrInvalidPKCS7Padding,
 		},
 		"encrypt_fails_invalidpaddingbytes": {
-			inputTmpl: "value: $ocm_encrypted:/X3LA2SczM7eqOLhZKAZXg==",
-			config:    decrypt,
-			expectedErr: errors.New(
-				`decryption of $ocm_encrypted:/X3LA2SczM7eqOLhZKAZXg== failed: invalid PCKS7 padding: not all the ` +
-					`padding bytes match`,
-			),
+			inputTmpl:   "value: $ocm_encrypted:/X3LA2SczM7eqOLhZKAZXg==",
+			config:      decrypt,
+			expectedErr: ErrInvalidPKCS7Padding,
 		},
 	}
 
