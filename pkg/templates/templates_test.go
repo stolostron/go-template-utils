@@ -213,12 +213,22 @@ func TestResolveTemplateErrors(t *testing.T) {
 		"invalid_context_int": {
 			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
 			ctx:         123,
-			expectedErr: errors.New(`the input context must be a struct with string fields, got int`),
+			expectedErr: ErrInvalidContextType,
 		},
 		"invalid_context_nested_int": {
 			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
 			ctx:         struct{ ClusterID int }{12},
-			expectedErr: errors.New(`the input context must be a struct with string fields`),
+			expectedErr: ErrInvalidContextType,
+		},
+		"invalid_context_map_with_int": {
+			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
+			ctx:         struct{ Foo map[string]int }{Foo: map[string]int{"bar": 12}},
+			expectedErr: ErrInvalidContextType,
+		},
+		"invalid_context_map_of_int": {
+			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
+			ctx:         struct{ Foo map[int]string }{Foo: map[int]string{47: "something"}},
+			expectedErr: ErrInvalidContextType,
 		},
 		"disabled_fromSecret": {
 			inputTmpl: `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
@@ -339,6 +349,11 @@ func TestResolveTemplateWithContext(t *testing.T) {
 			ctx: struct{ ClusterName string }{"cluster1"},
 			expectedResult: "test: SSBhbSBhIHJlYWxseSBsb25nIHRlbXBsYXRlIGZvciBjbHVzdGVyIGNsdXN0ZXIxIHRoYXQgbmVlZH" +
 				"MgdG8gYmUgb3ZlciA4MCBjaGFyYWN0ZXJzIHRvIHRlc3Qgc29tZXRoaW5n",
+		},
+		"nested_map": {
+			inputTmpl:      `value: '{{ .Foo.greeting }}'`,
+			ctx:            struct{ Foo map[string]string }{Foo: map[string]string{"greeting": "hello"}},
+			expectedResult: "value: hello",
 		},
 	}
 

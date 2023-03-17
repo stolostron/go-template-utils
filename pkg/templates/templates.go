@@ -46,6 +46,9 @@ var (
 	)
 	ErrProtectNotEnabled  = errors.New("the protect template function is not enabled in this mode")
 	ErrNewLinesNotAllowed = errors.New("new lines are not allowed in the string passed to the toLiteral function")
+	ErrInvalidContextType = errors.New(
+		"the input context must be a struct, with either string fields or map[string]string fields",
+	)
 )
 
 // Config is a struct containing configuration for the API. Some are required.
@@ -239,14 +242,24 @@ func getValidContext(context interface{}) (ctx interface{}, _ error) {
 	}
 
 	ctxType = reflect.TypeOf(context)
+
 	if ctxType.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("the input context must be a struct with string fields, got %s", ctxType)
+		return nil, fmt.Errorf("%w, got %s", ErrInvalidContextType, ctxType)
 	}
 
 	for i := 0; i < ctxType.NumField(); i++ {
 		f := ctxType.Field(i)
-		if f.Type.Kind() != reflect.String {
-			return nil, errors.New("the input context must be a struct with string fields")
+
+		switch f.Type.Kind() {
+		case reflect.String:
+			// good
+		case reflect.Map:
+			// check if it's map[string]string
+			if f.Type.Elem().Kind() != reflect.String || f.Type.Key().Kind() != reflect.String {
+				return nil, ErrInvalidContextType
+			}
+		default:
+			return nil, ErrInvalidContextType
 		}
 	}
 
