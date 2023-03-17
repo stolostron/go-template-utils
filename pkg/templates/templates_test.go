@@ -88,7 +88,272 @@ func TestNewResolverFailures(t *testing.T) {
 	}
 }
 
-func TestResolveTemplate(t *testing.T) {
+type resolveTestCase struct {
+	inputTmpl      string
+	config         Config
+	ctx            interface{}
+	expectedResult string
+	expectedErr    error
+}
+
+func doResolveTest(t *testing.T, test resolveTestCase) {
+	t.Helper()
+
+	tmplStr := []byte(test.inputTmpl)
+
+	if !test.config.InputIsYAML {
+		var err error
+		tmplStr, err = yamlToJSON([]byte(test.inputTmpl))
+
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
+	}
+
+	resolver, err := NewResolver(&k8sClient, k8sConfig, test.config)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	tmplResult, err := resolver.ResolveTemplate(tmplStr, test.ctx)
+
+	if err != nil {
+		if test.expectedErr == nil {
+			t.Fatalf(err.Error())
+		}
+
+		if !(errors.Is(err, test.expectedErr) || strings.EqualFold(test.expectedErr.Error(), err.Error())) {
+			t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
+		}
+	} else {
+		val, err := jsonToYAML(tmplResult.ResolvedJSON)
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
+		valStr := strings.TrimSuffix(string(val), "\n")
+
+		if valStr != test.expectedResult {
+			t.Fatalf("%s expected : '%s' , got : '%s'", test.inputTmpl, test.expectedResult, val)
+		}
+	}
+}
+
+func TestResolveTemplateDefaultConfig(t *testing.T) {
+	t.Parallel()
+
+	testcases := map[string]resolveTestCase{
+		"fromSecret": {
+			inputTmpl:      `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
+			expectedResult: "data: c2VjcmV0a2V5MVZhbA==",
+		},
+		"fromConfigMap": {
+			inputTmpl:      `param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
+			expectedResult: "param: cmkey1Val",
+		},
+		"toLiteral": {
+			inputTmpl:      `param: '{{ fromConfigMap "testns" "testconfigmap" "ingressSources" | toLiteral }}'`,
+			expectedResult: "param:\n  - 10.10.10.10\n  - 1.1.1.1",
+		},
+		"base64enc": {
+			inputTmpl:      `config1: '{{ "testdata" | base64enc  }}'`,
+			expectedResult: "config1: dGVzdGRhdGE=",
+		},
+		"base64dec": {
+			inputTmpl:      `config2: '{{ "dGVzdGRhdGE=" | base64dec  }}'`,
+			expectedResult: "config2: testdata",
+		},
+		"indent_pipe": {
+			inputTmpl:      "spec:\n  config1: |\n    {{ " + `"hello\nworld\n"` + " | indent 4 }}\n",
+			expectedResult: "spec:\n  config1: |\n    hello\n    world",
+		},
+		"indent_pipe_strip": {
+			inputTmpl:      "spec:\n  config1: |-\n    {{ " + `"hello\nworld\n"` + " | indent 4 }}\n",
+			expectedResult: "spec:\n  config1: hello world",
+		},
+		"autoindent_pipe": {
+			inputTmpl:      "spec:\n  config1: |\n    {{ " + `"hello\nworld\n"` + " | autoindent }}\n",
+			expectedResult: "spec:\n  config1: |\n    hello\n    world",
+		},
+		"autoindent_pipe_strip": {
+			inputTmpl:      "spec:\n  config1: |-\n    {{ " + `"hello\nworld\n"` + " | autoindent }}\n",
+			expectedResult: "spec:\n  config1: hello world",
+		},
+		"fromClusterClaim": {
+			inputTmpl:      `value: '{{ fromClusterClaim "env" }}'`,
+			expectedResult: "value: dev",
+		},
+	}
+
+	for testName, test := range testcases {
+		test := test
+
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			doResolveTest(t, test)
+		})
+	}
+}
+
+func TestResolveTemplateErrors(t *testing.T) {
+	t.Parallel()
+
+	testcases := map[string]resolveTestCase{
+		"toLiteral_with_newlines": {
+			inputTmpl:   `param: '{{ "something\n  with\n  new\n lines\n" | toLiteral }}'`,
+			expectedErr: ErrNewLinesNotAllowed,
+		},
+		"undefined_function": {
+			inputTmpl: `test: '{{ blah "asdf"  }}'`,
+			expectedErr: errors.New(
+				`failed to parse the template JSON string {"test":"{{ blah \"asdf\"  }}"}: template: tmpl:1: ` +
+					`function "blah" not defined`,
+			),
+		},
+		"invalid_context_int": {
+			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
+			ctx:         123,
+			expectedErr: errors.New(`the input context must be a struct with string fields, got int`),
+		},
+		"invalid_context_nested_int": {
+			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
+			ctx:         struct{ ClusterID int }{12},
+			expectedErr: errors.New(`the input context must be a struct with string fields`),
+		},
+		"disabled_fromSecret": {
+			inputTmpl: `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
+			config:    Config{DisabledFunctions: []string{"fromSecret"}},
+			expectedErr: errors.New(
+				`failed to parse the template JSON string {"data":"{{ fromSecret \"testns\" ` +
+					`\"testsecret\" \"secretkey1\" }}"}: template: tmpl:1: function "fromSecret" ` +
+					`not defined`,
+			),
+		},
+		"missing_api_resource": {
+			inputTmpl:   `value: '{{ lookup "v1" "NotAResource" "namespace" "object" }}'`,
+			config:      Config{KubeAPIResourceList: []*metav1.APIResourceList{}},
+			expectedErr: ErrMissingAPIResource,
+		},
+		"missing_api_resource_nested": {
+			inputTmpl: `value: '{{ index (lookup "v1" "NotAResource" "namespace" "object").data.list 2 }}'`,
+			config:    Config{KubeAPIResourceList: []*metav1.APIResourceList{}},
+			expectedErr: errors.New(
+				`one or more API resources are not installed on the API server which could have led to the ` +
+					`templating error: template: tmpl:1:11: executing "tmpl" at <index (lookup "v1" "NotAResource" ` +
+					`"namespace" "object").data.list 2>: error calling index: index of untyped nil: ` +
+					`{"value":"{{ index (lookup \"v1\" \"NotAResource\" \"namespace\" \"object\").data.list 2 }}"}`,
+			),
+		},
+	}
+
+	for testName, test := range testcases {
+		test := test
+
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			doResolveTest(t, test)
+		})
+	}
+}
+
+func TestResolveTemplateWithConfig(t *testing.T) {
+	t.Parallel()
+
+	testcases := map[string]resolveTestCase{
+		"ignores_default_delimiter": {
+			inputTmpl:      `config1: '{{ "testdata" | base64enc  }}'`,
+			config:         Config{StartDelim: "{{hub", StopDelim: "hub}}"},
+			expectedResult: `config1: '{{ "testdata" | base64enc  }}'`,
+		},
+		"base64enc_hub": {
+			inputTmpl:      `config1: '{{hub "testdata" | base64enc  hub}}'`,
+			config:         Config{StartDelim: "{{hub", StopDelim: "hub}}"},
+			expectedResult: "config1: dGVzdGRhdGE=",
+		},
+		"base64dec_hub_base64enc_regular": {
+			inputTmpl:      `config1: '{{ "{{hub "dGVzdGRhdGE=" | base64dec hub}}" | base64enc }}'`,
+			config:         Config{StartDelim: "{{hub", StopDelim: "hub}}"},
+			expectedResult: `config1: '{{ "testdata" | base64enc }}'`,
+		},
+		"additionalIndentation": {
+			inputTmpl:      "spec:\n  config1: |\n    {{hub " + `"hello\nworld\n"` + " | indent 2 hub}}\n",
+			config:         Config{AdditionalIndentation: 2, StartDelim: "{{hub", StopDelim: "hub}}"},
+			expectedResult: "spec:\n  config1: |\n    hello\n    world",
+		},
+		"additionalIndentation_autoindent": {
+			inputTmpl:      "spec:\n  config1: |\n    {{ " + `"hello\nworld\n"` + " | autoindent }}\n",
+			config:         Config{AdditionalIndentation: 4},
+			expectedResult: "spec:\n  config1: |\n    hello\n    world",
+		},
+		"additionalIndentation_autoindent_again": {
+			inputTmpl:      "spec:\n  autoindent-test: '{{ " + `"hello\nworld\nagain\n"` + " | autoindent }}'\n",
+			config:         Config{AdditionalIndentation: 4},
+			expectedResult: "spec:\n  autoindent-test: hello world again",
+		},
+		"inputIsYAML_fromSecret": {
+			inputTmpl:      `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
+			config:         Config{InputIsYAML: true},
+			expectedResult: "data: c2VjcmV0a2V5MVZhbA==",
+		},
+		"inputIsYAML_fromConfigMap": {
+			inputTmpl:      `param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
+			config:         Config{InputIsYAML: true},
+			expectedResult: "param: cmkey1Val",
+		},
+		"inputIsYAML_base64dec": {
+			inputTmpl:      `config2: '{{ "dGVzdGRhdGE=" | base64dec  }}'`,
+			config:         Config{InputIsYAML: true},
+			expectedResult: "config2: testdata",
+		},
+	}
+
+	for testName, test := range testcases {
+		test := test
+
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			doResolveTest(t, test)
+		})
+	}
+}
+
+func TestResolveTemplateWithContext(t *testing.T) {
+	t.Parallel()
+
+	testcases := map[string]resolveTestCase{
+		"ClusterName": {
+			inputTmpl:      `config1: '{{ .ClusterName  }}'`,
+			ctx:            struct{ ClusterName string }{"cluster0001"},
+			expectedResult: "config1: cluster0001",
+		},
+		"ClusterID_toInt": {
+			inputTmpl:      `config1: '{{ .ClusterID | toInt }}'`,
+			ctx:            struct{ ClusterID string }{"12345"},
+			expectedResult: "config1: 12345",
+		},
+		"long_printf_base64": {
+			inputTmpl: `test: '{{ printf "I am a really long template for cluster %s that needs to be over ` +
+				`%d characters to test something" .ClusterName 80 | base64enc }}'`,
+			ctx: struct{ ClusterName string }{"cluster1"},
+			expectedResult: "test: SSBhbSBhIHJlYWxseSBsb25nIHRlbXBsYXRlIGZvciBjbHVzdGVyIGNsdXN0ZXIxIHRoYXQgbmVlZH" +
+				"MgdG8gYmUgb3ZlciA4MCBjaGFyYWN0ZXJzIHRvIHRlc3Qgc29tZXRoaW5n",
+		},
+	}
+
+	for testName, test := range testcases {
+		test := test
+
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
+			doResolveTest(t, test)
+		})
+	}
+}
+
+func TestResolveTemplateWithCrypto(t *testing.T) {
 	t.Parallel()
 
 	// Generate a 256 bit for AES-256. It can't be random so that the test results are deterministic.
@@ -97,425 +362,153 @@ func TestResolveTemplate(t *testing.T) {
 	otherKey := bytes.Repeat([]byte{byte('B')}, keyBytesSize)
 	iv := bytes.Repeat([]byte{byte('I')}, IVSize)
 
-	testcases := []struct {
-		inputTmpl      string
-		config         Config
-		ctx            interface{}
-		expectedResult string
-		expectedErr    error
-	}{
-		{
-			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
-			Config{},
-			nil,
-			"data: c2VjcmV0a2V5MVZhbA==",
-			nil,
+	encrypt := Config{
+		EncryptionConfig: EncryptionConfig{
+			AESKey:               key,
+			EncryptionEnabled:    true,
+			InitializationVector: iv,
 		},
-		{
-			`param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
-			Config{},
-			nil,
-			"param: cmkey1Val",
-			nil,
+	}
+
+	decrypt := Config{
+		EncryptionConfig: EncryptionConfig{
+			AESKey:               key,
+			DecryptionEnabled:    true,
+			InitializationVector: iv,
 		},
-		{
-			`param: '{{ fromConfigMap "testns" "testconfigmap" "ingressSources" | toLiteral }}'`,
-			Config{},
-			nil,
-			"param:\n  - 10.10.10.10\n  - 1.1.1.1",
-			nil,
+	}
+
+	testcases := map[string]resolveTestCase{
+		"encrypt_protect": {
+			inputTmpl:      `value: '{{ "Raleigh" | protect }}'`,
+			config:         encrypt,
+			expectedResult: "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
 		},
-		{
-			`param: '{{ "something\n  with\n  new\n lines\n" | toLiteral }}'`,
-			Config{},
-			nil,
-			"",
-			ErrNewLinesNotAllowed,
+		"encrypt_protect_empty": {
+			inputTmpl:      `value: '{{ "" | protect }}'`,
+			config:         encrypt,
+			expectedResult: `value: ""`,
 		},
-		{
-			`config1: '{{ "testdata" | base64enc  }}'`,
-			Config{},
-			nil,
-			"config1: dGVzdGRhdGE=",
-			nil,
+		"encrypt_fromSecret": {
+			inputTmpl:      `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
+			config:         encrypt,
+			expectedResult: "data: $ocm_encrypted:c6PNhsEfbM9NRUqeJ+HbcECCyVdFnRbLdd+n8r1fS9M=",
 		},
-		{
-			`config2: '{{ "dGVzdGRhdGE=" | base64dec  }}'`,
-			Config{},
-			nil,
-			"config2: testdata",
-			nil,
+		"decrypt": {
+			inputTmpl:      "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
+			config:         decrypt,
+			expectedResult: "value: Raleigh",
 		},
-		{
-			`test: '{{ blah "asdf"  }}'`,
-			Config{},
-			nil,
-			"",
-			errors.New(
-				`failed to parse the template JSON string {"test":"{{ blah \"asdf\"  }}"}: template: tmpl:1: ` +
-					`function "blah" not defined`,
-			),
-		},
-		{
-			`config1: '{{ "testdata" | base64enc  }}'`,
-			Config{StartDelim: "{{hub", StopDelim: "hub}}"},
-			nil,
-			`config1: '{{ "testdata" | base64enc  }}'`,
-			nil,
-		},
-		{
-			`config1: '{{hub "testdata" | base64enc  hub}}'`,
-			Config{StartDelim: "{{hub", StopDelim: "hub}}"},
-			nil,
-			"config1: dGVzdGRhdGE=",
-			nil,
-		},
-		{
-			`config1: '{{ "{{hub "dGVzdGRhdGE=" | base64dec hub}}" | base64enc }}'`,
-			Config{StartDelim: "{{hub", StopDelim: "hub}}"},
-			nil,
-			`config1: '{{ "testdata" | base64enc }}'`,
-			nil,
-		},
-		{
-			`config1: '{{ .ClusterName  }}'`,
-			Config{},
-			struct{ ClusterName string }{"cluster0001"},
-			"config1: cluster0001",
-			nil,
-		},
-		{
-			`config1: '{{ .ClusterID | toInt }}'`,
-			Config{},
-			struct{ ClusterID string }{"12345"},
-			"config1: 12345",
-			nil,
-		},
-		{
-			"spec:\n  config1: |\n    {{ " + `"hello\nworld\n"` + " | indent 4 }}\n",
-			Config{},
-			struct{}{},
-			"spec:\n  config1: |\n    hello\n    world",
-			nil,
-		},
-		{
-			"spec:\n  config1: |-\n    {{ " + `"hello\nworld\n"` + " | indent 4 }}\n",
-			Config{},
-			struct{}{},
-			"spec:\n  config1: hello world",
-			nil,
-		},
-		{
-			"spec:\n  config1: |\n    {{hub " + `"hello\nworld\n"` + " | indent 2 hub}}\n",
-			Config{AdditionalIndentation: 2, StartDelim: "{{hub", StopDelim: "hub}}"},
-			struct{}{},
-			"spec:\n  config1: |\n    hello\n    world",
-			nil,
-		},
-		{
-			"spec:\n  config1: |\n    {{ " + `"hello\nworld\n"` + " | autoindent }}\n",
-			Config{},
-			struct{}{},
-			"spec:\n  config1: |\n    hello\n    world",
-			nil,
-		},
-		{
-			"spec:\n  config1: |-\n    {{ " + `"hello\nworld\n"` + " | autoindent }}\n",
-			Config{},
-			struct{}{},
-			"spec:\n  config1: hello world",
-			nil,
-		},
-		{
-			"spec:\n  config1: |\n    {{ " + `"hello\nworld\n"` + " | autoindent }}\n",
-			Config{AdditionalIndentation: 4},
-			struct{}{},
-			"spec:\n  config1: |\n    hello\n    world",
-			nil,
-		},
-		{
-			"spec:\n  autoindent-test: '{{ " + `"hello\nworld\nagain\n"` + " | autoindent }}'\n",
-			Config{AdditionalIndentation: 4},
-			struct{}{},
-			"spec:\n  autoindent-test: hello world again",
-			nil,
-		},
-		{
-			`value: '{{ "Raleigh" | protect }}'`,
-			Config{EncryptionConfig: EncryptionConfig{AESKey: key, EncryptionEnabled: true, InitializationVector: iv}},
-			struct{}{},
-			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
-			nil,
-		},
-		{
-			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
-			Config{EncryptionConfig: EncryptionConfig{AESKey: key, EncryptionEnabled: true, InitializationVector: iv}},
-			nil,
-			"data: $ocm_encrypted:c6PNhsEfbM9NRUqeJ+HbcECCyVdFnRbLdd+n8r1fS9M=",
-			nil,
-		},
-		{
-			`value: '{{ "" | protect }}'`,
-			Config{EncryptionConfig: EncryptionConfig{AESKey: key, EncryptionEnabled: true, InitializationVector: iv}},
-			struct{}{},
-			`value: ""`,
-			nil,
-		},
-		{
-			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
-			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
-			struct{}{},
-			"value: Raleigh",
-			nil,
-		},
-		{
-			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
-			Config{
+		"decrypt_fallback_unused": {
+			inputTmpl: "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
+			config: Config{
 				EncryptionConfig: EncryptionConfig{
 					AESKey: key, AESKeyFallback: otherKey, DecryptionEnabled: true, InitializationVector: iv,
 				},
 			},
-			struct{}{},
-			"value: Raleigh",
-			nil,
+			expectedResult: "value: Raleigh",
 		},
-		{
-			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
-			Config{
+		"decrypt_fallback": {
+			inputTmpl: "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
+			config: Config{
 				EncryptionConfig: EncryptionConfig{
 					AESKey: otherKey, AESKeyFallback: key, DecryptionEnabled: true, InitializationVector: iv,
 				},
 			},
-			struct{}{},
-			"value: Raleigh",
-			nil,
+			expectedResult: "value: Raleigh",
 		},
-		{
-			`value: '{{ fromClusterClaim "env" }}'`,
-			Config{},
-			struct{}{},
-			"value: dev",
-			nil,
-		},
-		{
-			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==\n" +
+		"decryptionConcurrency": {
+			inputTmpl: "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==\n" +
 				"value2: $ocm_encrypted:rBaGZbpT4WOXZzFI+XBrgg==\n" +
 				"value3: $ocm_encrypted:rcKUPnLe4rejwXzsm2/g/w==",
-			Config{
+			config: Config{
 				EncryptionConfig: EncryptionConfig{
 					AESKey: key, DecryptionConcurrency: 5, DecryptionEnabled: true, InitializationVector: iv,
 				},
 			},
-			struct{}{},
-			"value: Raleigh\nvalue2: Raleigh2\nvalue3: Raleigh3",
-			nil,
+			expectedResult: "value: Raleigh\nvalue2: Raleigh2\nvalue3: Raleigh3",
 		},
-		{
-			"value: Raleigh", // No encryption string to decrypt
-			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
-			struct{}{},
-			"value: Raleigh",
-			nil,
+		"nothing_to_decrypt": {
+			inputTmpl:      "value: Raleigh",
+			config:         decrypt,
+			expectedResult: "value: Raleigh",
 		},
-		{
-			"value: $ocm_encrypted:x7Ix9DQueY+gf08PM6VSVA==", // Encrypted multiline string
-			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
-			struct{}{},
-			"value: Hello\\nRaleigh",
-			nil,
+		"decrypt_multiline": {
+			inputTmpl:      "value: $ocm_encrypted:x7Ix9DQueY+gf08PM6VSVA==",
+			config:         decrypt,
+			expectedResult: "value: Hello\\nRaleigh",
 		},
-		{
-			"value: $ocm_encrypted:😱😱😱😱", // Not Base64
-			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
-			struct{}{},
-			`value: "$ocm_encrypted:\U0001F631\U0001F631\U0001F631\U0001F631"`,
-			nil,
+		"decrypt_ignores_nonbase64": {
+			inputTmpl:      "value: $ocm_encrypted:😱😱😱😱",
+			config:         decrypt,
+			expectedResult: `value: "$ocm_encrypted:\U0001F631\U0001F631\U0001F631\U0001F631"`,
 		},
-		{
-			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==", // Will not be decrypted because of the encryption mode
-			Config{EncryptionConfig: EncryptionConfig{AESKey: key, EncryptionEnabled: true, InitializationVector: iv}},
-			struct{}{},
-			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
-			nil,
+		"decryption_disabled": {
+			inputTmpl:      "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
+			config:         encrypt, // decryptionEnabled defaults to false
+			expectedResult: "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
 		},
-		{
-			// Both encryption and decryption are enabled
-			"value: '{{ \"Raleigh\" | protect }}'\nvalue2: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
-			Config{
+		"encrypt_and_decrypt": {
+			inputTmpl: "value: '{{ \"Raleigh\" | protect }}'\nvalue2: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
+			config: Config{
 				EncryptionConfig: EncryptionConfig{
 					AESKey: key, DecryptionEnabled: true, EncryptionEnabled: true, InitializationVector: iv,
 				},
 			},
-			struct{}{},
-			"value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==\nvalue2: Raleigh",
-			nil,
+			expectedResult: "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==\nvalue2: Raleigh",
 		},
-		{
-			`test: '{{ printf "hello %s" "world" }}'`,
-			Config{},
-			123,
-			"",
-			errors.New(`the input context must be a struct with string fields, got int`),
-		},
-		{
-			`test: '{{ printf "hello %s" "world" }}'`,
-			Config{},
-			struct{ ClusterID int }{12},
-			"",
-			errors.New(`the input context must be a struct with string fields`),
-		},
-		{
-			`test: '{{ printf "I am a really long template for cluster %s that needs to be over ` +
-				`%d characters to test something" .ClusterName 80 | base64enc }}'`,
-			Config{},
-			struct{ ClusterName string }{"cluster1"},
-			"test: SSBhbSBhIHJlYWxseSBsb25nIHRlbXBsYXRlIGZvciBjbHVzdGVyIGNsdXN0ZXIxIHRoYXQgbmVlZH" +
-				"MgdG8gYmUgb3ZlciA4MCBjaGFyYWN0ZXJzIHRvIHRlc3Qgc29tZXRoaW5n",
-			nil,
-		},
-		{
-			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
-			Config{DisabledFunctions: []string{"fromSecret"}},
-			nil,
-			"",
-			errors.New(
-				`failed to parse the template JSON string {"data":"{{ fromSecret \"testns\" ` +
-					`\"testsecret\" \"secretkey1\" }}"}: template: tmpl:1: function "fromSecret" ` +
-					`not defined`,
-			),
-		},
-		{
-			`value: '{{ "Raleigh" | protect }}'`,
-			Config{EncryptionConfig: EncryptionConfig{AESKey: key, InitializationVector: iv}},
-			struct{}{},
-			"",
-			errors.New(
+		"protect_not_enabled": {
+			inputTmpl: `value: '{{ "Raleigh" | protect }}'`,
+			config:    Config{EncryptionConfig: EncryptionConfig{AESKey: key, InitializationVector: iv}},
+			expectedErr: errors.New(
 				`failed to resolve the template {"value":"{{ \"Raleigh\" | protect }}"}: template: tmpl:1:23: ` +
 					`executing "tmpl" at <protect>: error calling protect: the protect template function is not ` +
 					`enabled in this mode`,
 			),
 		},
-		{
-			`value: '{{ "Raleigh" | protect }}'`,
-			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
-			struct{}{},
-			"",
-			errors.New(
+		"protect_not_enabled2": {
+			inputTmpl: `value: '{{ "Raleigh" | protect }}'`,
+			config:    decrypt,
+			expectedErr: errors.New(
 				`failed to resolve the template {"value":"{{ \"Raleigh\" | protect }}"}: template: tmpl:1:23: ` +
 					`executing "tmpl" at <protect>: error calling protect: the protect template function is not ` +
 					`enabled in this mode`,
 			),
 		},
-		{
-			"value: $ocm_encrypted:==========",
-			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
-			struct{}{},
-			"",
-			errors.New(
+		"encrypt_fails_illegalbase64": {
+			inputTmpl: "value: $ocm_encrypted:==========",
+			config:    decrypt,
+			expectedErr: errors.New(
 				"decryption of $ocm_encrypted:========== failed: ==========: the encrypted string is invalid " +
 					"base64: illegal base64 data at input byte 0",
 			),
 		},
-		{
-			"value: $ocm_encrypted:mXIueuA3HvfBeobZZ0LdzA==",
-			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
-			struct{}{},
-			"",
-			errors.New(
+		"encrypt_fails_invalidpaddinglength": {
+			inputTmpl: "value: $ocm_encrypted:mXIueuA3HvfBeobZZ0LdzA==",
+			config:    decrypt,
+			expectedErr: errors.New(
 				`decryption of $ocm_encrypted:mXIueuA3HvfBeobZZ0LdzA== failed: invalid PCKS7 padding: the padding ` +
 					`length is invalid`,
 			),
 		},
-		{
-			"value: $ocm_encrypted:/X3LA2SczM7eqOLhZKAZXg==",
-			Config{EncryptionConfig: EncryptionConfig{AESKey: key, DecryptionEnabled: true, InitializationVector: iv}},
-			struct{}{},
-			"",
-			errors.New(
+		"encrypt_fails_invalidpaddingbytes": {
+			inputTmpl: "value: $ocm_encrypted:/X3LA2SczM7eqOLhZKAZXg==",
+			config:    decrypt,
+			expectedErr: errors.New(
 				`decryption of $ocm_encrypted:/X3LA2SczM7eqOLhZKAZXg== failed: invalid PCKS7 padding: not all the ` +
 					`padding bytes match`,
 			),
 		},
-		{
-			`value: '{{ lookup "v1" "NotAResource" "namespace" "object" }}'`,
-			Config{KubeAPIResourceList: []*metav1.APIResourceList{}},
-			struct{}{},
-			"",
-			ErrMissingAPIResource,
-		},
-		{
-			`value: '{{ index (lookup "v1" "NotAResource" "namespace" "object").data.list 2 }}'`,
-			Config{KubeAPIResourceList: []*metav1.APIResourceList{}},
-			struct{}{},
-			"",
-			errors.New(
-				`one or more API resources are not installed on the API server which could have led to the ` +
-					`templating error: template: tmpl:1:11: executing "tmpl" at <index (lookup "v1" "NotAResource" ` +
-					`"namespace" "object").data.list 2>: error calling index: index of untyped nil: ` +
-					`{"value":"{{ index (lookup \"v1\" \"NotAResource\" \"namespace\" \"object\").data.list 2 }}"}`,
-			),
-		},
-		{
-			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
-			Config{InputIsYAML: true},
-			nil,
-			"data: c2VjcmV0a2V5MVZhbA==",
-			nil,
-		},
-		{
-			`param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
-			Config{InputIsYAML: true},
-			nil,
-			"param: cmkey1Val",
-			nil,
-		},
-		{
-			`config2: '{{ "dGVzdGRhdGE=" | base64dec  }}'`,
-			Config{InputIsYAML: true},
-			nil,
-			"config2: testdata",
-			nil,
-		},
 	}
 
-	for _, test := range testcases {
-		tmplStr := []byte(test.inputTmpl)
+	for testName, test := range testcases {
+		test := test
 
-		if !test.config.InputIsYAML {
-			var err error
-			tmplStr, err = yamlToJSON([]byte(test.inputTmpl))
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
 
-			if err != nil {
-				t.Fatalf(err.Error())
-			}
-		}
-
-		resolver, err := NewResolver(&k8sClient, k8sConfig, test.config)
-		if err != nil {
-			t.Fatalf(err.Error())
-		}
-
-		tmplResult, err := resolver.ResolveTemplate(tmplStr, test.ctx)
-
-		if err != nil {
-			if test.expectedErr == nil {
-				t.Fatalf(err.Error())
-			}
-
-			if !(errors.Is(err, test.expectedErr) || strings.EqualFold(test.expectedErr.Error(), err.Error())) {
-				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
-			}
-		} else {
-			val, err := jsonToYAML(tmplResult.ResolvedJSON)
-			if err != nil {
-				t.Fatalf(err.Error())
-			}
-			valStr := strings.TrimSuffix(string(val), "\n")
-
-			if valStr != test.expectedResult {
-				t.Fatalf("%s expected : '%s' , got : '%s'", test.inputTmpl, test.expectedResult, val)
-			}
-		}
+			doResolveTest(t, test)
+		})
 	}
 }
 
