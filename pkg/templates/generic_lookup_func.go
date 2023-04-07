@@ -7,9 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -45,7 +47,7 @@ func (t *TemplateResolver) getNamespace(funcName, namespace string) (string, err
 }
 
 func (t *TemplateResolver) lookup(
-	apiversion string, kind string, namespace string, rsrcname string,
+	apiversion string, kind string, namespace string, rsrcname string, labelselector ...string,
 ) (
 	map[string]interface{}, error,
 ) {
@@ -86,7 +88,25 @@ func (t *TemplateResolver) lookup(
 			t.addToReferencedObjects(apiversion, kind, ns, rsrcname)
 		}
 	} else {
-		listObj, lookupErr := dclient.List(context.TODO(), metav1.ListOptions{})
+		listOptions := metav1.ListOptions{}
+
+		// If labelSelector is defined, and is not an empty string, then add the labels to the listOptions
+		// Note there can be multiple values passed to labelselector so we need to treat it as an array
+		// The ListOption requires a single string value.
+		if len(labelselector) > 0 && labelselector[0] != "" {
+			// We use the labels.Parse to validate the selector given.
+			// this should give us a better error output if the user misconfigured the selector
+			parsedSelector, lookupErr := labels.Parse(strings.Join(labelselector, ","))
+			if lookupErr != nil {
+				return nil, lookupErr
+			}
+
+			klog.V(2).Infof("lookup labels:  %v", parsedSelector)
+			listOptions = metav1.ListOptions{
+				LabelSelector: parsedSelector.String(),
+			}
+		}
+		listObj, lookupErr := dclient.List(context.TODO(), listOptions)
 		if lookupErr == nil {
 			result = listObj.UnstructuredContent()
 			for _, item := range listObj.Items {
