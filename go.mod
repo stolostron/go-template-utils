@@ -6,6 +6,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.2.2
 	github.com/spf13/cast v1.5.0
 	github.com/stolostron/kubernetes-dependency-watches v0.0.0-20221007134235-7551d84cf688
+	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.23.9
 	k8s.io/apimachinery v0.23.9
@@ -39,7 +40,7 @@ require (
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
 	golang.org/x/net v0.0.0-20220722155237-a158d28d115b // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f // indirect
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect

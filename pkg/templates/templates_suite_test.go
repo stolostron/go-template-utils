@@ -112,7 +112,76 @@ func setUp() {
 		},
 	}
 
+	// sample configmaps to test different label selectors
+	configmaplba := corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "testcm-enva",
+			Labels: map[string]string{
+				"app": "test",
+				"env": "a",
+			},
+		},
+		Data: map[string]string{
+			"cmkey1": "cmkey1Val",
+		},
+	}
+
+	// sample configmap env b
+	configmaplbb := corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "testcm-envb",
+			Labels: map[string]string{
+				"app": "test",
+				"env": "b",
+			},
+		},
+		Data: map[string]string{
+			"cmkey1": "cmkey1Val",
+		},
+	}
+
+	// sample configmap env c
+	configmaplbc := corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "testcm-envc",
+			Labels: map[string]string{
+				"app": "test",
+				"env": "c",
+			},
+		},
+		Data: map[string]string{
+			"cmkey1": "cmkey1Val",
+		},
+	}
+
 	_, err = k8sClient.CoreV1().ConfigMaps(testNs).Create(ctx, &configmap, metav1.CreateOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	_, err = k8sClient.CoreV1().ConfigMaps(testNs).Create(ctx, &configmaplba, metav1.CreateOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	_, err = k8sClient.CoreV1().ConfigMaps(testNs).Create(ctx, &configmaplbb, metav1.CreateOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	_, err = k8sClient.CoreV1().ConfigMaps(testNs).Create(ctx, &configmaplbc, metav1.CreateOptions{})
 	if err != nil {
 		panic(err.Error())
 	}
