@@ -26,7 +26,7 @@ func (t *TemplateResolver) protect(value string) (string, error) {
 
 	block, err := aes.NewCipher(t.config.AESKey)
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrInvalidAESKey, err)
+		return "", fmt.Errorf("%w: %w", ErrInvalidAESKey, err)
 	}
 
 	// This is already validated in the NewResolver method, but is checked again in case that method was bypassed
@@ -58,7 +58,7 @@ func (t *TemplateResolver) decrypt(value string) (string, error) {
 
 	decodedValue, err := base64.StdEncoding.DecodeString(value)
 	if err != nil {
-		return "", fmt.Errorf("%s: %w: %v", value, ErrInvalidB64OfEncrypted, err)
+		return "", fmt.Errorf("%s: %w: %w", value, ErrInvalidB64OfEncrypted, err)
 	}
 
 	var decryptionErr error
@@ -74,7 +74,7 @@ func (t *TemplateResolver) decrypt(value string) (string, error) {
 	for _, aesKey := range aesKeys {
 		block, err := aes.NewCipher(aesKey)
 		if err != nil {
-			decryptionErr = fmt.Errorf("%w: %v", ErrInvalidAESKey, err)
+			decryptionErr = fmt.Errorf("%w: %w", ErrInvalidAESKey, err)
 
 			continue
 		}

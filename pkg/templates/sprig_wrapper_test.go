@@ -154,7 +154,6 @@ data:
 		resolvedResult, err := resolver.ResolveTemplate(policyJSON, nil)
 		if err != nil {
 			t.Fatalf("Failed to process the policy YAML: %v\n", err)
-			panic(err)
 		}
 
 		policyResolvedJSON := resolvedResult.ResolvedJSON
@@ -164,7 +163,6 @@ data:
 		data, ok := policyResolved.(map[string]interface{})["data"].(map[string]interface{})
 		if !ok {
 			t.Fatalf("Failed to process the policy YAML reading data key: %v\n", err)
-			panic(err)
 		}
 
 		actualValue, ok := data[test.funcName].(string)

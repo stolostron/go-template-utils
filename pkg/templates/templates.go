@@ -230,7 +230,7 @@ func UsesEncryption(template []byte, startDelim string, stopDelim string) bool {
 }
 
 // getValidContext takes an input context struct with string fields and
-// validates it. If is is valid, the context will be returned as is. If the
+// validates it. If it is valid, the context will be returned as is. If the
 // input context is nil, an empty struct will be returned. If it's not valid, an
 // error will be returned.
 func getValidContext(context interface{}) (ctx interface{}, _ error) {
@@ -290,7 +290,7 @@ func (t *TemplateResolver) SetEncryptionConfig(encryptionConfig EncryptionConfig
 	return nil
 }
 
-// validateEncryptionConfig validates an EncryptionConfig struct to to ensure that if encryption
+// validateEncryptionConfig validates an EncryptionConfig struct to ensure that if encryption
 // and/or decryption are enabled that the AES Key and Initialization Vector are valid.
 func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
 	if encryptionConfig.EncryptionEnabled || encryptionConfig.DecryptionEnabled {
@@ -301,14 +301,14 @@ func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
 		// Validate AES Key
 		_, err := aes.NewCipher(encryptionConfig.AESKey)
 		if err != nil {
-			return fmt.Errorf("%w: %v", ErrInvalidAESKey, err)
+			return fmt.Errorf("%w: %w", ErrInvalidAESKey, err)
 		}
 
 		// Validate the fallback AES Key
 		if encryptionConfig.AESKeyFallback != nil {
 			_, err = aes.NewCipher(encryptionConfig.AESKeyFallback)
 			if err != nil {
-				return fmt.Errorf("%w: %v", ErrInvalidAESKey, err)
+				return fmt.Errorf("%w: %w", ErrInvalidAESKey, err)
 			}
 		}
 
@@ -453,7 +453,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplRaw []byte, context interface{}) 
 		klog.Errorf("error resolving the template %v,\n template str %v,\n error: %v", tmplRawStr, templateStr, err)
 
 		if t.missingAPIResource {
-			return resolvedResult, fmt.Errorf("%w: %v: %v", ErrMissingAPIResourceInvalidTemplate, err, tmplRawStr)
+			return resolvedResult, fmt.Errorf("%w: %w: %v", ErrMissingAPIResourceInvalidTemplate, err, tmplRawStr)
 		}
 
 		return resolvedResult, fmt.Errorf("failed to resolve the template %v: %w", tmplRawStr, err)
@@ -477,7 +477,7 @@ func (t *TemplateResolver) ResolveTemplate(tmplRaw []byte, context interface{}) 
 	return resolvedResult, nil
 }
 
-// nolint: wsl
+//nolint:wsl
 func (t *TemplateResolver) processForDataTypes(str string) string {
 	// The idea is to remove the quotes enclosing the template if it has toBool, toInt, or toLiteral.
 	// Quotes around the resolved template forces the value to be a string so removal of these quotes allows YAML to
@@ -495,7 +495,7 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 
 	d1 := regexp.QuoteMeta(t.config.StartDelim)
 	d2 := regexp.QuoteMeta(t.config.StopDelim)
-	// nolint: lll
+	//nolint: lll
 	expression := `:\s+(?:[\|>]-?\s+)?(?:'?\s*)(` + d1 + `(?:.*\|\s*(?:toInt|toBool|toLiteral)|(?:.*(?:copyConfigMapData|copySecretData))).*` + d2 + `)(?:\s*'?)`
 	re := regexp.MustCompile(expression)
 	klog.V(2).Infof("\n Pattern: %v\n", re.String())
@@ -550,7 +550,7 @@ func jsonToYAML(j []byte) ([]byte, error) {
 
 	err := yaml.Unmarshal(j, &jsonObj)
 	if err != nil {
-		return nil, err // nolint:wrapcheck
+		return nil, err //nolint:wrapcheck
 	}
 
 	// Marshal this object into YAML
@@ -560,7 +560,7 @@ func jsonToYAML(j []byte) ([]byte, error) {
 
 	err = yamlEncoder.Encode(&jsonObj)
 	if err != nil {
-		return nil, err // nolint:wrapcheck
+		return nil, err //nolint:wrapcheck
 	}
 
 	return b.Bytes(), nil
@@ -573,11 +573,11 @@ func yamlToJSON(y []byte) ([]byte, error) {
 
 	err := yaml.Unmarshal(y, &yamlObj)
 	if err != nil {
-		return nil, err // nolint:wrapcheck
+		return nil, err //nolint:wrapcheck
 	}
 
 	// Convert this object to JSON
-	return json.Marshal(yamlObj) // nolint:wrapcheck
+	return json.Marshal(yamlObj) //nolint:wrapcheck
 }
 
 func (t *TemplateResolver) indent(spaces int, v string) string {
@@ -589,7 +589,7 @@ func (t *TemplateResolver) indent(spaces int, v string) string {
 
 // This is so that the user gets a nicer error in the event some valid scenario slips through the
 // regex.
-func autoindent(v string) (string, error) {
+func autoindent(_ string) (string, error) {
 	return "", errors.New("an unexpected error occurred where autoindent could not be processed")
 }
 
