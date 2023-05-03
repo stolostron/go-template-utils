@@ -881,7 +881,7 @@ func TestGetNamespace(t *testing.T) {
 	}
 }
 
-// nolint: nosnakecase
+//nolint:nosnakecase
 func ExampleTemplateResolver_ResolveTemplate() {
 	policyYAML := `
 ---
