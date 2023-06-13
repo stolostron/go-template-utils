@@ -26,7 +26,7 @@ func (t *TemplateResolver) fromClusterClaim(claimname string) (string, error) {
 		return "", errors.New(msg)
 	}
 
-	dclient, dclientErr := t.getDynamicClient(clusterClaimAPIVersion, "ClusterClaim", "")
+	dclient, dclientErr := t.getDynamicClient(clusterClaimAPIVersion, "ClusterClaim", "", claimname)
 	if dclientErr != nil {
 		err := fmt.Errorf("failed to get the cluster claim %s: %w", claimname, dclientErr)
 

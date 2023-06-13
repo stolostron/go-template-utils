@@ -74,6 +74,11 @@ var (
 // - LookupNamespace is the namespace to restrict "lookup" template functions (e.g. fromConfigMap)
 // to. If this is not set (i.e. an empty string), then all namespaces can be used.
 //
+// - ClusterScopedAllowList is a list of cluster-scoped object identifiers (group, kind, name) which
+// are allowed to be used in "lookup" calls even when LookupNamespace is set. A wildcard value `*`
+// may be used in any or all of the fields. The default behavior when LookupNamespace is set is to
+// deny all cluster-scoped lookups.
+//
 // - StartDelim customizes the start delimiter used to distinguish a template action. This defaults
 // to "{{". If StopDelim is set, this must also be set.
 //
@@ -87,11 +92,18 @@ type Config struct {
 	AdditionalIndentation uint
 	DisabledFunctions     []string
 	EncryptionConfig
-	KubeAPIResourceList []*metav1.APIResourceList
-	LookupNamespace     string
-	StartDelim          string
-	StopDelim           string
-	InputIsYAML         bool
+	KubeAPIResourceList    []*metav1.APIResourceList
+	LookupNamespace        string
+	ClusterScopedAllowList []ClusterScopedObjectIdentifier
+	StartDelim             string
+	StopDelim              string
+	InputIsYAML            bool
+}
+
+type ClusterScopedObjectIdentifier struct {
+	Group string
+	Kind  string
+	Name  string
 }
 
 // EncryptionConfig is a struct containing configuration for template encryption/decryption functionality.
