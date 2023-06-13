@@ -18,6 +18,15 @@ import (
 	"k8s.io/klog"
 )
 
+type ClusterScopedLookupRestrictedError struct {
+	kind string
+	name string
+}
+
+func (e ClusterScopedLookupRestrictedError) Error() string {
+	return fmt.Sprintf("lookup of cluster-scoped resource '%v/%v' is not allowed", e.kind, e.name)
+}
+
 // getNamespace checks that the target namespace is allowed based on the configured
 // lookupNamespace. If it's not, an error is returned. It then returns the namespace
 // that should be used. If the target namespace is not set and the lookupNamespace
@@ -61,7 +70,7 @@ func (t *TemplateResolver) lookup(
 	}
 
 	// get dynamic Client for the given GVK and namespace
-	dclient, dclientErr := t.getDynamicClient(apiversion, kind, ns)
+	dclient, dclientErr := t.getDynamicClient(apiversion, kind, ns, rsrcname)
 	if dclientErr != nil {
 		// Treat a missing API resource as if an object was not found.
 		if errors.Is(dclientErr, ErrMissingAPIResource) {
@@ -128,7 +137,7 @@ func (t *TemplateResolver) lookup(
 
 // this func finds the GVR for given GVK and returns a namespaced dynamic client.
 func (t *TemplateResolver) getDynamicClient(
-	apiversion string, kind string, namespace string,
+	apiversion string, kind string, namespace string, name string,
 ) (
 	dynamic.ResourceInterface, error,
 ) {
@@ -151,6 +160,17 @@ func (t *TemplateResolver) getDynamicClient(
 		Resource: apiResource.Name,
 	}
 	klog.V(2).Infof("GVR is:  %v", gvr)
+
+	if !apiResource.Namespaced && t.config.LookupNamespace != "" {
+		rsrcIdentifier := ClusterScopedObjectIdentifier{
+			Group: apiResource.Group,
+			Kind:  kind,
+			Name:  name,
+		}
+		if !onAllowlist(t.config.ClusterScopedAllowList, rsrcIdentifier) {
+			return nil, ClusterScopedLookupRestrictedError{kind, name}
+		}
+	}
 
 	// get Dynamic Client
 	dclientIntf, dclientErr := dynamic.NewForConfig(t.kubeConfig)
@@ -258,4 +278,26 @@ func (t *TemplateResolver) discoverAPIResources() ([]*metav1.APIResourceList, er
 	klog.V(2).Infof("discovered APIResources: %v", apiresourcelist)
 
 	return apiresourcelist, nil
+}
+
+func onAllowlist(allowlist []ClusterScopedObjectIdentifier, rsrc ClusterScopedObjectIdentifier) bool {
+	if len(allowlist) == 0 {
+		return false
+	}
+
+	for _, item := range allowlist {
+		if item.Group != "*" && item.Group != rsrc.Group {
+			continue
+		}
+
+		if item.Kind != "*" && item.Kind != rsrc.Kind {
+			continue
+		}
+
+		if item.Name == "*" || item.Name == rsrc.Name {
+			return true
+		}
+	}
+
+	return false
 }
