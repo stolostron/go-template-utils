@@ -132,6 +132,16 @@ func TestGetSprigFunc(t *testing.T) {
 			`{{ semverCompare "^1.2.0" "1.2.3" }}`,
 			"true",
 		},
+		{
+			"toRawJson",
+			`{{ toRawJson .Labels }}`,
+			`{"hello":"world"}`,
+		},
+		{
+			"mustToRawJson",
+			`{{ toRawJson .Labels }}`,
+			`{"hello":"world"}`,
+		},
 	}
 
 	for _, test := range tests {
@@ -151,7 +161,9 @@ data:
 			panic(err)
 		}
 
-		resolvedResult, err := resolver.ResolveTemplate(policyJSON, nil)
+		templateCtx := struct{ Labels map[string]string }{map[string]string{"hello": "world"}}
+
+		resolvedResult, err := resolver.ResolveTemplate(policyJSON, templateCtx)
 		if err != nil {
 			t.Fatalf("Failed to process the policy YAML: %v\n", err)
 		}
