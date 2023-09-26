@@ -20,6 +20,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
@@ -147,11 +148,18 @@ type TemplateResolver struct {
 	// the Kubernetes API server.
 	missingAPIResource bool
 	referencedObjects  []client.ObjectIdentifier
+	gvkToGVR           map[schema.GroupVersionKind]*scopedGVR
+	dynamicClient      *dynamic.DynamicClient
 }
 
 type TemplateResult struct {
 	ResolvedJSON      []byte
 	ReferencedObjects []client.ObjectIdentifier
+}
+
+type scopedGVR struct {
+	schema.GroupVersionResource
+	namespaced bool
 }
 
 // NewResolver creates a new TemplateResolver instance, which is the API for processing templates.
@@ -185,6 +193,7 @@ func NewResolver(kubeClient *kubernetes.Interface, kubeConfig *rest.Config, conf
 		kubeClient: kubeClient,
 		kubeConfig: kubeConfig,
 		config:     config,
+		gvkToGVR:   map[schema.GroupVersionKind]*scopedGVR{},
 	}, nil
 }
 
@@ -283,6 +292,12 @@ func getValidContext(context interface{}) (ctx interface{}, _ error) {
 // configuration.
 func (t *TemplateResolver) SetKubeAPIResourceList(resourceList []*metav1.APIResourceList) {
 	t.config.KubeAPIResourceList = resourceList
+}
+
+// ClearCache will clear the cached GVK to GVR mappings. Use this if you want to try a failed lookup execution again
+// due to the resource missing on the cluster.
+func (t *TemplateResolver) ClearCache() {
+	t.gvkToGVR = map[schema.GroupVersionKind]*scopedGVR{}
 }
 
 // SetEncryptionConfig accepts an EncryptionConfig struct and validates it to ensure that if

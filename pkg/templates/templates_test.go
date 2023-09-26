@@ -136,6 +136,9 @@ func doResolveTest(t *testing.T, test resolveTestCase) {
 			t.Fatalf("%s expected : '%s' , got : '%s'", test.inputTmpl, test.expectedResult, val)
 		}
 	}
+
+	// Not actually useful but it adds test coverage
+	resolver.ClearCache()
 }
 
 func TestResolveTemplateDefaultConfig(t *testing.T) {

@@ -13,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/klog"
 )
@@ -148,22 +147,16 @@ func (t *TemplateResolver) getDynamicClient(
 	klog.V(2).Infof("GVK is:  %v", gvk)
 
 	// we have GVK but We need GVR i.e resourcename for kind inorder to create dynamicClient
-	// find ApiResource for given GVK
-	apiResource, findErr := t.findAPIResource(gvk)
+	scopedGVRObj, findErr := t.findAPIResource(gvk)
 	if findErr != nil {
 		return nil, findErr
 	}
-	// make GVR from ApiResource
-	gvr := schema.GroupVersionResource{
-		Group:    apiResource.Group,
-		Version:  apiResource.Version,
-		Resource: apiResource.Name,
-	}
-	klog.V(2).Infof("GVR is:  %v", gvr)
 
-	if !apiResource.Namespaced && t.config.LookupNamespace != "" {
+	klog.V(2).Infof("GVR is:  %v", scopedGVRObj.GroupVersionResource)
+
+	if !scopedGVRObj.namespaced && t.config.LookupNamespace != "" {
 		rsrcIdentifier := ClusterScopedObjectIdentifier{
-			Group: apiResource.Group,
+			Group: scopedGVRObj.Group,
 			Kind:  kind,
 			Name:  name,
 		}
@@ -173,69 +166,79 @@ func (t *TemplateResolver) getDynamicClient(
 	}
 
 	// get Dynamic Client
-	dclientIntf, dclientErr := dynamic.NewForConfig(t.kubeConfig)
-	if dclientErr != nil {
-		klog.Errorf("Failed to get dynamic client with err: %v", dclientErr)
+	if t.dynamicClient == nil {
+		dClient, err := dynamic.NewForConfig(t.kubeConfig)
+		if err != nil {
+			klog.Errorf("Failed to get the dynamic client with err: %v", err)
 
-		return nil, fmt.Errorf("failed to get the dynamic client: %w", dclientErr)
+			return nil, fmt.Errorf("failed to get the dynamic client: %w", err)
+		}
+
+		t.dynamicClient = dClient
 	}
 
-	// get Dynamic Client for GVR
-	dclientNsRes := dclientIntf.Resource(gvr)
+	dclientNsRes := t.dynamicClient.Resource(scopedGVRObj.GroupVersionResource)
 
 	// get Dynamic Client for GVR for Namespace if namespaced
-	if apiResource.Namespaced && namespace != "" {
+	if scopedGVRObj.namespaced && namespace != "" {
 		dclient = dclientNsRes.Namespace(namespace)
 	} else {
 		dclient = dclientNsRes
 	}
 
-	klog.V(2).Infof("dynamic client: %v", dclient)
-
 	return dclient, nil
 }
 
-func (t *TemplateResolver) findAPIResource(gvk schema.GroupVersionKind) (metav1.APIResource, error) {
+func (t *TemplateResolver) findAPIResource(gvk schema.GroupVersionKind) (*scopedGVR, error) {
 	klog.V(2).Infof("GVK is: %v", gvk)
 
-	apiResource := metav1.APIResource{}
-
-	// check if an apiresource list is available already (i.e provided as input to templates)
-	// if not available use api discovery client to get api resource list
-	apiResList := t.config.KubeAPIResourceList
-	if apiResList == nil {
-		var ddErr error
-		apiResList, ddErr = t.discoverAPIResources()
-
-		if ddErr != nil {
-			return apiResource, fmt.Errorf("")
+	if gvr, ok := t.gvkToGVR[gvk]; ok {
+		if gvr == nil {
+			t.missingAPIResource = true
 		}
+
+		return gvr, nil
 	}
 
-	// find apiResourcefor given GVK
-	var groupVersion string
-	if gvk.Group != "" {
-		groupVersion = gvk.Group + "/" + gvk.Version
-	} else {
-		groupVersion = gvk.Version
+	apiResList := t.config.KubeAPIResourceList
+	groupVersion := gvk.GroupVersion().String()
+
+	// Check if the cached resource list was provided
+	if apiResList == nil {
+		rv, err := (*t.kubeClient).Discovery().ServerResourcesForGroupVersion(groupVersion)
+		if err != nil {
+			t.missingAPIResource = true
+
+			if apierrors.IsNotFound(err) {
+				klog.Infof("The group version was not found: %s", groupVersion)
+
+				return nil, ErrMissingAPIResource
+			}
+
+			return nil, err
+		}
+
+		apiResList = []*metav1.APIResourceList{rv}
 	}
-
-	klog.V(2).Infof("GroupVersion is: %v", groupVersion)
-
-	found := false
 
 	for _, apiResGroup := range apiResList {
 		if apiResGroup.GroupVersion == groupVersion {
 			for _, apiRes := range apiResGroup.APIResources {
 				if apiRes.Kind == gvk.Kind {
-					apiResource = apiRes
-					apiResource.Group = gvk.Group
-					apiResource.Version = gvk.Version
-					found = true
+					klog.V(2).Infof("Found the APIResource: %v", apiRes)
 
-					klog.V(2).Infof("found the APIResource: %v", apiResource)
+					gv := gvk.GroupVersion()
 
-					break
+					t.gvkToGVR[gvk] = &scopedGVR{
+						GroupVersionResource: schema.GroupVersionResource{
+							Group:    gv.Group,
+							Version:  gv.Version,
+							Resource: apiRes.Name,
+						},
+						namespaced: apiRes.Namespaced,
+					}
+
+					return t.gvkToGVR[gvk], nil
 				}
 			}
 
@@ -244,40 +247,12 @@ func (t *TemplateResolver) findAPIResource(gvk schema.GroupVersionKind) (metav1.
 		}
 	}
 
-	if !found {
-		klog.V(2).Infof("The APIResource for the GVK wasn't found: %v", gvk)
+	klog.V(2).Infof("The APIResource for the GVK wasn't found: %v", gvk)
 
-		t.missingAPIResource = true
+	t.missingAPIResource = true
+	t.gvkToGVR[gvk] = nil
 
-		return apiResource, ErrMissingAPIResource
-	}
-
-	return apiResource, nil
-}
-
-// Configpolicycontroller sets the apiresource list on the template processor
-// So this func shouldnt  execute in the configpolicy flow
-// including this just for completeness.
-func (t *TemplateResolver) discoverAPIResources() ([]*metav1.APIResourceList, error) {
-	klog.V(2).Infof("discover APIResources")
-
-	dd, ddErr := discovery.NewDiscoveryClientForConfig(t.kubeConfig)
-	if ddErr != nil {
-		klog.Errorf("Failed to create the discovery client with err: %v", ddErr)
-
-		return nil, fmt.Errorf("failed to create the discovery client: %w", ddErr)
-	}
-
-	_, apiresourcelist, apiresourcelistErr := dd.ServerGroupsAndResources()
-	if apiresourcelistErr != nil {
-		klog.Errorf("Failed to retrieve apiresourcelist with err: %v", apiresourcelistErr)
-
-		return nil, fmt.Errorf("failed to retrieve apiresourcelist: %w", apiresourcelistErr)
-	}
-
-	klog.V(2).Infof("discovered APIResources: %v", apiresourcelist)
-
-	return apiresourcelist, nil
+	return nil, ErrMissingAPIResource
 }
 
 func onAllowlist(allowlist []ClusterScopedObjectIdentifier, rsrc ClusterScopedObjectIdentifier) bool {
