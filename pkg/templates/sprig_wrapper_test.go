@@ -142,6 +142,112 @@ func TestGetSprigFunc(t *testing.T) {
 			`{{ toRawJson .Labels }}`,
 			`{"hello":"world"}`,
 		},
+		{
+			"substr",
+			`{{ substr 0 3 "foo bar" }}`,
+			"foo",
+		},
+		{
+			"trimAll",
+			`{{ trimAll "-" "-foo bar-" }}`,
+			"foo bar",
+		},
+		{
+			"trunc",
+			`{{ trunc 3 "foo bar" }}`,
+			"foo",
+		},
+		{
+			"add",
+			`{{ add 2 2 }}`,
+			"4",
+		},
+		{
+			"sub",
+			`{{ sub 4 2 }}`,
+			"2",
+		},
+		{
+			"div",
+			`{{ div 4 2 }}`,
+			"2",
+		},
+		{
+			"mul",
+			`{{ mul 2 2 }}`,
+			"4",
+		},
+		{
+			"round",
+			`{{ round 123.55555 0 }}`,
+			"124",
+		},
+		{
+			"toDate",
+			`{{ toDate "2006-01-02" "2023-12-31" | date "01/02/2006" }}`,
+			"12/31/2023",
+		},
+		{
+			"mustToDate",
+			`{{ mustToDate "2006-01-02" "2023-12-31" | date "01/02/2006" }}`,
+			"12/31/2023",
+		},
+		{
+			"append",
+			`{{ append (list 1 2 3) 4 }}`,
+			"[1 2 3 4]",
+		},
+		{
+			"mustAppend",
+			`{{ mustAppend (list 1 2 3) 4 }}`,
+			"[1 2 3 4]",
+		},
+		{
+			"prepend",
+			`{{ prepend (list 1 2 3) 4 }}`,
+			"[4 1 2 3]",
+		},
+		{
+			"mustPrepend",
+			`{{ mustPrepend (list 1 2 3) 4 }}`,
+			"[4 1 2 3]",
+		},
+		{
+			"concat",
+			`{{ concat (list 1 2 3) (list 4 5 6) }}`,
+			"[1 2 3 4 5 6]",
+		},
+		{
+			"has",
+			`{{ has 2 (list 1 2 3) }}`,
+			"true",
+		},
+		{
+			"mustHas",
+			`{{ mustHas 2 (list 1 2 3) }}`,
+			"true",
+		},
+		{
+			"slice",
+			`{{ slice (list 1 2 3) 1 3 }}`,
+			"[2 3]",
+		},
+		{
+			"mustSlice",
+			`{{ mustSlice (list 1 2 3) 1 3 }}`,
+			"[2 3]",
+		},
+		{
+			"dig",
+			`{{ dig "user" "role" "foo" "default" (fromJson "{\"user\": {\"role\": {\"foo\": \"bar\"}}}") }}`,
+			"bar",
+		},
+
+		{
+			"htpasswd",
+			`{{ empty (htpasswd "foo" "bar") }}`,
+			"false",
+		},
 	}
 
 	for _, test := range tests {
