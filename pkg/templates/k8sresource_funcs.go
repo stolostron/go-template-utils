@@ -4,108 +4,95 @@
 package templates
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog"
 )
 
+func (t *TemplateResolver) fromSecretHelper(
+	options *ResolveOptions,
+) func(string, string, string) (string, error) {
+	return func(namespace string, name string, key string) (string, error) {
+		return t.fromSecret(options, namespace, name, key)
+	}
+}
+
 // retrieves the value of the key in the given Secret, namespace.
-func (t *TemplateResolver) fromSecret(namespace string, secretname string, key string) (string, error) {
-	klog.V(2).Infof("fromSecret for namespace: %v, secretname: %v, key:%v", namespace, secretname, key)
+func (t *TemplateResolver) fromSecret(
+	options *ResolveOptions, namespace string, name string, key string,
+) (string, error) {
+	klog.V(2).Infof("fromSecret for namespace: %v, name: %v, key:%v", namespace, name, key)
 
-	ns, err := t.getNamespace("fromSecret", namespace)
+	if name == "" || (options.LookupNamespace == "" && namespace == "") || key == "" {
+		return "", fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput)
+	}
+
+	secret, err := t.getOrList(options, "v1", "Secret", namespace, name)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get the secret %s from %s: %w", name, namespace, err)
 	}
 
-	secretsClient := (*t.kubeClient).CoreV1().Secrets(ns)
-	secret, getErr := secretsClient.Get(context.TODO(), secretname, metav1.GetOptions{})
+	keyVal, _, _ := unstructured.NestedString(secret, "data", key)
 
-	if getErr != nil {
-		if k8serrors.IsNotFound(getErr) {
-			// Add to the referenced objects if the object isn't found since the consumer may want to watch the object
-			// and resolve the templates again once it is present.
-			t.addToReferencedObjects("/v1", "Secret", ns, secretname)
-		}
+	return keyVal, nil
+}
 
-		klog.Errorf("Error Getting secret:  %v", getErr)
-		err := fmt.Errorf("failed to get the secret %s from %s: %w", secretname, ns, getErr)
-
-		return "", err
+func (t *TemplateResolver) fromSecretProtectedHelper(
+	options *ResolveOptions,
+) func(string, string, string) (string, error) {
+	return func(namespace string, secretName string, key string) (string, error) {
+		return t.fromSecretProtected(options, namespace, secretName, key)
 	}
-
-	keyVal := secret.Data[key]
-
-	// when using corev1 secret api, the data is returned decoded ,
-	// re-encododing to be able to use it in the referencing secret
-	sEnc := base64.StdEncoding.EncodeToString(keyVal)
-
-	// add this Secret to list of  Objs referenced by the template
-	t.addToReferencedObjects("/v1", "Secret", secret.Namespace, secret.Name)
-
-	return sEnc, nil
 }
 
 // fromSecretProtected wraps fromSecret and encrypts the output value using the "protect" method.
-func (t *TemplateResolver) fromSecretProtected(namespace string, secretName string, key string) (string, error) {
-	value, err := t.fromSecret(namespace, secretName, key)
+func (t *TemplateResolver) fromSecretProtected(
+	options *ResolveOptions, namespace string, secretName string, key string,
+) (string, error) {
+	value, err := t.fromSecret(options, namespace, secretName, key)
 	if err != nil {
 		return "", err
 	}
 
-	return t.protect(value)
+	return t.protect(options, value)
 }
 
 // copies all data in the given Secret, namespace.
-func (t *TemplateResolver) copySecretDataBase(namespace string, secretname string) (map[string]interface{}, error) {
-	klog.V(2).Infof("copySecretDataBase for namespace: %v, secretname: %v", namespace, secretname)
+func (t *TemplateResolver) copySecretDataBase(
+	options *ResolveOptions, namespace string, name string,
+) (map[string]interface{}, error) {
+	klog.V(2).Infof("copySecretDataBase for namespace: %v, name: %v", namespace, name)
 
-	ns, err := t.getNamespace("copySecretData", namespace)
+	if name == "" || (options.LookupNamespace == "" && namespace == "") {
+		return nil, fmt.Errorf("%w: namespace and name must be specified", ErrInvalidInput)
+	}
+
+	secret, err := t.getOrList(options, "v1", "Secret", namespace, name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get the secret %s from %s: %w", name, namespace, err)
 	}
 
-	secretsClient := (*t.kubeClient).CoreV1().Secrets(ns)
-	secret, getErr := secretsClient.Get(context.TODO(), secretname, metav1.GetOptions{})
-
-	if getErr != nil {
-		if k8serrors.IsNotFound(getErr) {
-			// Add to the referenced objects if the object isn't found since the consumer may want to watch the object
-			// and resolve the templates again once it is present.
-			t.addToReferencedObjects("/v1", "Secret", ns, secretname)
-		}
-
-		klog.Errorf("Error Getting secret:  %v", getErr)
-		err := fmt.Errorf("failed to get the secret %s from %s: %w", secretname, ns, getErr)
-
-		return nil, err
-	}
-
-	data := make(map[string]interface{})
-
-	for key, val := range secret.Data {
-		// when using corev1 secret api, the data is returned decoded,
-		// re-encododing to be able to use it in the referencing secret
-		sEnc := base64.StdEncoding.EncodeToString(val)
-		data[key] = sEnc
-	}
-
-	// add this Secret to list of  Objs referenced by the template
-	t.addToReferencedObjects("/v1", "Secret", secret.Namespace, secret.Name)
+	data, _, _ := unstructured.NestedMap(secret, "data")
 
 	return data, nil
 }
 
+func (t *TemplateResolver) copySecretDataHelper(options *ResolveOptions) func(string, string) (string, error) {
+	return func(namespace string, secretname string) (string, error) {
+		return t.copySecretData(options, namespace, secretname)
+	}
+}
+
 // copies all data in the given Secret, namespace.
-func (t *TemplateResolver) copySecretData(namespace string, secretname string) (string, error) {
+func (t *TemplateResolver) copySecretData(
+	options *ResolveOptions, namespace string, secretname string,
+) (string, error) {
 	klog.V(2).Infof("copySecretData for namespace: %v, secretname: %v", namespace, secretname)
 
-	data, err := t.copySecretDataBase(namespace, secretname)
+	data, err := t.copySecretDataBase(options, namespace, secretname)
 	if err != nil {
 		return "", err
 	}
@@ -118,15 +105,25 @@ func (t *TemplateResolver) copySecretData(namespace string, secretname string) (
 	return string(rawData), nil
 }
 
+func (t *TemplateResolver) copySecretDataProtectedHelper(
+	options *ResolveOptions,
+) func(string, string) (string, error) {
+	return func(namespace string, secretName string) (string, error) {
+		return t.copySecretDataProtected(options, namespace, secretName)
+	}
+}
+
 // copySecretDataProtected wraps copySecretData and encrypts the output value using the "protect" method.
-func (t *TemplateResolver) copySecretDataProtected(namespace string, secretName string) (string, error) {
-	data, err := t.copySecretDataBase(namespace, secretName)
+func (t *TemplateResolver) copySecretDataProtected(
+	options *ResolveOptions, namespace string, secretName string,
+) (string, error) {
+	data, err := t.copySecretDataBase(options, namespace, secretName)
 	if err != nil {
 		return "", err
 	}
 
 	for key, val := range data {
-		data[key], err = t.protect(fmt.Sprint(val))
+		data[key], err = t.protect(options, fmt.Sprint(val))
 		if err != nil {
 			return "", err
 		}
@@ -140,81 +137,63 @@ func (t *TemplateResolver) copySecretDataProtected(namespace string, secretName 
 	return string(rawData), nil
 }
 
+func (t *TemplateResolver) fromConfigMapHelper(
+	options *ResolveOptions,
+) func(string, string, string) (string, error) {
+	return func(namespace string, name string, key string) (string, error) {
+		return t.fromConfigMap(options, namespace, name, key)
+	}
+}
+
 // retrieves value for the key in the given Configmap, namespace.
-func (t *TemplateResolver) fromConfigMap(namespace string, cmapname string, key string) (string, error) {
-	klog.V(2).Infof("fromConfigMap for namespace: %v, configmap name: %v, key:%v", namespace, cmapname, key)
+func (t *TemplateResolver) fromConfigMap(
+	options *ResolveOptions, namespace string, name string, key string,
+) (string, error) {
+	klog.V(2).Infof("fromConfigMap for namespace: %s, name: %s, key: %s", namespace, name, key)
 
-	ns, err := t.getNamespace("fromConfigMap", namespace)
+	if name == "" || (options.LookupNamespace == "" && namespace == "") || key == "" {
+		return "", fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput)
+	}
+
+	configmap, err := t.getOrList(options, "v1", "ConfigMap", namespace, name)
 	if err != nil {
-		return "", err
-	}
-
-	configmapsClient := (*t.kubeClient).CoreV1().ConfigMaps(ns)
-	configmap, getErr := configmapsClient.Get(context.TODO(), cmapname, metav1.GetOptions{})
-
-	if getErr != nil {
-		if k8serrors.IsNotFound(getErr) {
-			// Add to the referenced objects if the object isn't found since the consumer may want to watch the object
-			// and resolve the templates again once it is present.
-			t.addToReferencedObjects("/v1", "ConfigMap", ns, cmapname)
-		}
-
-		klog.Errorf("Error getting configmap:  %v", getErr)
-		err := fmt.Errorf("failed getting the ConfigMap %s from %s: %w", cmapname, ns, getErr)
+		err := fmt.Errorf("failed getting the ConfigMap %s from %s: %w", name, namespace, err)
 
 		return "", err
 	}
 
-	klog.V(2).Infof("Configmap is %v", configmap)
-
-	keyVal := configmap.Data[key]
-	klog.V(2).Infof("Configmap Key:%v, Value: %v", key, keyVal)
-
-	// add this Configmap to list of  Objs referenced by the template
-	t.addToReferencedObjects("/v1", "ConfigMap", namespace, cmapname)
+	keyVal, _, _ := unstructured.NestedString(configmap, "data", key)
 
 	return keyVal, nil
 }
 
+func (t *TemplateResolver) copyConfigMapDataHelper(options *ResolveOptions) func(string, string) (string, error) {
+	return func(namespace string, name string) (string, error) {
+		return t.copyConfigMapData(options, namespace, name)
+	}
+}
+
 // copies data values in the given Configmap, namespace.
-func (t *TemplateResolver) copyConfigMapData(namespace string, cmapname string) (string, error) {
-	klog.V(2).Infof("copyConfigMapData for namespace: %v, configmap name: %v", namespace, cmapname)
+func (t *TemplateResolver) copyConfigMapData(
+	options *ResolveOptions, namespace string, name string,
+) (string, error) {
+	klog.V(2).Infof("copyConfigMapData for namespace: %s, name: %s", namespace, name)
 
-	ns, err := t.getNamespace("copyConfigMapData", namespace)
+	if name == "" || (options.LookupNamespace == "" && namespace == "") {
+		return "", fmt.Errorf("%w: namespace and name must be specified", ErrInvalidInput)
+	}
+
+	configmap, err := t.getOrList(options, "v1", "ConfigMap", namespace, name)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed getting the ConfigMap %s from %s: %w", name, namespace, err)
 	}
 
-	configmapsClient := (*t.kubeClient).CoreV1().ConfigMaps(ns)
-	configmap, getErr := configmapsClient.Get(context.TODO(), cmapname, metav1.GetOptions{})
-
-	if getErr != nil {
-		if k8serrors.IsNotFound(getErr) {
-			// Add to the referenced objects if the object isn't found since the consumer may want to watch the object
-			// and resolve the templates again once it is present.
-			t.addToReferencedObjects("/v1", "ConfigMap", ns, cmapname)
-		}
-
-		klog.Errorf("Error getting configmap:  %v", getErr)
-		err := fmt.Errorf("failed getting the ConfigMap %s from %s: %w", cmapname, ns, getErr)
-
-		return "", err
-	}
-
-	klog.V(2).Infof("Configmap is %v", configmap)
-
-	data := make(map[string]interface{})
-
-	for key, val := range configmap.Data {
-		data[key] = val
-	}
+	data, _, _ := unstructured.NestedMap(configmap, "data")
 
 	rawData, err := json.Marshal(data)
 	if err != nil {
 		return "", err
 	}
-
-	t.addToReferencedObjects("/v1", "ConfigMap", namespace, cmapname)
 
 	return string(rawData), nil
 }

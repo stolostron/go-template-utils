@@ -2,31 +2,38 @@
 
 package templates
 
-import (
-	"testing"
+import "testing"
 
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/rest"
-)
-
-func TestFromClusterClaimNsError(t *testing.T) {
-	t.Parallel()
-
-	var kubeClient kubernetes.Interface = fake.NewSimpleClientset()
-
-	kubeConfig := &rest.Config{}
-	config := Config{LookupNamespace: "my-policies"}
-	resolver, _ := NewResolver(&kubeClient, kubeConfig, config)
-
-	_, err := resolver.fromClusterClaim("clusterID")
-
-	if err == nil {
-		t.Fatal("Expecting an error but did not get one")
+func TestFromClusterClaimInvalidInput(t *testing.T) {
+	resolver, err := NewResolver(k8sConfig, Config{})
+	if err != nil {
+		t.Fatalf(err.Error())
 	}
 
-	expectedMsg := "fromClusterClaim is not supported because lookups are restricted to the my-policies namespace"
-	if err.Error() != expectedMsg {
-		t.Fatalf(`Expected the error "%s", but got "%s"`, expectedMsg, err.Error())
+	rv, err := resolver.fromClusterClaim(nil, "")
+	if err == nil || err.Error() != "a claim name must be provided" {
+		t.Fatalf("Expected an error for the missing claim name but got %v", err)
+	}
+
+	if rv != "" {
+		t.Fatalf("Expected no return value due to the error but got %v", rv)
+	}
+}
+
+func TestFromClusterClaimNotFound(t *testing.T) {
+	resolver, err := NewResolver(k8sConfig, Config{})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	rv, err := resolver.fromClusterClaim(&ResolveOptions{}, "something-nonexistent")
+
+	expectedMsg := `clusterclaims.cluster.open-cluster-management.io "something-nonexistent" not found`
+	if err == nil || err.Error() != expectedMsg {
+		t.Fatalf("Expected an error for the missing claim name but got %v", err)
+	}
+
+	if rv != "" {
+		t.Fatalf("Expected no return value due to the error but got %v", rv)
 	}
 }

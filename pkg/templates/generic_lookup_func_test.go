@@ -15,37 +15,59 @@ func TestLookup(t *testing.T) {
 	t.Parallel()
 
 	testcases := []struct {
-		inputNs          string
-		inputAPIVersion  string
-		inputKind        string
-		inputName        string
-		lookupNamespace  string
-		expectedObjCount int
-		expectedErr      error
-		expectedExists   bool
+		inputNs         string
+		inputAPIVersion string
+		inputKind       string
+		inputName       string
+		lookupNamespace string
+		expectedErr     error
+		expectedExists  bool
 	}{
-		{"testns", "v1", "ConfigMap", "testconfigmap", "", 1, nil, true},
-		{"testns", "v1", "Secret", "testsecret", "", 1, nil, true},
-		{"testns", "v1", "Secret", "idontexist", "", 1, nil, false},
+		{"testns", "v1", "ConfigMap", "testconfigmap", "", nil, true},
+		{"testns", "v1", "Secret", "testsecret", "", nil, true},
+		{"testns", "v1", "Secret", "idontexist", "", nil, false},
 		{
 			"testns",
 			"v1",
 			"ConfigMap",
 			"testconfigmap",
 			"policies-ns",
-			0,
-			errors.New("the namespace argument passed to lookup is restricted to policies-ns"),
+			errors.New("the namespace argument is restricted to policies-ns"),
+			false,
+		},
+		{
+			"testns",
+			"",
+			"ConfigMap",
+			"testconfigmap",
+			"",
+			errors.New("the apiVersion and kind are required"),
+			false,
+		},
+		{
+			"testns",
+			"v1",
+			"",
+			"testconfigmap",
+			"",
+			errors.New("the apiVersion and kind are required"),
 			false,
 		},
 	}
 
 	for _, test := range testcases {
-		resolver, err := NewResolver(&k8sClient, k8sConfig, Config{LookupNamespace: test.lookupNamespace})
+		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 
-		val, err := resolver.lookup(test.inputAPIVersion, test.inputKind, test.inputNs, test.inputName)
+		val, err := resolver.lookup(
+			&ResolveOptions{LookupNamespace: test.lookupNamespace},
+			test.inputAPIVersion,
+			test.inputKind,
+			test.inputNs,
+			test.inputName,
+		)
 
 		if err != nil {
 			if test.expectedErr == nil {
@@ -66,21 +88,6 @@ func TestLookup(t *testing.T) {
 		} else if len(val) != 0 {
 			t.Fatal("An object was unexpected but one was returned")
 		}
-
-		if len(resolver.referencedObjects) != test.expectedObjCount {
-			t.Fatalf("expected referenced object count: %d , got : %d",
-				test.expectedObjCount, len(resolver.referencedObjects))
-		} else if test.expectedExists && test.expectedObjCount != 0 {
-			valMetadata := val["metadata"].(map[string]interface{})
-			if val["apiVersion"] != test.inputAPIVersion || val["kind"] != test.inputKind ||
-				valMetadata["name"] != test.inputName || valMetadata["namespace"] != test.inputNs {
-				t.Fatalf(
-					"expected:  ApiVersion= %s, Kind= %s, Name= %s, NS= %s,"+
-						"Received: ApiVersion= %s, Kind= %s, Name= %s , NS= %s",
-					test.inputAPIVersion, test.inputKind, test.inputName, test.inputNs,
-					val["apiVersion"], val["kind"], valMetadata["name"], valMetadata["namespace"])
-			}
-		}
 	}
 }
 
@@ -94,7 +101,6 @@ func TestLookupWithLabels(t *testing.T) {
 		inputName        string
 		lookupNamespace  string
 		labelSelector    []string
-		expectedObjCount int
 		expectedErr      error
 		expectedExists   bool
 		expectedObjNames []string
@@ -106,7 +112,6 @@ func TestLookupWithLabels(t *testing.T) {
 			"testcm-envc",
 			"",
 			nil,
-			1,
 			nil,
 			true,
 			[]string{"testcm-envc"},
@@ -118,7 +123,6 @@ func TestLookupWithLabels(t *testing.T) {
 			"",
 			"",
 			nil,
-			4,
 			nil,
 			true,
 			[]string{"testconfigmap", "testcm-enva", "testcm-envb", "testcm-envc"},
@@ -130,7 +134,6 @@ func TestLookupWithLabels(t *testing.T) {
 			"",
 			"",
 			[]string{"app=test"},
-			3,
 			nil,
 			true,
 			[]string{"testcm-enva", "testcm-envb", "testcm-envc"},
@@ -142,7 +145,6 @@ func TestLookupWithLabels(t *testing.T) {
 			"",
 			"",
 			[]string{"env=a"},
-			1,
 			nil,
 			true,
 			[]string{"testcm-enva"},
@@ -154,7 +156,6 @@ func TestLookupWithLabels(t *testing.T) {
 			"",
 			"",
 			[]string{"env in (a)"},
-			1,
 			nil,
 			true,
 			[]string{"testcm-enva"},
@@ -166,7 +167,6 @@ func TestLookupWithLabels(t *testing.T) {
 			"",
 			"",
 			[]string{"env in (a,b)"},
-			2,
 			nil,
 			true,
 			[]string{"testcm-enva", "testcm-envb"},
@@ -178,7 +178,6 @@ func TestLookupWithLabels(t *testing.T) {
 			"",
 			"",
 			[]string{"env in (d)"},
-			0,
 			nil,
 			true, // Note ExpectedObject = true as lookup returns empty list
 			nil,
@@ -190,7 +189,6 @@ func TestLookupWithLabels(t *testing.T) {
 			"",
 			"",
 			[]string{"app=test", "env in (c)"},
-			1,
 			nil,
 			true,
 			[]string{"testcm-envc"},
@@ -202,7 +200,6 @@ func TestLookupWithLabels(t *testing.T) {
 			"",
 			"",
 			[]string{"env IN (a)"},
-			0,
 			errors.New("unable to parse requirement: found 'IN', expected: in, notin, =, ==, !=, gt, lt"),
 			false,
 			nil,
@@ -210,18 +207,21 @@ func TestLookupWithLabels(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		resolver, err := NewResolver(&k8sClient, k8sConfig, Config{LookupNamespace: test.lookupNamespace})
+		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 
 		// prevent linter critic for unslicing.  this is required to duplicate passing multiple args as a user would
 		//nolint:gocritic
-		val, err := resolver.lookup(test.inputAPIVersion,
+		val, err := resolver.lookup(
+			&ResolveOptions{LookupNamespace: test.lookupNamespace},
+			test.inputAPIVersion,
 			test.inputKind,
 			test.inputNs,
 			test.inputName,
-			test.labelSelector[:]...)
+			test.labelSelector[:]...,
+		)
 
 		if err != nil {
 			if test.expectedErr == nil {
@@ -243,10 +243,7 @@ func TestLookupWithLabels(t *testing.T) {
 			t.Fatalf("An object was unexpected but one was returned: %v", test)
 		}
 
-		if len(resolver.referencedObjects) != test.expectedObjCount {
-			t.Fatalf("expected referenced object count: %d , got : %d",
-				test.expectedObjCount, len(resolver.referencedObjects))
-		} else if test.expectedExists && test.inputName != "" {
+		if test.expectedExists && test.inputName != "" {
 			valMetadata := val["metadata"].(map[string]interface{})
 			if val["apiVersion"] != test.inputAPIVersion || val["kind"] != test.inputKind ||
 				valMetadata["name"] != test.inputName || valMetadata["namespace"] != test.inputNs {
@@ -285,21 +282,20 @@ func TestLookupClusterScoped(t *testing.T) {
 	clusterScopedErr := ClusterScopedLookupRestrictedError{"Node", "foo"}
 
 	testcases := []struct {
-		inputNs          string
-		inputAPIVersion  string
-		inputKind        string
-		inputName        string
-		lookupNamespace  string
-		allowlist        []ClusterScopedObjectIdentifier
-		expectedObjCount int
-		expectedErr      error
-		expectedExists   bool
+		inputNs         string
+		inputAPIVersion string
+		inputKind       string
+		inputName       string
+		lookupNamespace string
+		allowlist       []ClusterScopedObjectIdentifier
+		expectedErr     error
+		expectedExists  bool
 	}{
 		// No allowlist
-		{"", "v1", "Node", "foo", "", nil, 1, nil, false},
-		{"policies-ns", "v1", "Node", "foo", "", nil, 1, nil, false},
-		{"", "v1", "Node", "foo", "policies-ns", nil, 0, clusterScopedErr, false},
-		{"policies-ns", "v1", "Node", "foo", "policies-ns", nil, 0, clusterScopedErr, false},
+		{"", "v1", "Node", "foo", "", nil, nil, false},
+		{"policies-ns", "v1", "Node", "foo", "", nil, nil, false},
+		{"", "v1", "Node", "foo", "policies-ns", nil, clusterScopedErr, false},
+		{"policies-ns", "v1", "Node", "foo", "policies-ns", nil, clusterScopedErr, false},
 		// With an allowlist matching the resource
 		{
 			"",
@@ -308,7 +304,6 @@ func TestLookupClusterScoped(t *testing.T) {
 			"foo",
 			"policies-ns",
 			[]ClusterScopedObjectIdentifier{{"*", "*", "*"}},
-			1,
 			nil,
 			false,
 		},
@@ -319,7 +314,6 @@ func TestLookupClusterScoped(t *testing.T) {
 			"foo",
 			"policies-ns",
 			[]ClusterScopedObjectIdentifier{{"", "Node", "*"}},
-			1,
 			nil,
 			false,
 		},
@@ -330,7 +324,6 @@ func TestLookupClusterScoped(t *testing.T) {
 			"foo",
 			"policies-ns",
 			[]ClusterScopedObjectIdentifier{{"", "Node", "foo"}},
-			1,
 			nil,
 			false,
 		},
@@ -342,7 +335,6 @@ func TestLookupClusterScoped(t *testing.T) {
 			"foo",
 			"policies-ns",
 			[]ClusterScopedObjectIdentifier{{"", "Node", "bar"}},
-			0,
 			clusterScopedErr,
 			false,
 		},
@@ -353,22 +345,27 @@ func TestLookupClusterScoped(t *testing.T) {
 			"foo",
 			"policies-ns",
 			[]ClusterScopedObjectIdentifier{{"myapi.com", "Node", "foo"}},
-			0,
 			clusterScopedErr,
 			false,
 		},
 	}
 
 	for _, test := range testcases {
-		resolver, err := NewResolver(&k8sClient, k8sConfig, Config{
-			LookupNamespace:        test.lookupNamespace,
-			ClusterScopedAllowList: test.allowlist,
-		})
+		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 
-		val, err := resolver.lookup(test.inputAPIVersion, test.inputKind, test.inputNs, test.inputName)
+		val, err := resolver.lookup(
+			&ResolveOptions{
+				LookupNamespace:        test.lookupNamespace,
+				ClusterScopedAllowList: test.allowlist,
+			},
+			test.inputAPIVersion,
+			test.inputKind,
+			test.inputNs,
+			test.inputName,
+		)
 
 		if err != nil {
 			if test.expectedErr == nil {
@@ -388,21 +385,6 @@ func TestLookupClusterScoped(t *testing.T) {
 			}
 		} else if len(val) != 0 {
 			t.Fatal("An object was unexpected but one was returned")
-		}
-
-		if len(resolver.referencedObjects) != test.expectedObjCount {
-			t.Fatalf("expected referenced object count: %d , got : %d",
-				test.expectedObjCount, len(resolver.referencedObjects))
-		} else if test.expectedExists && test.expectedObjCount != 0 {
-			valMetadata := val["metadata"].(map[string]interface{})
-			if val["apiVersion"] != test.inputAPIVersion || val["kind"] != test.inputKind ||
-				valMetadata["name"] != test.inputName || valMetadata["namespace"] != test.inputNs {
-				t.Fatalf(
-					"expected:  ApiVersion= %s, Kind= %s, Name= %s, NS= %s,"+
-						"Received: ApiVersion= %s, Kind= %s, Name= %s , NS= %s",
-					test.inputAPIVersion, test.inputKind, test.inputName, test.inputNs,
-					val["apiVersion"], val["kind"], valMetadata["name"], valMetadata["namespace"])
-			}
 		}
 	}
 }

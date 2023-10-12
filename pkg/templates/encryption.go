@@ -16,27 +16,33 @@ import (
 	"k8s.io/klog"
 )
 
+func (t *TemplateResolver) protectHelper(options *ResolveOptions) func(string) (string, error) {
+	return func(value string) (string, error) {
+		return t.protect(options, value)
+	}
+}
+
 // protect encrypts the input value using AES-CBC. If a salt is set on t.config.Salt, it will prefix the plaintext
 // value before it is encrypted. The returned value is in the format of `$ocm_encrypted:<base64 of encrypted string>`.
 // An error is returned if the AES key is invalid.
-func (t *TemplateResolver) protect(value string) (string, error) {
+func (t *TemplateResolver) protect(options *ResolveOptions, value string) (string, error) {
 	if value == "" {
 		return value, nil
 	}
 
-	block, err := aes.NewCipher(t.config.AESKey)
+	block, err := aes.NewCipher(options.AESKey)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", ErrInvalidAESKey, err)
 	}
 
 	// This is already validated in the NewResolver method, but is checked again in case that method was bypassed
 	// to avoid a panic.
-	if len(t.config.InitializationVector) != IVSize {
+	if len(options.InitializationVector) != IVSize {
 		return "", ErrInvalidIV
 	}
 
 	blockSize := block.BlockSize()
-	blockMode := cipher.NewCBCEncrypter(block, t.config.InitializationVector)
+	blockMode := cipher.NewCBCEncrypter(block, options.InitializationVector)
 
 	valueBytes := []byte(value)
 	valueBytes = pkcs7Pad(valueBytes, blockSize)
@@ -49,10 +55,10 @@ func (t *TemplateResolver) protect(value string) (string, error) {
 
 // decrypt will decrypt a string that was encrypted using the protect method. An error is returned if the base64 or
 // the AES key is invalid.
-func (t *TemplateResolver) decrypt(value string) (string, error) {
+func (t *TemplateResolver) decrypt(options *ResolveOptions, value string) (string, error) {
 	// This is already validated in the NewResolver method, but is checked again in case that method was bypassed
 	// to avoid a panic.
-	if len(t.config.InitializationVector) != IVSize {
+	if len(options.InitializationVector) != IVSize {
 		return "", ErrInvalidIV
 	}
 
@@ -65,10 +71,10 @@ func (t *TemplateResolver) decrypt(value string) (string, error) {
 	var decryptedValue []byte
 
 	var aesKeys [][]byte
-	if t.config.AESKeyFallback == nil {
-		aesKeys = [][]byte{t.config.AESKey}
+	if options.AESKeyFallback == nil {
+		aesKeys = [][]byte{options.AESKey}
 	} else {
-		aesKeys = [][]byte{t.config.AESKey, t.config.AESKeyFallback}
+		aesKeys = [][]byte{options.AESKey, options.AESKeyFallback}
 	}
 
 	for _, aesKey := range aesKeys {
@@ -79,7 +85,7 @@ func (t *TemplateResolver) decrypt(value string) (string, error) {
 			continue
 		}
 
-		blockMode := cipher.NewCBCDecrypter(block, t.config.InitializationVector)
+		blockMode := cipher.NewCBCDecrypter(block, options.InitializationVector)
 		decryptedValue = make([]byte, len(decodedValue))
 		blockMode.CryptBlocks(decryptedValue, decodedValue)
 
@@ -153,7 +159,7 @@ func pkcs7Unpad(paddedValue []byte) ([]byte, error) {
 // processEncryptedStrs replaces all encrypted strings with the decrypted values. Each decryption is handled
 // concurrently and the concurrency limit is controlled by t.config.DecryptionConcurrency. If a decryption fails,
 // the rest of the decryption is halted and an error is returned.
-func (t *TemplateResolver) processEncryptedStrs(templateStr string) (string, error) {
+func (t *TemplateResolver) processEncryptedStrs(options *ResolveOptions, templateStr string) (string, error) {
 	// This catching any encrypted string in the format of $ocm_encrypted:<base64 of the encrypted value>.
 	re := regexp.MustCompile(regexp.QuoteMeta(protectedPrefix) + "([a-zA-Z0-9+/=]+)")
 	// Each submatch will have index 0 be the whole match and index 1 as the base64 of the encrypted value.
@@ -166,10 +172,10 @@ func (t *TemplateResolver) processEncryptedStrs(templateStr string) (string, err
 	var numWorkers int
 
 	// Determine how many Goroutines to spawn.
-	if t.config.DecryptionConcurrency <= 1 {
+	if options.DecryptionConcurrency <= 1 {
 		numWorkers = 1
-	} else if len(submatches) > int(t.config.DecryptionConcurrency) {
-		numWorkers = int(t.config.DecryptionConcurrency)
+	} else if len(submatches) > int(options.DecryptionConcurrency) {
+		numWorkers = int(options.DecryptionConcurrency)
 	} else {
 		numWorkers = len(submatches)
 	}
@@ -185,7 +191,7 @@ func (t *TemplateResolver) processEncryptedStrs(templateStr string) (string, err
 
 	// Start up all the Goroutines.
 	for i := 0; i < numWorkers; i++ {
-		go t.decryptWrapper(ctx, submatchesChan, resultsChan)
+		go t.decryptWrapper(ctx, options, submatchesChan, resultsChan)
 	}
 
 	// Send all the submatches of all the encrypted strings to the Goroutines to process.
@@ -236,14 +242,14 @@ type decryptResult struct {
 // index being the whole string that will be replaced and second index being the base64 of the encrypted string. results
 // is a channel to communicate back to the calling Goroutine.
 func (t *TemplateResolver) decryptWrapper(
-	ctx context.Context, submatches <-chan []string, results chan<- decryptResult,
+	ctx context.Context, options *ResolveOptions, submatches <-chan []string, results chan<- decryptResult,
 ) {
 	for submatch := range submatches {
 		match := submatch[0]
 		encryptedValue := submatch[1]
 		var result decryptResult
 
-		plaintext, err := t.decrypt(encryptedValue)
+		plaintext, err := t.decrypt(options, encryptedValue)
 		if err != nil {
 			result = decryptResult{match, "", err}
 		} else {

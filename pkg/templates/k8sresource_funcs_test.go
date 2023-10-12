@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -25,6 +26,7 @@ func TestFromSecret(t *testing.T) {
 		{"testns", "testsecret", "secretkey1", "", "secretkey1Val", nil},       // green-path test
 		{"testns", "testsecret", "secretkey2", "", "secretkey2Val", nil},       // green-path test
 		{"testns", "testsecret", "secretkey2", "testns", "secretkey2Val", nil}, // green-path test
+		{"", "testsecret", "secretkey2", "testns", "secretkey2Val", nil},       // green-path test
 		{
 			"testns",
 			"idontexist",
@@ -40,17 +42,45 @@ func TestFromSecret(t *testing.T) {
 			"secretkey2",
 			"policies-ns",
 			"",
-			errors.New("the namespace argument passed to fromSecret is restricted to policies-ns"),
+			errors.New(
+				"failed to get the secret testsecret from testns: the namespace argument is restricted to policies-ns",
+			),
 		}, // error : restricted input namespace
+		{
+			"",
+			"testsecret",
+			"secretkey2",
+			"",
+			"",
+			fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput),
+		},
+		{
+			"testns",
+			"",
+			"secretkey2",
+			"",
+			"",
+			fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput),
+		},
+		{
+			"testns",
+			"testsecret",
+			"",
+			"",
+			"",
+			fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput),
+		},
 	}
 
 	for _, test := range testcases {
-		resolver, err := NewResolver(&k8sClient, k8sConfig, Config{LookupNamespace: test.lookupNamespace})
+		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 
-		val, err := resolver.fromSecret(test.inputNs, test.inputCMname, test.inputKey)
+		val, err := resolver.fromSecret(
+			&ResolveOptions{LookupNamespace: test.lookupNamespace}, test.inputNs, test.inputCMname, test.inputKey,
+		)
 
 		if err != nil {
 			if test.expectedErr == nil {
@@ -80,6 +110,7 @@ func TestFromConfigMap(t *testing.T) {
 		{"testns", "testconfigmap", "cmkey1", "", "cmkey1Val", nil},
 		{"testns", "testconfigmap", "cmkey2", "", "cmkey2Val", nil},
 		{"testns", "testconfigmap", "cmkey2", "testns", "cmkey2Val", nil},
+		{"", "testconfigmap", "cmkey2", "testns", "cmkey2Val", nil},
 		{
 			"testns",
 			"idontexist",
@@ -95,17 +126,46 @@ func TestFromConfigMap(t *testing.T) {
 			"cmkey1",
 			"policies-ns",
 			"cmkey1Val",
-			errors.New("the namespace argument passed to fromConfigMap is restricted to policies-ns"),
+			errors.New(
+				"failed getting the ConfigMap testconfigmap from testns: the namespace argument is restricted " +
+					"to policies-ns",
+			),
+		},
+		{
+			"",
+			"testconfigmap",
+			"cmkey1",
+			"",
+			"cmkey1Val",
+			fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput),
+		},
+		{
+			"testns",
+			"",
+			"cmkey1",
+			"",
+			"cmkey1Val",
+			fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput),
+		},
+		{
+			"testns",
+			"testconfigmap",
+			"",
+			"",
+			"cmkey1Val",
+			fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput),
 		},
 	}
 
 	for _, test := range testcases {
-		resolver, err := NewResolver(&k8sClient, k8sConfig, Config{LookupNamespace: test.lookupNamespace})
+		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 
-		val, err := resolver.fromConfigMap(test.inputNs, test.inputCMname, test.inputKey)
+		val, err := resolver.fromConfigMap(
+			&ResolveOptions{LookupNamespace: test.lookupNamespace}, test.inputNs, test.inputCMname, test.inputKey,
+		)
 
 		if err != nil {
 			if test.expectedErr == nil {
@@ -135,6 +195,7 @@ func TestCopySecretData(t *testing.T) {
 		{"testns", "testsecret", "secretkey1", "", "secretkey1Val", nil},       // green-path test
 		{"testns", "testsecret", "secretkey2", "", "secretkey2Val", nil},       // green-path test
 		{"testns", "testsecret", "secretkey2", "testns", "secretkey2Val", nil}, // green-path test
+		{"", "testsecret", "secretkey2", "testns", "secretkey2Val", nil},       // green-path test
 		{
 			"testns",
 			"idontexist",
@@ -150,17 +211,47 @@ func TestCopySecretData(t *testing.T) {
 			"secretkey2",
 			"policies-ns",
 			"",
-			errors.New("the namespace argument passed to copySecretData is restricted to policies-ns"),
+			errors.New(
+				"failed to get the secret testsecret from testns: the namespace argument is restricted to policies-ns",
+			),
 		}, // error : restricted input namespace
+		{
+			"",
+			"testsecret",
+			"secretkey2",
+			"",
+			"",
+			fmt.Errorf("%w: namespace and name must be specified", ErrInvalidInput),
+		},
+		{
+			"testns",
+			"",
+			"secretkey2",
+			"",
+			"",
+			fmt.Errorf("%w: namespace and name must be specified", ErrInvalidInput),
+		},
+		{
+			"testns",
+			"testsecret",
+			"",
+			"",
+			"",
+			fmt.Errorf("%w: namespace and name must be specified", ErrInvalidInput),
+		},
 	}
 
 	for _, test := range testcases {
-		resolver, err := NewResolver(&k8sClient, k8sConfig, Config{LookupNamespace: test.lookupNamespace})
+		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 
-		val, err := resolver.copySecretData(test.inputNs, test.inputSecretName)
+		val, err := resolver.copySecretData(
+			&ResolveOptions{LookupNamespace: test.lookupNamespace},
+			test.inputNs,
+			test.inputSecretName,
+		)
 
 		if err != nil {
 			if test.expectedErr == nil {
@@ -213,6 +304,10 @@ func TestCopySecretDataProtected(t *testing.T) {
 			"$ocm_encrypted:VlXOhKuKGoHimHAYlQ2xz5EBw7mriqtt7fEP5ShP5cw=", nil,
 		}, // green-path test
 		{
+			"", "testsecret", "secretkey2", "testns",
+			"$ocm_encrypted:VlXOhKuKGoHimHAYlQ2xz5EBw7mriqtt7fEP5ShP5cw=", nil,
+		}, // green-path test
+		{
 			"testns",
 			"idontexist",
 			"secretkey1",
@@ -227,26 +322,47 @@ func TestCopySecretDataProtected(t *testing.T) {
 			"secretkey2",
 			"policies-ns",
 			"",
-			errors.New("the namespace argument passed to copySecretData is restricted to policies-ns"),
+			errors.New(
+				"failed to get the secret testsecret from testns: the namespace argument is restricted to policies-ns",
+			),
 		}, // error : restricted input namespace
+		{
+			"",
+			"testsecret",
+			"secretkey2",
+			"",
+			"",
+			fmt.Errorf("%w: namespace and name must be specified", ErrInvalidInput),
+		},
+		{
+			"testns",
+			"",
+			"secretkey2",
+			"",
+			"",
+			fmt.Errorf("%w: namespace and name must be specified", ErrInvalidInput),
+		},
 	}
 
 	for _, test := range testcases {
 		iv := bytes.Repeat([]byte{byte('I')}, IVSize)
 
-		resolver, err := NewResolver(&k8sClient, k8sConfig, Config{
-			EncryptionConfig: EncryptionConfig{
-				AESKey:               bytes.Repeat([]byte{byte('A')}, 256/8),
-				EncryptionEnabled:    true,
-				InitializationVector: iv,
-			},
-			LookupNamespace: test.lookupNamespace,
-		})
+		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 
-		val, err := resolver.copySecretDataProtected(test.inputNs, test.inputSecretName)
+		val, err := resolver.copySecretDataProtected(
+			&ResolveOptions{
+				EncryptionConfig: EncryptionConfig{
+					AESKey:               bytes.Repeat([]byte{byte('A')}, 256/8),
+					EncryptionEnabled:    true,
+					InitializationVector: iv,
+				},
+				LookupNamespace: test.lookupNamespace,
+			}, test.inputNs,
+			test.inputSecretName,
+		)
 
 		if err != nil {
 			if test.expectedErr == nil {
@@ -289,6 +405,7 @@ func TestCopyConfigMapData(t *testing.T) {
 		{"testns", "testconfigmap", "cmkey1", "", "cmkey1Val", nil},
 		{"testns", "testconfigmap", "cmkey2", "", "cmkey2Val", nil},
 		{"testns", "testconfigmap", "cmkey2", "testns", "cmkey2Val", nil},
+		{"", "testconfigmap", "cmkey2", "testns", "cmkey2Val", nil},
 		{
 			"testns",
 			"idontexist",
@@ -304,17 +421,46 @@ func TestCopyConfigMapData(t *testing.T) {
 			"cmkey1",
 			"policies-ns",
 			"cmkey1Val",
-			errors.New("the namespace argument passed to copyConfigMapData is restricted to policies-ns"),
+			errors.New(
+				"failed getting the ConfigMap testconfigmap from testns: the namespace argument is restricted to " +
+					"policies-ns",
+			),
+		},
+		{
+			"",
+			"testconfigmap",
+			"cmkey1",
+			"",
+			"",
+			fmt.Errorf("%w: namespace and name must be specified", ErrInvalidInput),
+		},
+		{
+			"testns",
+			"",
+			"cmkey1",
+			"",
+			"",
+			fmt.Errorf("%w: namespace and name must be specified", ErrInvalidInput),
+		},
+		{
+			"testns",
+			"testconfigmap",
+			"",
+			"",
+			"",
+			fmt.Errorf("%w: namespace and name must be specified", ErrInvalidInput),
 		},
 	}
 
 	for _, test := range testcases {
-		resolver, err := NewResolver(&k8sClient, k8sConfig, Config{LookupNamespace: test.lookupNamespace})
+		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
 
-		val, err := resolver.copyConfigMapData(test.inputNs, test.inputCMname)
+		val, err := resolver.copyConfigMapData(
+			&ResolveOptions{LookupNamespace: test.lookupNamespace}, test.inputNs, test.inputCMname,
+		)
 
 		if err != nil {
 			if test.expectedErr == nil {
