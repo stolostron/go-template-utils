@@ -9,9 +9,6 @@ import (
 	"testing"
 
 	yaml "gopkg.in/yaml.v3"
-	"k8s.io/client-go/kubernetes"
-	fake "k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/rest"
 )
 
 func TestGetSprigFunc(t *testing.T) {
@@ -251,9 +248,7 @@ func TestGetSprigFunc(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		var k8sClient kubernetes.Interface = fake.NewSimpleClientset()
-
-		resolver, _ := NewResolver(&k8sClient, &rest.Config{}, Config{})
+		resolver, _ := NewResolver(k8sConfig, Config{})
 
 		policyYAML := `
 ---
@@ -269,7 +264,7 @@ data:
 
 		templateCtx := struct{ Labels map[string]string }{map[string]string{"hello": "world"}}
 
-		resolvedResult, err := resolver.ResolveTemplate(policyJSON, templateCtx)
+		resolvedResult, err := resolver.ResolveTemplate(policyJSON, templateCtx, nil)
 		if err != nil {
 			t.Fatalf("Failed to process the policy YAML: %v\n", err)
 		}

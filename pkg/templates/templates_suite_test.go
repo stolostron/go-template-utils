@@ -19,7 +19,6 @@ const testNs = "testns"
 
 var (
 	k8sConfig       *rest.Config
-	k8sClient       kubernetes.Interface
 	testEnv         *envtest.Environment
 	ctx             context.Context
 	cancel          context.CancelFunc
@@ -56,7 +55,7 @@ func setUp() {
 		panic(err.Error())
 	}
 
-	k8sClient, err = kubernetes.NewForConfig(k8sConfig)
+	k8sClient, err := kubernetes.NewForConfig(k8sConfig)
 	if err != nil {
 		panic(err.Error())
 	}

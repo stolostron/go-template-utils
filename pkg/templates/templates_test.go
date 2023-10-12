@@ -5,23 +5,41 @@ package templates
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/stolostron/kubernetes-dependency-watches/client"
 	yaml "gopkg.in/yaml.v3"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 )
 
 func TestNewResolver(t *testing.T) {
 	t.Parallel()
 
-	resolver, err := NewResolver(&k8sClient, k8sConfig, Config{})
+	resolver, err := NewResolver(k8sConfig, Config{})
+	if err != nil {
+		t.Fatalf("No error was expected: %v", err)
+	}
+
+	if resolver.config.StartDelim != "{{" || resolver.config.StopDelim != "}}" {
+		t.Fatalf(
+			"Expected delimiters: {{ and }}  got: %s and %s",
+			resolver.config.StartDelim,
+			resolver.config.StopDelim,
+		)
+	}
+}
+
+func TestNewResolverWithCaching(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
 	if err != nil {
 		t.Fatalf("No error was expected: %v", err)
 	}
@@ -39,34 +57,73 @@ func TestNewResolverFailures(t *testing.T) {
 	t.Parallel()
 
 	testcases := []struct {
-		kubeClient  *kubernetes.Interface
-		config      Config
-		expectedErr string
+		config         Config
+		resolveOptions ResolveOptions
+		expectedErr    string
 	}{
-		{nil, Config{}, "kubeClient must be a non-nil value"},
 		{
-			&k8sClient,
 			Config{StartDelim: "{{hub"},
+			ResolveOptions{},
 			"the configurations StartDelim and StopDelim cannot be set independently",
 		},
+	}
+
+	for _, test := range testcases {
+		test := test
+
+		testName := fmt.Sprintf("expectedErr=%s", test.expectedErr)
+		t.Run("NewResolver: "+testName, func(t *testing.T) {
+			t.Parallel()
+			_, err := NewResolver(k8sConfig, test.config)
+			if err == nil {
+				t.Fatal("No error was provided")
+			}
+
+			if err.Error() != test.expectedErr {
+				t.Fatalf("error \"%s\" != \"%s\"", err.Error(), test.expectedErr)
+			}
+		})
+
+		t.Run("NewResolverWithCaching: "+testName, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+
+			_, _, err := NewResolverWithCaching(ctx, k8sConfig, test.config)
+			if err == nil {
+				t.Fatal("No error was provided")
+			}
+
+			if err.Error() != test.expectedErr {
+				t.Fatalf("error \"%s\" != \"%s\"", err.Error(), test.expectedErr)
+			}
+		})
+	}
+}
+
+func TestValidateEncryptionFailures(t *testing.T) {
+	t.Parallel()
+
+	testcases := []struct {
+		resolveOptions ResolveOptions
+		expectedErr    string
+	}{
 		{
-			&k8sClient,
-			Config{EncryptionConfig: EncryptionConfig{EncryptionEnabled: true}},
-			"error validating EncryptionConfig: AESKey must be set to use this encryption mode",
+			ResolveOptions{EncryptionConfig: EncryptionConfig{EncryptionEnabled: true}},
+			"AESKey must be set to use this encryption mode",
 		},
 		{
-			&k8sClient,
-			Config{EncryptionConfig: EncryptionConfig{DecryptionEnabled: true}},
-			"error validating EncryptionConfig: AESKey must be set to use this encryption mode",
+			ResolveOptions{EncryptionConfig: EncryptionConfig{DecryptionEnabled: true}},
+			"AESKey must be set to use this encryption mode",
 		},
 		{
-			&k8sClient,
-			Config{
+			ResolveOptions{
 				EncryptionConfig: EncryptionConfig{
 					AESKey: bytes.Repeat([]byte{byte('A')}, 256/8), EncryptionEnabled: true,
 				},
 			},
-			"error validating EncryptionConfig: initialization vector must be set to use this encryption mode",
+			"initialization vector must be set to use this encryption mode",
 		},
 	}
 
@@ -76,7 +133,7 @@ func TestNewResolverFailures(t *testing.T) {
 		testName := fmt.Sprintf("expectedErr=%s", test.expectedErr)
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
-			_, err := NewResolver(test.kubeClient, k8sConfig, test.config)
+			err := validateEncryptionConfig(test.resolveOptions.EncryptionConfig)
 			if err == nil {
 				t.Fatal("No error was provided")
 			}
@@ -91,6 +148,7 @@ func TestNewResolverFailures(t *testing.T) {
 type resolveTestCase struct {
 	inputTmpl      string
 	config         Config
+	resolveOptions ResolveOptions
 	ctx            interface{}
 	expectedResult string
 	expectedErr    error
@@ -110,12 +168,12 @@ func doResolveTest(t *testing.T, test resolveTestCase) {
 		}
 	}
 
-	resolver, err := NewResolver(&k8sClient, k8sConfig, test.config)
+	resolver, err := NewResolver(k8sConfig, test.config)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	tmplResult, err := resolver.ResolveTemplate(tmplStr, test.ctx)
+	tmplResult, err := resolver.ResolveTemplate(tmplStr, test.ctx, &test.resolveOptions)
 
 	if err != nil {
 		if test.expectedErr == nil {
@@ -138,6 +196,180 @@ func doResolveTest(t *testing.T, test resolveTestCase) {
 	}
 }
 
+func TestResolveTemplateWithCaching(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	tmplStr := `
+data1: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'
+data2: '{{ fromSecret "testns" "testsecret" "secretkey2" }}'
+data3: '{{ (lookup "v1" "Secret" "testns" "does-not-exist").data.key }}'
+`
+
+	tmplStrBytes, err := yamlToJSON([]byte(tmplStr))
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	// No watcher should cause an error
+	_, err = resolver.ResolveTemplate(tmplStrBytes, nil, nil)
+	if err == nil || !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Expected ErrInvalidInput error but got %v", err)
+	}
+
+	watcher := client.ObjectIdentifier{
+		Version:   "v1",
+		Kind:      "ConfigMap",
+		Namespace: "testns",
+		Name:      "watcher",
+	}
+
+	result, err := resolver.ResolveTemplate(tmplStrBytes, nil, &ResolveOptions{Watcher: &watcher})
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	expected := `{"data1":"c2VjcmV0a2V5MVZhbA==","data2":"c2VjcmV0a2V5MlZhbA==","data3":"\u003cno value\u003e"}`
+
+	if string(result.ResolvedJSON) != expected {
+		t.Fatalf("Unexpected template: %s", string(result.ResolvedJSON))
+	}
+
+	// One for the lookup and one for the failed lookup
+	if resolver.dynamicWatcher.GetWatchCount() != 2 {
+		t.Fatalf("Expected a watch count of 2 but got: %d", resolver.dynamicWatcher.GetWatchCount())
+	}
+
+	cachedObjects, err := resolver.dynamicWatcher.ListWatchedFromCache(watcher)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if len(cachedObjects) != 1 {
+		t.Fatalf("Expected only one cached object but got %d", len(cachedObjects))
+	}
+
+	if cachedObjects[0].GetName() != "testsecret" {
+		t.Fatalf("Expected the cached object of testsecret but got %s", cachedObjects[0].GetName())
+	}
+
+	// Calling resolve template on the same template should not cause an error
+	_, err = resolver.ResolveTemplate(tmplStrBytes, nil, &ResolveOptions{Watcher: &watcher})
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+}
+
+func TestResolveTemplateWithCachingNotAllowedClusterScoped(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	tmplStr := `data1: '{{ lookup "v1" "Namespace" "" "some-namespace" }}'`
+
+	tmplStrBytes, err := yamlToJSON([]byte(tmplStr))
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	// No watcher should cause an error
+	_, err = resolver.ResolveTemplate(
+		tmplStrBytes,
+		nil,
+		&ResolveOptions{
+			ClusterScopedAllowList: []ClusterScopedObjectIdentifier{
+				{
+					Group: "cluster.open-cluster-management.io",
+					Kind:  "ManagedCluster",
+					Name:  "local-cluster",
+				},
+			},
+			LookupNamespace: "testns",
+			Watcher: &client.ObjectIdentifier{
+				Version:   "v1",
+				Kind:      "ConfigMap",
+				Namespace: "testns",
+				Name:      "watcher",
+			},
+		},
+	)
+	if err == nil || !errors.As(err, &ClusterScopedLookupRestrictedError{}) {
+		t.Fatalf("Expected ClusterScopedLookupRestrictedError error but got %v", err)
+	}
+}
+
+func TestResolveTemplateWithCachingListQuery(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	tmplStr := `data1: '{{ (index (lookup "v1" "ConfigMap" "testns" "" "env=a").items 0).data ` +
+		`| mustToRawJson | toLiteral }}'`
+
+	tmplStrBytes, err := yamlToJSON([]byte(tmplStr))
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	watcher := client.ObjectIdentifier{
+		Version:   "v1",
+		Kind:      "ConfigMap",
+		Namespace: "testns",
+		Name:      "watcher",
+	}
+
+	result, err := resolver.ResolveTemplate(tmplStrBytes, nil, &ResolveOptions{Watcher: &watcher})
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if string(result.ResolvedJSON) != `{"data1":{"cmkey1":"cmkey1Val"}}` {
+		t.Fatalf("Unexpected template: %s", string(result.ResolvedJSON))
+	}
+
+	if resolver.dynamicWatcher.GetWatchCount() != 1 {
+		t.Fatalf("Expected a watch count of 1 but got: %d", resolver.dynamicWatcher.GetWatchCount())
+	}
+
+	cachedObjects, err := resolver.dynamicWatcher.ListWatchedFromCache(watcher)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if len(cachedObjects) != 1 {
+		t.Fatalf("Expected only one cached object but got %d", len(cachedObjects))
+	}
+
+	if cachedObjects[0].GetName() != "testcm-enva" {
+		t.Fatalf("Expected the cached object of testcm-enva but got %s", cachedObjects[0].GetName())
+	}
+
+	// Calling resolve template on the same template should not cause an error
+	_, err = resolver.ResolveTemplate(tmplStrBytes, nil, &ResolveOptions{Watcher: &watcher})
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+}
+
 func TestResolveTemplateDefaultConfig(t *testing.T) {
 	t.Parallel()
 
@@ -145,6 +377,11 @@ func TestResolveTemplateDefaultConfig(t *testing.T) {
 		"fromSecret": {
 			inputTmpl:      `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
 			expectedResult: "data: c2VjcmV0a2V5MVZhbA==",
+		},
+		"fromSecret_duplicate_uses_resolve_cache": {
+			inputTmpl: `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}` +
+				`{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
+			expectedResult: "data: c2VjcmV0a2V5MVZhbA==c2VjcmV0a2V5MVZhbA==",
 		},
 		"fromConfigMap": {
 			inputTmpl:      `param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
@@ -181,6 +418,20 @@ func TestResolveTemplateDefaultConfig(t *testing.T) {
 		"fromClusterClaim": {
 			inputTmpl:      `value: '{{ fromClusterClaim "env" }}'`,
 			expectedResult: "value: dev",
+		},
+		"lookup_duplicate_list_uses_resolve_cache": {
+			inputTmpl: `data: '{{ (index (lookup "v1" "ConfigMap" "testns" "" "env=a").items 0).data.cmkey1 }}` +
+				`{{ (index (lookup "v1" "ConfigMap" "testns" "" "env=a").items 0).data.cmkey1 }}'`,
+			expectedResult: "data: cmkey1Valcmkey1Val",
+		},
+		"copyConfigMapData": {
+			inputTmpl: `data: '{{ copyConfigMapData "testns" "testconfigmap" }}'`,
+			expectedResult: "data:\n  cmkey1: cmkey1Val\n  cmkey2: cmkey2Val\n" +
+				"  ingressSources: '[10.10.10.10, 1.1.1.1]'",
+		},
+		"copySecretData": {
+			inputTmpl:      `data: '{{ copySecretData "testns" "testsecret" }}'`,
+			expectedResult: "data:\n  secretkey1: c2VjcmV0a2V5MVZhbA==\n  secretkey2: c2VjcmV0a2V5MlZhbA==",
 		},
 	}
 
@@ -241,13 +492,13 @@ func TestResolveTemplateErrors(t *testing.T) {
 		},
 		"missing_api_resource": {
 			inputTmpl:   `value: '{{ lookup "v1" "NotAResource" "namespace" "object" }}'`,
-			config:      Config{KubeAPIResourceList: []*metav1.APIResourceList{}},
+			config:      Config{},
 			expectedErr: ErrMissingAPIResource,
 		},
 		"missing_api_resource_nested": {
 			inputTmpl:   `value: '{{ index (lookup "v1" "NotAResource" "namespace" "object").data.list 2 }}'`,
-			config:      Config{KubeAPIResourceList: []*metav1.APIResourceList{}},
-			expectedErr: ErrMissingAPIResourceInvalidTemplate,
+			config:      Config{},
+			expectedErr: ErrMissingAPIResource,
 		},
 	}
 
@@ -329,14 +580,14 @@ func TestSetInputIsYAML(t *testing.T) {
 
 	tmplStr := `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`
 
-	resolver, err := NewResolver(&k8sClient, k8sConfig, Config{})
+	resolver, err := NewResolver(k8sConfig, Config{})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
 	resolver.SetInputIsYAML(true)
 
-	tmplResult, err := resolver.ResolveTemplate([]byte(tmplStr), nil)
+	tmplResult, err := resolver.ResolveTemplate([]byte(tmplStr), nil, nil)
 	if err != nil {
 		t.Fatalf("Got an unexpected error: %v", err)
 	}
@@ -396,7 +647,7 @@ func TestResolveTemplateWithCrypto(t *testing.T) {
 	otherKey := bytes.Repeat([]byte{byte('B')}, keyBytesSize)
 	iv := bytes.Repeat([]byte{byte('I')}, IVSize)
 
-	encrypt := Config{
+	encrypt := ResolveOptions{
 		EncryptionConfig: EncryptionConfig{
 			AESKey:               key,
 			EncryptionEnabled:    true,
@@ -404,7 +655,7 @@ func TestResolveTemplateWithCrypto(t *testing.T) {
 		},
 	}
 
-	decrypt := Config{
+	decrypt := ResolveOptions{
 		EncryptionConfig: EncryptionConfig{
 			AESKey:               key,
 			DecryptionEnabled:    true,
@@ -415,27 +666,33 @@ func TestResolveTemplateWithCrypto(t *testing.T) {
 	testcases := map[string]resolveTestCase{
 		"encrypt_protect": {
 			inputTmpl:      `value: '{{ "Raleigh" | protect }}'`,
-			config:         encrypt,
+			resolveOptions: encrypt,
 			expectedResult: "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
 		},
 		"encrypt_protect_empty": {
 			inputTmpl:      `value: '{{ "" | protect }}'`,
-			config:         encrypt,
+			resolveOptions: encrypt,
 			expectedResult: `value: ""`,
 		},
 		"encrypt_fromSecret": {
 			inputTmpl:      `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
-			config:         encrypt,
+			resolveOptions: encrypt,
 			expectedResult: "data: $ocm_encrypted:c6PNhsEfbM9NRUqeJ+HbcECCyVdFnRbLdd+n8r1fS9M=",
+		},
+		"encrypt_copySecretData": {
+			inputTmpl:      `data: '{{ copySecretData "testns" "testsecret" }}'`,
+			resolveOptions: encrypt,
+			expectedResult: "data:\n  secretkey1: $ocm_encrypted:c6PNhsEfbM9NRUqeJ+HbcECCyVdFnRbLdd+n8r1fS9M=\n" +
+				"  secretkey2: $ocm_encrypted:VlXOhKuKGoHimHAYlQ2xz5EBw7mriqtt7fEP5ShP5cw=",
 		},
 		"decrypt": {
 			inputTmpl:      "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
-			config:         decrypt,
+			resolveOptions: decrypt,
 			expectedResult: "value: Raleigh",
 		},
 		"decrypt_fallback_unused": {
 			inputTmpl: "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
-			config: Config{
+			resolveOptions: ResolveOptions{
 				EncryptionConfig: EncryptionConfig{
 					AESKey: key, AESKeyFallback: otherKey, DecryptionEnabled: true, InitializationVector: iv,
 				},
@@ -444,7 +701,7 @@ func TestResolveTemplateWithCrypto(t *testing.T) {
 		},
 		"decrypt_fallback": {
 			inputTmpl: "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
-			config: Config{
+			resolveOptions: ResolveOptions{
 				EncryptionConfig: EncryptionConfig{
 					AESKey: otherKey, AESKeyFallback: key, DecryptionEnabled: true, InitializationVector: iv,
 				},
@@ -455,7 +712,7 @@ func TestResolveTemplateWithCrypto(t *testing.T) {
 			inputTmpl: "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==\n" +
 				"value2: $ocm_encrypted:rBaGZbpT4WOXZzFI+XBrgg==\n" +
 				"value3: $ocm_encrypted:rcKUPnLe4rejwXzsm2/g/w==",
-			config: Config{
+			resolveOptions: ResolveOptions{
 				EncryptionConfig: EncryptionConfig{
 					AESKey: key, DecryptionConcurrency: 5, DecryptionEnabled: true, InitializationVector: iv,
 				},
@@ -464,27 +721,27 @@ func TestResolveTemplateWithCrypto(t *testing.T) {
 		},
 		"nothing_to_decrypt": {
 			inputTmpl:      "value: Raleigh",
-			config:         decrypt,
+			resolveOptions: decrypt,
 			expectedResult: "value: Raleigh",
 		},
 		"decrypt_multiline": {
 			inputTmpl:      "value: $ocm_encrypted:x7Ix9DQueY+gf08PM6VSVA==",
-			config:         decrypt,
+			resolveOptions: decrypt,
 			expectedResult: "value: Hello\\nRaleigh",
 		},
 		"decrypt_ignores_nonbase64": {
 			inputTmpl:      "value: $ocm_encrypted:😱😱😱😱",
-			config:         decrypt,
+			resolveOptions: decrypt,
 			expectedResult: `value: "$ocm_encrypted:\U0001F631\U0001F631\U0001F631\U0001F631"`,
 		},
 		"decryption_disabled": {
 			inputTmpl:      "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
-			config:         encrypt, // decryptionEnabled defaults to false
+			resolveOptions: encrypt, // decryptionEnabled defaults to false
 			expectedResult: "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
 		},
 		"encrypt_and_decrypt": {
 			inputTmpl: "value: '{{ \"Raleigh\" | protect }}'\nvalue2: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==",
-			config: Config{
+			resolveOptions: ResolveOptions{
 				EncryptionConfig: EncryptionConfig{
 					AESKey: key, DecryptionEnabled: true, EncryptionEnabled: true, InitializationVector: iv,
 				},
@@ -492,29 +749,29 @@ func TestResolveTemplateWithCrypto(t *testing.T) {
 			expectedResult: "value: $ocm_encrypted:Eud/p3S7TvuP03S9fuNV+w==\nvalue2: Raleigh",
 		},
 		"protect_not_enabled": {
-			inputTmpl:   `value: '{{ "Raleigh" | protect }}'`,
-			config:      Config{EncryptionConfig: EncryptionConfig{AESKey: key, InitializationVector: iv}},
-			expectedErr: ErrProtectNotEnabled,
+			inputTmpl:      `value: '{{ "Raleigh" | protect }}'`,
+			resolveOptions: ResolveOptions{EncryptionConfig: EncryptionConfig{AESKey: key, InitializationVector: iv}},
+			expectedErr:    ErrProtectNotEnabled,
 		},
 		"protect_not_enabled2": {
-			inputTmpl:   `value: '{{ "Raleigh" | protect }}'`,
-			config:      decrypt,
-			expectedErr: ErrProtectNotEnabled,
+			inputTmpl:      `value: '{{ "Raleigh" | protect }}'`,
+			resolveOptions: decrypt,
+			expectedErr:    ErrProtectNotEnabled,
 		},
 		"encrypt_fails_illegalbase64": {
-			inputTmpl:   "value: $ocm_encrypted:==========",
-			config:      decrypt,
-			expectedErr: ErrInvalidB64OfEncrypted,
+			inputTmpl:      "value: $ocm_encrypted:==========",
+			resolveOptions: decrypt,
+			expectedErr:    ErrInvalidB64OfEncrypted,
 		},
 		"encrypt_fails_invalidpaddinglength": {
-			inputTmpl:   "value: $ocm_encrypted:mXIueuA3HvfBeobZZ0LdzA==",
-			config:      decrypt,
-			expectedErr: ErrInvalidPKCS7Padding,
+			inputTmpl:      "value: $ocm_encrypted:mXIueuA3HvfBeobZZ0LdzA==",
+			resolveOptions: decrypt,
+			expectedErr:    ErrInvalidPKCS7Padding,
 		},
 		"encrypt_fails_invalidpaddingbytes": {
-			inputTmpl:   "value: $ocm_encrypted:/X3LA2SczM7eqOLhZKAZXg==",
-			config:      decrypt,
-			expectedErr: ErrInvalidPKCS7Padding,
+			inputTmpl:      "value: $ocm_encrypted:/X3LA2SczM7eqOLhZKAZXg==",
+			resolveOptions: decrypt,
+			expectedErr:    ErrInvalidPKCS7Padding,
 		},
 	}
 
@@ -526,157 +783,6 @@ func TestResolveTemplateWithCrypto(t *testing.T) {
 
 			doResolveTest(t, test)
 		})
-	}
-}
-
-func TestReferencedObjects(t *testing.T) {
-	t.Parallel()
-
-	testcases := []struct {
-		inputTmpl       string
-		errExpected     bool
-		expectedRefObjs []client.ObjectIdentifier
-	}{
-		{
-			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
-			false,
-			[]client.ObjectIdentifier{
-				{
-					Group:     "",
-					Version:   "v1",
-					Kind:      "Secret",
-					Namespace: testNs,
-					Name:      "testsecret",
-				},
-			},
-		},
-		{
-			`data: '{{ fromSecret "testns" "does-not-exist" "secretkey1" }}'`,
-			true,
-			[]client.ObjectIdentifier{
-				{
-					Group:     "",
-					Version:   "v1",
-					Kind:      "Secret",
-					Namespace: testNs,
-					Name:      "does-not-exist",
-				},
-			},
-		},
-		{
-			`param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
-			false,
-			[]client.ObjectIdentifier{
-				{
-					Group:     "",
-					Version:   "v1",
-					Kind:      "ConfigMap",
-					Namespace: testNs,
-					Name:      "testconfigmap",
-				},
-			},
-		},
-		{
-			`data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'` + "\n" +
-				`param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
-			false,
-			[]client.ObjectIdentifier{
-				{
-					Group:     "",
-					Version:   "v1",
-					Kind:      "Secret",
-					Namespace: testNs,
-					Name:      "testsecret",
-				},
-				{
-					Group:     "",
-					Version:   "v1",
-					Kind:      "ConfigMap",
-					Namespace: testNs,
-					Name:      "testconfigmap",
-				},
-			},
-		},
-		{
-			`config1: '{{ "testdata" | base64enc  }}'`,
-			false,
-			[]client.ObjectIdentifier{},
-		},
-		{
-			`data: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'` + "\n" +
-				`otherdata: '{{ fromConfigMap "testns" "does-not-exist" "cmkey23" }}'`,
-			true,
-			[]client.ObjectIdentifier{
-				{
-					Group:     "",
-					Version:   "v1",
-					Kind:      "ConfigMap",
-					Namespace: testNs,
-					Name:      "testconfigmap",
-				},
-				{
-					Group:     "",
-					Version:   "v1",
-					Kind:      "ConfigMap",
-					Namespace: testNs,
-					Name:      "does-not-exist",
-				},
-			},
-		},
-		{
-			`value: '{{ fromClusterClaim "env" }}'`,
-			false,
-			[]client.ObjectIdentifier{
-				{
-					Group:     "cluster.open-cluster-management.io",
-					Version:   "v1alpha1",
-					Kind:      "ClusterClaim",
-					Namespace: "",
-					Name:      "env",
-				},
-			},
-		},
-		{
-			`data: '{{ fromClusterClaim "does-not-exist" }}'`,
-			true,
-			[]client.ObjectIdentifier{
-				{
-					Group:     "cluster.open-cluster-management.io",
-					Version:   "v1alpha1",
-					Kind:      "ClusterClaim",
-					Namespace: "",
-					Name:      "does-not-exist",
-				},
-			},
-		},
-	}
-
-	for _, test := range testcases {
-		tmplStr, err := yamlToJSON([]byte(test.inputTmpl))
-		if err != nil {
-			t.Fatalf(err.Error())
-		}
-
-		resolver, err := NewResolver(&k8sClient, k8sConfig, Config{})
-		if err != nil {
-			t.Fatalf(err.Error())
-		}
-
-		tmplResult, err := resolver.ResolveTemplate(tmplStr, nil)
-		if err != nil {
-			if !test.errExpected {
-				t.Fatalf(err.Error())
-			}
-		} else if test.errExpected {
-			t.Fatalf("An error was expected but one was not received")
-		}
-
-		referencedObjs := tmplResult.ReferencedObjects
-
-		if len(referencedObjs) != len(test.expectedRefObjs) ||
-			((len(referencedObjs) != 0) && !reflect.DeepEqual(referencedObjs, test.expectedRefObjs)) {
-			t.Errorf("got %q slice but expected %q", referencedObjs, test.expectedRefObjs)
-		}
 	}
 }
 
@@ -843,7 +949,7 @@ func TestProcessForDataTypes(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		resolver, err := NewResolver(&k8sClient, k8sConfig, test.config)
+		resolver, err := NewResolver(k8sConfig, test.config)
 		if err != nil {
 			t.Fatalf(err.Error())
 		}
@@ -860,36 +966,32 @@ func TestGetNamespace(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		funcName            string
 		configuredNamespace string
 		actualNamespace     string
 		returnedNamespace   string
 		expectedError       error
 	}{
-		{"fromConfigMap", "my-policies", "my-policies", "my-policies", nil},
-		{"fromConfigMap", "", "prod-configs", "prod-configs", nil},
-		{"fromConfigMap", "my-policies", "", "my-policies", nil},
+		{"my-policies", "my-policies", "my-policies", nil},
+		{"", "prod-configs", "prod-configs", nil},
+		{"my-policies", "", "my-policies", nil},
 		{
-			"fromConfigMap",
 			"my-policies",
 			"prod-configs",
 			"",
-			errors.New("the namespace argument passed to fromConfigMap is restricted to my-policies"),
+			errors.New("the namespace argument is restricted to my-policies"),
 		},
 		{
-			"fromConfigMap",
 			"policies",
 			"prod-configs",
 			"",
-			errors.New("the namespace argument passed to fromConfigMap is restricted to policies"),
+			errors.New("the namespace argument is restricted to policies"),
 		},
 	}
 
 	for _, test := range tests {
-		config := Config{LookupNamespace: test.configuredNamespace}
-		resolver, _ := NewResolver(&k8sClient, k8sConfig, config)
+		resolver, _ := NewResolver(k8sConfig, Config{})
 
-		ns, err := resolver.getNamespace(test.funcName, test.actualNamespace)
+		ns, err := resolver.getNamespace(test.actualNamespace, test.configuredNamespace)
 
 		if err == nil || test.expectedError == nil {
 			if !(err == nil && test.expectedError == nil) {
@@ -941,7 +1043,7 @@ spec:
 		panic(err)
 	}
 
-	resolver, err := NewResolver(&k8sClient, k8sConfig, Config{})
+	resolver, err := NewResolver(k8sConfig, Config{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to instantiate the templatesResolver struct: %v\n", err)
 		panic(err)
@@ -949,7 +1051,7 @@ spec:
 
 	templateContext := struct{ ClusterName string }{ClusterName: "cluster0001"}
 
-	tmplResult, err := resolver.ResolveTemplate(policyJSON, templateContext)
+	tmplResult, err := resolver.ResolveTemplate(policyJSON, templateContext, nil)
 	policyResolvedJSON := tmplResult.ResolvedJSON
 
 	if err != nil {
@@ -987,102 +1089,4 @@ spec:
 	// Output:
 	// Templates rock!
 	// Y2x1c3RlcjAwMDE=
-}
-
-func TestSetEncryptionConfig(t *testing.T) {
-	t.Parallel()
-	// Generate a 256 bit for AES-256. It can't be random so that the test results are deterministic.
-	keyBytesSize := 256 / 8
-	key := bytes.Repeat([]byte{byte('A')}, keyBytesSize)
-	otherKey := bytes.Repeat([]byte{byte('B')}, keyBytesSize)
-	iv := bytes.Repeat([]byte{byte('I')}, IVSize)
-	otherIV := bytes.Repeat([]byte{byte('I')}, IVSize)
-
-	tests := []struct {
-		encryptionConfig EncryptionConfig
-		expectedError    error
-	}{
-		{
-			EncryptionConfig{
-				EncryptionEnabled:    true,
-				AESKey:               key,
-				InitializationVector: iv,
-			}, nil,
-		},
-		{
-			EncryptionConfig{
-				DecryptionEnabled:    true,
-				AESKey:               otherKey,
-				InitializationVector: otherIV,
-			}, nil,
-		},
-		{
-			EncryptionConfig{
-				EncryptionEnabled: false,
-				DecryptionEnabled: false,
-			}, nil,
-		},
-		{
-			EncryptionConfig{
-				EncryptionEnabled: true,
-				AESKey:            []byte{byte('A')},
-			}, fmt.Errorf("%w: %s", ErrInvalidAESKey, "crypto/aes: invalid key size 1"),
-		},
-		{
-			EncryptionConfig{
-				EncryptionEnabled: true,
-				AESKey:            key,
-				AESKeyFallback:    []byte{byte('A')},
-			}, fmt.Errorf("%w: %s", ErrInvalidAESKey, "crypto/aes: invalid key size 1"),
-		},
-		{
-			EncryptionConfig{
-				EncryptionEnabled: true,
-				AESKey:            key,
-			}, ErrIVNotSet,
-		},
-		{
-			EncryptionConfig{
-				EncryptionEnabled:    true,
-				InitializationVector: []byte{byte('A')},
-			}, ErrAESKeyNotSet,
-		},
-		{
-			EncryptionConfig{
-				DecryptionEnabled:    true,
-				AESKey:               otherKey,
-				InitializationVector: []byte{byte('A')},
-			}, ErrInvalidIV,
-		},
-	}
-
-	config := Config{}
-	resolver, _ := NewResolver(&k8sClient, k8sConfig, config)
-
-	for _, test := range tests {
-		err := resolver.SetEncryptionConfig(test.encryptionConfig)
-
-		if err == nil || test.expectedError == nil {
-			if !(err == nil && test.expectedError == nil) {
-				t.Fatalf("expected error: %v, got: %v", test.expectedError, err)
-			}
-		} else if err.Error() != test.expectedError.Error() {
-			t.Fatalf("expected error: %v, got: %v", test.expectedError, err)
-		}
-	}
-}
-
-func TestSetKubeAPIResourceList(t *testing.T) {
-	resolver := TemplateResolver{}
-
-	if len(resolver.config.KubeAPIResourceList) != 0 {
-		t.Fatalf("expected the initial value of config.KubeAPIResourceList to be empty")
-	}
-
-	apiResourceList := []*metav1.APIResourceList{{}}
-	resolver.SetKubeAPIResourceList(apiResourceList)
-
-	if len(resolver.config.KubeAPIResourceList) != 1 {
-		t.Fatalf("expected the set value of config.KubeAPIResourceList to have one entry")
-	}
 }

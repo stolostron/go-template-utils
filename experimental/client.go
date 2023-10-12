@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
 	"sigs.k8s.io/yaml"
@@ -96,20 +95,14 @@ func processTemplate(yamlFile, hubKubeConfigPath, clusterName string) {
 		os.Exit(1)
 	}
 
-	var k8sClient kubernetes.Interface
-
-	k8sClient, err = kubernetes.NewForConfig(kubeConfig)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to connect to the Kubernetes cluster: %v\n", err)
-		os.Exit(1)
-	}
-
 	var hubResolver *templates.TemplateResolver
 
 	hubTemplateCtx := struct {
 		ManagedClusterName   string
 		ManagedClusterLabels map[string]string
 	}{ManagedClusterName: clusterName}
+
+	var hubResolveOptions templates.ResolveOptions
 
 	if hubKubeConfigPath != "" {
 		if policy.GetNamespace() == "" {
@@ -143,35 +136,30 @@ func processTemplate(yamlFile, hubKubeConfigPath, clusterName string) {
 
 		hubTemplateCtx.ManagedClusterLabels = mc.GetLabels()
 
-		var hubK8sClient kubernetes.Interface
-
-		hubK8sClient, err = kubernetes.NewForConfig(hubKubeConfig)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to connect to the hub cluster: %v\n", err)
-			os.Exit(1)
-		}
-
 		hubTemplatesConfig := templates.Config{
 			AdditionalIndentation: 8,
+			DisabledFunctions:     []string{},
+			StartDelim:            "{{hub",
+			StopDelim:             "hub}}",
+		}
+
+		hubResolveOptions = templates.ResolveOptions{
 			ClusterScopedAllowList: []templates.ClusterScopedObjectIdentifier{{
 				Group: "cluster.open-cluster-management.io",
 				Kind:  "ManagedCluster",
 				Name:  clusterName,
 			}},
-			DisabledFunctions: []string{},
-			LookupNamespace:   policy.GetNamespace(),
-			StartDelim:        "{{hub",
-			StopDelim:         "hub}}",
+			LookupNamespace: policy.GetNamespace(),
 		}
 
-		hubResolver, err = templates.NewResolver(&hubK8sClient, hubKubeConfig, hubTemplatesConfig)
+		hubResolver, err = templates.NewResolver(hubKubeConfig, hubTemplatesConfig)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to instantiate the hub template resolver: %v\n", err)
 			os.Exit(1)
 		}
 	}
 
-	resolver, err := templates.NewResolver(&k8sClient, kubeConfig, templates.Config{})
+	resolver, err := templates.NewResolver(kubeConfig, templates.Config{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to instantiate the template resolver: %v\n", err)
 		os.Exit(1)
@@ -206,7 +194,9 @@ func processTemplate(yamlFile, hubKubeConfigPath, clusterName string) {
 				os.Exit(1)
 			}
 
-			hubTemplateResult, err := hubResolver.ResolveTemplate(objectDefinitionJSON, hubTemplateCtx)
+			hubTemplateResult, err := hubResolver.ResolveTemplate(
+				objectDefinitionJSON, hubTemplateCtx, &hubResolveOptions,
+			)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "An invalid policy-templates entry at index %d was provided: %v\n", i, err)
 				os.Exit(1)
@@ -291,7 +281,7 @@ func processTemplate(yamlFile, hubKubeConfigPath, clusterName string) {
 				os.Exit(1)
 			}
 
-			tmplResult, err := resolver.ResolveTemplate(rawData, nil)
+			tmplResult, err := resolver.ResolveTemplate(rawData, nil, nil)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to process the templates at policy-templates index %d: %v\n", i, err)
 				os.Exit(1)

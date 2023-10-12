@@ -4,55 +4,32 @@
 package templates
 
 import (
-	"context"
 	"errors"
 	"fmt"
-
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog"
 )
 
 const clusterClaimAPIVersion string = "cluster.open-cluster-management.io/v1alpha1"
 
-// retrieve the Spec value for the given clusterclaim.
-func (t *TemplateResolver) fromClusterClaim(claimname string) (string, error) {
-	if t.config.LookupNamespace != "" {
-		msg := fmt.Sprintf(
-			"fromClusterClaim is not supported because lookups are restricted to the %s namespace",
-			t.config.LookupNamespace,
-		)
+func (t *TemplateResolver) fromClusterClaimHelper(options *ResolveOptions) func(string) (string, error) {
+	return func(claimName string) (string, error) {
+		return t.fromClusterClaim(options, claimName)
+	}
+}
 
-		return "", errors.New(msg)
+// retrieve the Spec value for the given clusterclaim.
+func (t *TemplateResolver) fromClusterClaim(options *ResolveOptions, claimName string) (string, error) {
+	if claimName == "" {
+		return "", errors.New("a claim name must be provided")
 	}
 
-	dclient, dclientErr := t.getDynamicClient(clusterClaimAPIVersion, "ClusterClaim", "", claimname)
-	if dclientErr != nil {
-		err := fmt.Errorf("failed to get the cluster claim %s: %w", claimname, dclientErr)
-
+	clusterClaim, err := t.getOrList(options, clusterClaimAPIVersion, "ClusterClaim", "", claimName)
+	if err != nil {
 		return "", err
 	}
 
-	getObj, getErr := dclient.Get(context.TODO(), claimname, metav1.GetOptions{})
-	if getErr != nil {
-		if k8serrors.IsNotFound(getErr) {
-			// Add to the referenced objects if the object isn't found since the consumer may want to watch the object
-			// and resolve the templates again once it is present.
-			t.addToReferencedObjects(clusterClaimAPIVersion, "ClusterClaim", "", claimname)
-		}
-
-		klog.Errorf("Error retrieving clusterclaim : %v, %v", claimname, getErr)
-
-		return "", fmt.Errorf("failed to retrieve the cluster claim %s: %w", claimname, getErr)
-	}
-
-	result := getObj.UnstructuredContent()
-
-	spec, ok := result["spec"].(map[string]interface{})
+	spec, ok := clusterClaim["spec"].(map[string]interface{})
 	if !ok {
-		klog.Errorf("The clusterclaim %s has an unexpected format", claimname)
-
-		return "", fmt.Errorf("unexpected cluster claim format: %s", claimname)
+		return "", fmt.Errorf("unexpected ClusterClaim format: %s", claimName)
 	}
 
 	var value string
@@ -60,8 +37,6 @@ func (t *TemplateResolver) fromClusterClaim(claimname string) (string, error) {
 	if _, ok := spec["value"]; ok {
 		value = spec["value"].(string)
 	}
-
-	t.addToReferencedObjects(clusterClaimAPIVersion, "ClusterClaim", "", claimname)
 
 	return value, nil
 }
