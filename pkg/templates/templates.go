@@ -20,6 +20,8 @@ import (
 	"github.com/spf13/cast"
 	"github.com/stolostron/kubernetes-dependency-watches/client"
 	yaml "gopkg.in/yaml.v3"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
@@ -52,6 +54,7 @@ var (
 	ErrRestrictedNamespace = errors.New("the namespace argument is restricted")
 	ErrInvalidInput        = errors.New("the input is invalid")
 	ErrCacheDisabled       = client.ErrCacheDisabled
+	ErrNoCacheEntry        = client.ErrNoCacheEntry
 )
 
 // Config is a struct containing configuration for the API.
@@ -574,6 +577,28 @@ func (t *TemplateResolver) UncacheWatcher(watcher client.ObjectIdentifier) error
 	}
 
 	return t.dynamicWatcher.RemoveWatcher(watcher)
+}
+
+// ListWatchedFromCache will return all watched objects by the watcher in the cache. The ErrNoCacheEntry error is
+// returned if no template function has caused an entry to be cached.
+func (t *TemplateResolver) ListWatchedFromCache(watcher client.ObjectIdentifier) ([]unstructured.Unstructured, error) {
+	if t.dynamicWatcher == nil {
+		return nil, ErrCacheDisabled
+	}
+
+	return t.dynamicWatcher.ListWatchedFromCache(watcher)
+}
+
+// GetFromCache will return the object from the cache. The ErrNoCacheEntry error is returned if no template function
+// has caused an entry to be cached.
+func (t *TemplateResolver) GetFromCache(
+	gvk schema.GroupVersionKind, namespace string, name string,
+) (*unstructured.Unstructured, error) {
+	if t.dynamicWatcher == nil {
+		return nil, ErrCacheDisabled
+	}
+
+	return t.dynamicWatcher.GetFromCache(gvk, namespace, name)
 }
 
 //nolint:wsl
