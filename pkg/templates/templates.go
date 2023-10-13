@@ -21,6 +21,7 @@ import (
 	"github.com/stolostron/kubernetes-dependency-watches/client"
 	yaml "gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -50,11 +51,14 @@ var (
 	ErrInvalidContextType    = errors.New(
 		"the input context must be a struct, with either string fields or map[string]string fields",
 	)
-	ErrMissingNamespace    = errors.New("the lookup of a single namespaced resource must have a namespace specified")
-	ErrRestrictedNamespace = errors.New("the namespace argument is restricted")
-	ErrInvalidInput        = errors.New("the input is invalid")
-	ErrCacheDisabled       = client.ErrCacheDisabled
-	ErrNoCacheEntry        = client.ErrNoCacheEntry
+	ErrMissingNamespace = errors.New(
+		"the lookup of a single namespaced resource must have a namespace specified",
+	)
+	ErrRestrictedNamespace      = errors.New("the namespace argument is restricted")
+	ErrInvalidInput             = errors.New("the input is invalid")
+	ErrCacheDisabled            = client.ErrCacheDisabled
+	ErrNoCacheEntry             = client.ErrNoCacheEntry
+	ErrContextTransformerFailed = errors.New("the context transformer failed")
 )
 
 // Config is a struct containing configuration for the API.
@@ -87,7 +91,11 @@ type Config struct {
 	MissingAPIResourceCacheTTL time.Duration
 }
 
-// ResolveOptions is a struct containing configuration for calling ResolveTemplates.
+// ResolveOptions is a struct containing configuration for calling ResolveTemplate.
+//
+// - ContextTransformers is a list of functions that can modify the input context to ResolveTemplate using the caching
+// query API. This is useful if you want to add information about a Kubernetes object in the context and be notified
+// when the object changes.
 //
 // - ClusterScopedAllowList is a list of cluster-scoped object identifiers (group, kind, name) which
 // are allowed to be used in "lookup" calls even when LookupNamespace is set. A wildcard value `*`
@@ -101,6 +109,9 @@ type Config struct {
 //
 // - Watcher is the Kubernetes object that includes the templates. This is only used when caching is enabled.
 type ResolveOptions struct {
+	ContextTransformers []func(
+		queryAPI CachingQueryAPI, context interface{},
+	) (transformedContext interface{}, err error)
 	ClusterScopedAllowList []ClusterScopedObjectIdentifier
 	EncryptionConfig
 	LookupNamespace string
@@ -428,8 +439,18 @@ func (t *TemplateResolver) ResolveTemplate(
 		return resolvedResult, fmt.Errorf("error validating EncryptionConfig: %w", err)
 	}
 
-	if t.dynamicWatcher != nil && options.Watcher == nil {
-		return resolvedResult, fmt.Errorf("%w: watcherObject cannot be nil if caching is enabled", ErrInvalidInput)
+	if t.dynamicWatcher != nil {
+		if options.Watcher == nil {
+			return resolvedResult, fmt.Errorf(
+				"%w: options.Watcher cannot be nil if caching is enabled",
+				ErrInvalidInput,
+			)
+		}
+	} else if len(options.ContextTransformers) != 0 {
+		return resolvedResult, fmt.Errorf(
+			"%w: options.ContextTransformers cannot be set if caching is disabled",
+			ErrInvalidInput,
+		)
 	}
 
 	ctx, err := getValidContext(context)
@@ -545,6 +566,19 @@ func (t *TemplateResolver) ResolveTemplate(
 				klog.Errorf("failed to end the query batch for %s: %v", watcher, err)
 			}
 		}()
+
+		for i, contextTransformer := range options.ContextTransformers {
+			var err error
+
+			queryObj := cachingQueryAPI{dynamicWatcher: t.dynamicWatcher, watcher: *options.Watcher}
+
+			ctx, err = contextTransformer(&queryObj, context)
+			if err != nil {
+				return resolvedResult, fmt.Errorf(
+					"%w at options.ContextTransformers[%d]: %w", ErrContextTransformerFailed, i, err,
+				)
+			}
+		}
 	}
 
 	err = tmpl.Execute(&buf, ctx)
@@ -741,4 +775,33 @@ func toLiteral(a string) (string, error) {
 	}
 
 	return a, nil
+}
+
+// CachingQueryAPI is a limited query API that will cache results. This is used with ContextTransformers.
+type CachingQueryAPI interface {
+	// Get will add an additional watch and return the watched object.
+	Get(
+		gvk schema.GroupVersionKind, namespace string, name string,
+	) (*unstructured.Unstructured, error)
+	// List will add an additional list watch and return the watched objects.
+	List(
+		gvk schema.GroupVersionKind, namespace string, selector labels.Selector,
+	) ([]unstructured.Unstructured, error)
+}
+
+type cachingQueryAPI struct {
+	dynamicWatcher client.DynamicWatcher
+	watcher        client.ObjectIdentifier
+}
+
+func (c *cachingQueryAPI) Get(
+	gvk schema.GroupVersionKind, namespace string, name string,
+) (*unstructured.Unstructured, error) {
+	return c.dynamicWatcher.Get(c.watcher, gvk, namespace, name)
+}
+
+func (c *cachingQueryAPI) List(
+	gvk schema.GroupVersionKind, namespace string, selector labels.Selector,
+) ([]unstructured.Unstructured, error) {
+	return c.dynamicWatcher.List(c.watcher, gvk, namespace, selector)
 }

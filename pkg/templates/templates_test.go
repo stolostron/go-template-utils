@@ -9,11 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/stolostron/kubernetes-dependency-watches/client"
 	yaml "gopkg.in/yaml.v3"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func TestNewResolver(t *testing.T) {
@@ -210,7 +212,8 @@ func TestResolveTemplateWithCaching(t *testing.T) {
 	tmplStr := `
 data1: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'
 data2: '{{ fromSecret "testns" "testsecret" "secretkey2" }}'
-data3: '{{ (lookup "v1" "Secret" "testns" "does-not-exist").data.key }}'
+data3: '{{ .CustomVar }}'
+data4: '{{ (lookup "v1" "Secret" "testns" "does-not-exist").data.key }}'
 `
 
 	tmplStrBytes, err := yamlToJSON([]byte(tmplStr))
@@ -231,20 +234,45 @@ data3: '{{ (lookup "v1" "Secret" "testns" "does-not-exist").data.key }}'
 		Name:      "watcher",
 	}
 
-	result, err := resolver.ResolveTemplate(tmplStrBytes, nil, &ResolveOptions{Watcher: &watcher})
+	templateCtx := struct{ CustomVar string }{}
+	transformer := func(api CachingQueryAPI, templateCtx interface{}) (interface{}, error) {
+		typedTemplateCtx, ok := templateCtx.(struct{ CustomVar string })
+		if !ok {
+			return templateCtx, nil
+		}
+
+		configMapGVK := schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"}
+
+		rv, err := api.Get(configMapGVK, "testns", "testcm-envc")
+		if err != nil {
+			return templateCtx, err
+		}
+
+		typedTemplateCtx.CustomVar = rv.GetLabels()["env"]
+
+		return typedTemplateCtx, nil
+	}
+
+	resolveOptions := &ResolveOptions{
+		Watcher:             &watcher,
+		ContextTransformers: []func(CachingQueryAPI, interface{}) (interface{}, error){transformer},
+	}
+
+	result, err := resolver.ResolveTemplate(tmplStrBytes, templateCtx, resolveOptions)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
-	expected := `{"data1":"c2VjcmV0a2V5MVZhbA==","data2":"c2VjcmV0a2V5MlZhbA==","data3":"\u003cno value\u003e"}`
+	expected := `{"data1":"c2VjcmV0a2V5MVZhbA==","data2":"c2VjcmV0a2V5MlZhbA==","data3":"c",` +
+		`"data4":"\u003cno value\u003e"}`
 
 	if string(result.ResolvedJSON) != expected {
 		t.Fatalf("Unexpected template: %s", string(result.ResolvedJSON))
 	}
 
-	// One for the lookup and one for the failed lookup
-	if resolver.dynamicWatcher.GetWatchCount() != 2 {
-		t.Fatalf("Expected a watch count of 2 but got: %d", resolver.dynamicWatcher.GetWatchCount())
+	// One for the transformer and one for the lookup and one for the failed lookup
+	if resolver.dynamicWatcher.GetWatchCount() != 3 {
+		t.Fatalf("Expected a watch count of 3 but got: %d", resolver.dynamicWatcher.GetWatchCount())
 	}
 
 	cachedObjects, err := resolver.dynamicWatcher.ListWatchedFromCache(watcher)
@@ -252,16 +280,23 @@ data3: '{{ (lookup "v1" "Secret" "testns" "does-not-exist").data.key }}'
 		t.Fatal(err.Error())
 	}
 
-	if len(cachedObjects) != 1 {
-		t.Fatalf("Expected only one cached object but got %d", len(cachedObjects))
+	if len(cachedObjects) != 2 {
+		t.Fatalf("Expected two cached objectd but got %d", len(cachedObjects))
 	}
 
-	if cachedObjects[0].GetName() != "testsecret" {
-		t.Fatalf("Expected the cached object of testsecret but got %s", cachedObjects[0].GetName())
+	// Sort the slice so the output is consistent for the output validation
+	sort.Slice(cachedObjects, func(i, j int) bool { return cachedObjects[i].GetName() < cachedObjects[j].GetName() })
+
+	if cachedObjects[0].GetName() != "testcm-envc" {
+		t.Fatalf("Expected the cached object of testcm-envc but got %s", cachedObjects[0].GetName())
+	}
+
+	if cachedObjects[1].GetName() != "testsecret" {
+		t.Fatalf("Expected the cached object of testsecret but got %s", cachedObjects[1].GetName())
 	}
 
 	// Calling resolve template on the same template should not cause an error
-	_, err = resolver.ResolveTemplate(tmplStrBytes, nil, &ResolveOptions{Watcher: &watcher})
+	_, err = resolver.ResolveTemplate(tmplStrBytes, templateCtx, resolveOptions)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -499,6 +534,20 @@ func TestResolveTemplateErrors(t *testing.T) {
 			inputTmpl:   `value: '{{ index (lookup "v1" "NotAResource" "namespace" "object").data.list 2 }}'`,
 			config:      Config{},
 			expectedErr: ErrMissingAPIResource,
+		},
+		"context_transformers_without_caching": {
+			inputTmpl: `param: '{{ "something" }}'`,
+			resolveOptions: ResolveOptions{
+				ContextTransformers: []func(CachingQueryAPI, interface{}) (interface{}, error){
+					func(_ CachingQueryAPI, ctx interface{}) (interface{}, error) {
+						return ctx, nil
+					},
+				},
+			},
+			expectedErr: fmt.Errorf(
+				"%w: options.ContextTransformers cannot be set if caching is disabled",
+				ErrInvalidInput,
+			),
 		},
 	}
 
