@@ -104,6 +104,10 @@ type Config struct {
 //
 // - EncryptionConfig is the configuration for template encryption/decryption functionality.
 //
+// - DisableAutoCacheCleanUp will not clean up stale API watches and cache entries after ResolveTemplate is called.
+// The caller must call the CacheCleanUp function returned from ResolveTemplate when done. This is useful if you are
+// splitting up calls to ResolveTemplate for a single template owner object.
+//
 // - LookupNamespace is the namespace to restrict "lookup" template functions (e.g. fromConfigMap)
 // to. If this is not set (i.e. an empty string), then all namespaces can be used.
 //
@@ -114,8 +118,9 @@ type ResolveOptions struct {
 	) (transformedContext interface{}, err error)
 	ClusterScopedAllowList []ClusterScopedObjectIdentifier
 	EncryptionConfig
-	LookupNamespace string
-	Watcher         *client.ObjectIdentifier
+	DisableAutoCacheCleanUp bool
+	LookupNamespace         string
+	Watcher                 *client.ObjectIdentifier
 }
 
 type ClusterScopedObjectIdentifier struct {
@@ -170,8 +175,11 @@ type TemplateResolver struct {
 	tempCallCache client.ObjectCache
 }
 
+type CacheCleanUpFunc func() error
+
 type TemplateResult struct {
 	ResolvedJSON []byte
+	CacheCleanUp CacheCleanUpFunc
 }
 
 // NewResolver creates a new TemplateResolver instance, which is the API for processing templates.
@@ -551,21 +559,25 @@ func (t *TemplateResolver) ResolveTemplate(
 
 		err := t.dynamicWatcher.StartQueryBatch(watcher)
 		if err != nil {
-			if errors.Is(err, client.ErrQueryBatchInProgress) {
+			if !errors.Is(err, client.ErrQueryBatchInProgress) {
+				return resolvedResult, err
+			}
+
+			if !options.DisableAutoCacheCleanUp {
 				return resolvedResult, fmt.Errorf(
 					"ResolveTemplate cannot be called with the same watchedObject in parallel: %w", err,
 				)
 			}
-
-			return resolvedResult, err
 		}
 
-		defer func() {
-			err := t.dynamicWatcher.EndQueryBatch(watcher)
-			if err != nil && !errors.Is(err, client.ErrQueryBatchNotStarted) {
-				klog.Errorf("failed to end the query batch for %s: %v", watcher, err)
-			}
-		}()
+		if !options.DisableAutoCacheCleanUp {
+			defer func() {
+				err := t.dynamicWatcher.EndQueryBatch(watcher)
+				if err != nil && !errors.Is(err, client.ErrQueryBatchNotStarted) {
+					klog.Errorf("failed to end the query batch for %s: %v", watcher, err)
+				}
+			}()
+		}
 
 		for i, contextTransformer := range options.ContextTransformers {
 			var err error
@@ -599,6 +611,12 @@ func (t *TemplateResolver) ResolveTemplate(
 		return resolvedResult, fmt.Errorf("failed to convert the resolved template to JSON: %w", err)
 	}
 
+	resolvedResult = TemplateResult{
+		ResolvedJSON: resolvedTemplateBytes,
+		CacheCleanUp: func() error {
+			return t.dynamicWatcher.EndQueryBatch(*options.Watcher)
+		},
+	}
 	resolvedResult.ResolvedJSON = resolvedTemplateBytes
 
 	return resolvedResult, nil
