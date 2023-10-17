@@ -302,6 +302,74 @@ data4: '{{ (lookup "v1" "Secret" "testns" "does-not-exist").data.key }}'
 	}
 }
 
+func TestResolveTemplateWithCachingManualCleanUp(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	tmplStr := `data1: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`
+
+	tmplStrBytes, err := yamlToJSON([]byte(tmplStr))
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	watcher := client.ObjectIdentifier{
+		Version:   "v1",
+		Kind:      "ConfigMap",
+		Namespace: "testns",
+		Name:      "watcher",
+	}
+
+	resolveOptions := &ResolveOptions{
+		DisableAutoCacheCleanUp: true,
+		Watcher:                 &watcher,
+	}
+
+	result, err := resolver.ResolveTemplate(tmplStrBytes, nil, resolveOptions)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	expected := `{"data1":"c2VjcmV0a2V5MVZhbA=="}`
+
+	if string(result.ResolvedJSON) != expected {
+		t.Fatalf("Unexpected template: %s", string(result.ResolvedJSON))
+	}
+
+	tmplStr2 := `data2: '{{ (lookup "v1" "Secret" "testns" "does-not-exist").data.key }}'`
+
+	tmplStr2Bytes, err := yamlToJSON([]byte(tmplStr2))
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	result2, err := resolver.ResolveTemplate(tmplStr2Bytes, nil, resolveOptions)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	expected2 := `{"data2":"\u003cno value\u003e"}`
+
+	if string(result2.ResolvedJSON) != expected2 {
+		t.Fatalf("Unexpected template: %s", string(result.ResolvedJSON))
+	}
+
+	if resolver.GetWatchCount() != 2 {
+		t.Fatalf("Expected two watches but got %d", resolver.GetWatchCount())
+	}
+
+	if err := result2.CacheCleanUp(); err != nil {
+		t.Fatal(err.Error())
+	}
+}
+
 func TestResolveTemplateWithCachingNotAllowedClusterScoped(t *testing.T) {
 	t.Parallel()
 
