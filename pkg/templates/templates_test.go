@@ -271,8 +271,8 @@ data4: '{{ (lookup "v1" "Secret" "testns" "does-not-exist").data.key }}'
 	}
 
 	// One for the transformer and one for the lookup and one for the failed lookup
-	if resolver.dynamicWatcher.GetWatchCount() != 3 {
-		t.Fatalf("Expected a watch count of 3 but got: %d", resolver.dynamicWatcher.GetWatchCount())
+	if resolver.GetWatchCount() != 3 {
+		t.Fatalf("Expected a watch count of 3 but got: %d", resolver.GetWatchCount())
 	}
 
 	cachedObjects, err := resolver.dynamicWatcher.ListWatchedFromCache(watcher)
@@ -381,8 +381,8 @@ func TestResolveTemplateWithCachingListQuery(t *testing.T) {
 		t.Fatalf("Unexpected template: %s", string(result.ResolvedJSON))
 	}
 
-	if resolver.dynamicWatcher.GetWatchCount() != 1 {
-		t.Fatalf("Expected a watch count of 1 but got: %d", resolver.dynamicWatcher.GetWatchCount())
+	if resolver.GetWatchCount() != 1 {
+		t.Fatalf("Expected a watch count of 1 but got: %d", resolver.GetWatchCount())
 	}
 
 	cachedObjects, err := resolver.dynamicWatcher.ListWatchedFromCache(watcher)
