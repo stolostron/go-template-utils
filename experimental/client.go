@@ -18,7 +18,7 @@ import (
 	"k8s.io/klog"
 	"sigs.k8s.io/yaml"
 
-	"github.com/stolostron/go-template-utils/v3/pkg/templates"
+	"github.com/stolostron/go-template-utils/v4/pkg/templates"
 )
 
 func main() {
