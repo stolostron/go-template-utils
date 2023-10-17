@@ -635,6 +635,15 @@ func (t *TemplateResolver) GetFromCache(
 	return t.dynamicWatcher.GetFromCache(gvk, namespace, name)
 }
 
+// GetWatchCount returns the total number of active API watch requests which can be used for metrics.
+func (t *TemplateResolver) GetWatchCount() uint {
+	if t.dynamicWatcher != nil {
+		return t.dynamicWatcher.GetWatchCount()
+	}
+
+	return 0
+}
+
 //nolint:wsl
 func (t *TemplateResolver) processForDataTypes(str string) string {
 	// The idea is to remove the quotes enclosing the template if it has toBool, toInt, or toLiteral.
