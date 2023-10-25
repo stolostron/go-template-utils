@@ -136,7 +136,7 @@ func TestGetSprigFunc(t *testing.T) {
 		},
 		{
 			"mustToRawJson",
-			`{{ toRawJson .Labels }}`,
+			`{{ mustToRawJson .Labels }}`,
 			`{"hello":"world"}`,
 		},
 		{
