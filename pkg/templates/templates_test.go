@@ -184,7 +184,7 @@ func doResolveTest(t *testing.T, test resolveTestCase) {
 
 	tmplStr := []byte(test.inputTmpl)
 
-	if !test.config.InputIsYAML {
+	if !test.resolveOptions.InputIsYAML {
 		var err error
 
 		tmplStr, err = yamlToJSON([]byte(test.inputTmpl))
@@ -782,17 +782,17 @@ func TestResolveTemplateWithConfig(t *testing.T) {
 		},
 		"inputIsYAML_fromSecret": {
 			inputTmpl:      `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
-			config:         Config{InputIsYAML: true},
+			resolveOptions: ResolveOptions{InputIsYAML: true},
 			expectedResult: "data: c2VjcmV0a2V5MVZhbA==",
 		},
 		"inputIsYAML_fromConfigMap": {
 			inputTmpl:      `param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
-			config:         Config{InputIsYAML: true},
+			resolveOptions: ResolveOptions{InputIsYAML: true},
 			expectedResult: "param: cmkey1Val",
 		},
 		"inputIsYAML_base64dec": {
 			inputTmpl:      `config2: '{{ "dGVzdGRhdGE=" | base64dec  }}'`,
-			config:         Config{InputIsYAML: true},
+			resolveOptions: ResolveOptions{InputIsYAML: true},
 			expectedResult: "config2: testdata",
 		},
 	}
@@ -805,30 +805,6 @@ func TestResolveTemplateWithConfig(t *testing.T) {
 
 			doResolveTest(t, test)
 		})
-	}
-}
-
-func TestSetInputIsYAML(t *testing.T) {
-	t.Parallel()
-
-	tmplStr := `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`
-
-	resolver, err := NewResolver(k8sConfig, Config{})
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
-
-	resolver.SetInputIsYAML(true)
-
-	tmplResult, err := resolver.ResolveTemplate([]byte(tmplStr), nil, nil)
-	if err != nil {
-		t.Fatalf("Got an unexpected error: %v", err)
-	}
-
-	expected := `{"data":"c2VjcmV0a2V5MVZhbA=="}`
-
-	if string(tmplResult.ResolvedJSON) != expected {
-		t.Fatalf("expected `%s` but got `%s`", expected, string(tmplResult.ResolvedJSON))
 	}
 }
 
