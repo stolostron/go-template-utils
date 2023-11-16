@@ -18,7 +18,7 @@ import (
 	"k8s.io/klog"
 	"sigs.k8s.io/yaml"
 
-	"github.com/stolostron/go-template-utils/v4/pkg/templates"
+	"github.com/stolostron/go-template-utils/v5/pkg/templates"
 )
 
 func main() {
@@ -241,13 +241,15 @@ func processTemplate(yamlFile, hubKubeConfigPath, clusterName string) {
 
 		var rawDataList [][]byte
 
+		resolveOptions := templates.ResolveOptions{}
+
 		oTRaw, oTRawFound, _ := unstructured.NestedString(objectDefinition, "spec", "object-templates-raw")
 		if oTRawFound {
-			resolver.SetInputIsYAML(true)
+			resolveOptions.InputIsYAML = true
 
 			rawDataList = [][]byte{[]byte(oTRaw)}
 		} else {
-			resolver.SetInputIsYAML(false)
+			resolveOptions.InputIsYAML = false
 
 			objTemplates, _, err := unstructured.NestedSlice(objectDefinition, "spec", "object-templates")
 			if err != nil {
@@ -290,7 +292,7 @@ func processTemplate(yamlFile, hubKubeConfigPath, clusterName string) {
 				os.Exit(1)
 			}
 
-			tmplResult, err := resolver.ResolveTemplate(rawData, nil, nil)
+			tmplResult, err := resolver.ResolveTemplate(rawData, nil, &resolveOptions)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to process the templates at policy-templates index %d: %v\n", i, err)
 				os.Exit(1)
