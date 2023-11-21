@@ -18,19 +18,6 @@ export TESTARGS ?= $(TESTARGS_DEFAULT)
 
 include build/common/Makefile.common.mk
 
-# Setting SHELL to bash allows bash commands to be executed by recipes.
-# This is a requirement for 'setup-envtest.sh' in the test target.
-# Options are set to exit when a recipe line exits non-zero or a piped command fails.
-SHELL = /usr/bin/env bash -o pipefail
-.SHELLFLAGS = -ec
-
-# go-get-tool will 'go install' any package $1 and install it to LOCAL_BIN.
-define go-get-tool
-@set -e ;\
-echo "Checking installation of $(1)" ;\
-GOBIN=$(LOCAL_BIN) go install $(1)
-endef
-
 ############################################################
 # clean section
 ############################################################
@@ -44,30 +31,19 @@ clean:
 # format section
 ############################################################
 
-fmt-dependencies:
-	$(call go-get-tool,github.com/daixiang0/gci@v0.10.1)
-	$(call go-get-tool,mvdan.cc/gofumpt@v0.5.0)
-
-fmt: fmt-dependencies
-	find . -not \( -path "./.go" -prune \) -name "*.go" | xargs gofmt -s -w
-	find . -not \( -path "./.go" -prune \) -name "*.go" | xargs gci write -s standard -s default -s "prefix($(shell cat go.mod | head -1 | cut -d " " -f 2))"
-	find . -not \( -path "./.go" -prune \) -name "*.go" | xargs gofumpt -l -w
+.PHONY: fmt
+fmt:
 
 ############################################################
 # lint section
 ############################################################
 
-lint-dependencies:
-	$(call go-get-tool,github.com/golangci/golangci-lint/cmd/golangci-lint@v1.52.2)
-
-lint: lint-dependencies lint-all
+.PHONY: lint
+lint:
 
 ############################################################
 # test section
 ############################################################
-
-ENVTEST = $(LOCAL_BIN)/setup-envtest
-GOSEC = $(LOCAL_BIN)/gosec
 
 .PHONY: test
 test: envtest
@@ -77,14 +53,5 @@ test: envtest
 test-coverage: TESTARGS = -v -json -cover -covermode=atomic -coverprofile=coverage.out
 test-coverage: test
 
-.PHONY: envtest
-envtest: ## Download envtest-setup locally if necessary.
-	$(call go-get-tool,sigs.k8s.io/controller-runtime/tools/setup-envtest@latest)
-
-.PHONY: gosec
-gosec:
-	$(call go-get-tool,github.com/securego/gosec/v2/cmd/gosec@v2.15.0)
-
 .PHONY: gosec-scan
-gosec-scan: gosec
-	$(GOSEC) -fmt sonarqube -out gosec.json -no-fail -exclude-dir=.go ./...
+gosec-scan:
