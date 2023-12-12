@@ -570,7 +570,11 @@ func (t *TemplateResolver) ResolveTemplate(
 			}
 		}
 
-		if !options.DisableAutoCacheCleanUp {
+		if options.DisableAutoCacheCleanUp {
+			resolvedResult.CacheCleanUp = func() error {
+				return t.dynamicWatcher.EndQueryBatch(*options.Watcher)
+			}
+		} else {
 			defer func() {
 				err := t.dynamicWatcher.EndQueryBatch(watcher)
 				if err != nil && !errors.Is(err, client.ErrQueryBatchNotStarted) {
@@ -611,12 +615,6 @@ func (t *TemplateResolver) ResolveTemplate(
 		return resolvedResult, fmt.Errorf("failed to convert the resolved template to JSON: %w", err)
 	}
 
-	resolvedResult = TemplateResult{
-		ResolvedJSON: resolvedTemplateBytes,
-		CacheCleanUp: func() error {
-			return t.dynamicWatcher.EndQueryBatch(*options.Watcher)
-		},
-	}
 	resolvedResult.ResolvedJSON = resolvedTemplateBytes
 
 	return resolvedResult, nil
