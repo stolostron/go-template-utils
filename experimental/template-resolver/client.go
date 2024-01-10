@@ -22,10 +22,19 @@ import (
 )
 
 func main() {
-	klog.InitFlags(nil)
-
 	var hubKubeConfigPath, clusterName string
 
+	flag.Usage = func() {
+		fmt.Fprintln(os.Stderr, `Usage: template-resolver [OPTIONS] [path to YAML]
+  -cluster-name string
+    	the cluster name to use as .ManagedClusterName when resolving hub templates
+  -hub-kubeconfig string
+    	the input kubeconfig to also resolve hub templates
+  -v value
+    	number for the log level verbosity`)
+	}
+
+	klog.InitFlags(nil)
 	flag.StringVar(&hubKubeConfigPath, "hub-kubeconfig", "", "the input kubeconfig to also resolve hub templates")
 	flag.StringVar(
 		&clusterName, "cluster-name", "", "the cluster name to use as .ManagedClusterName when resolving hub templates",
@@ -345,5 +354,5 @@ func processTemplate(yamlFile, hubKubeConfigPath, clusterName string) {
 	}
 
 	//nolint: forbidigo
-	fmt.Println(string(resolvedYAML))
+	fmt.Print(string(resolvedYAML))
 }
