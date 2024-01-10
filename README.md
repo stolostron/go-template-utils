@@ -65,11 +65,17 @@ Additionally, the following custom functions are supported:
   field contains a JSON string that you want to literally replace the template
   with and have it treated as the underlying JSON type.
 
-## CLI (Experimental)
+## `template-resolver` CLI (Experimental)
 
-The client CLI tool is used to help during policy development involving
+The `template-resolver` CLI tool is used to help during policy development involving
 templates. Note that the generated output is only partially validated for
 syntax.
+
+### Building the binary
+
+```bash
+go install ./experimental/template-resolver
+```
 
 ### Managed Cluster Templates Example
 
@@ -109,7 +115,7 @@ spec:
             {{- end }}
 EOF
 
-go run experimental/client.go policy-example.yaml
+template-resolver policy-example.yaml
 ```
 
 The output should be:
@@ -182,7 +188,7 @@ spec:
             {{- end }}
 EOF
 
-go run experimental/client.go -hub-kubeconfig ~/.kube/config -cluster-name local-cluster policy-example.yaml
+template-resolver -hub-kubeconfig ~/.kube/config -cluster-name local-cluster policy-example.yaml
 ```
 
 The output should be:
