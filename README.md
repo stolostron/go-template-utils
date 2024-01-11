@@ -30,40 +30,28 @@ long as the input to
 can be marshaled to YAML, any of the
 [text/template](https://pkg.go.dev/text/template) package features can be used.
 
+A subset of [Sprig](https://masterminds.github.io/sprig/) functions is imported 
+into the resolver, listed in [`pkg/templates/sprig_wrapper.go`](pkg/templates/sprig_wrapper.go#L14).
+
 Additionally, the following custom functions are supported:
 
-- `atoi` parses an input string and returns an integer like the
-  [Atoi](https://pkg.go.dev/strconv#Atoi) function. For example,
-  `{{ "6" | atoi }}`.
-- `autoindent` will automatically indent the input string based on the leading
-  spaces. For example, `{{ "Templating\nrocks!" | autoindent }}`.
-- `base64enc` decodes the input Base64 string to its decoded form. For example,
-  `{{ "VGVtcGxhdGVzIHJvY2shCg==" | base64dec }}`.
-- `base64enc` encodes an input string in the Base64 format. For example,
-  `{{ "Templating rocks!" | base64enc }}`.
-- `indent` will indent the input string by specified amount. For example,
-  `{{ "Templating\nrocks!" | indent 4 }}`.
-- `fromClusterClaim` returns the value of a specific `ClusterClaim`. For
-  example, `{{ fromClusterClaim "name" }}`.
-- `fromConfigMap` returns the value of a key inside a `ConfigMap`. For example,
-  `{{ fromConfigMap "namespace" "config-map-name" "key" }}`.
-- `fromSecret` returns the value of a key inside a `Secret`. For example,
-  `{{ fromSecret "namespace" "secret-name" "key" }}`. If the `EncryptionMode` is
-  set to `EncryptionEnabled`, this will return an encrypted value.
-- `lookup` is a generic lookup function for any Kubernetes object. For example,
-  `{{ (lookup "v1" "Secret" "namespace" "name").Data.key }}`.
-- `protect` is a function that encrypts any string using AES-CBC.
-- `toBool` - parses an input boolean string converts it to a boolean but also
-  removes any quotes around the map value. For example,
-  `key: "{{ "true" | toBool }}"` => `key: true`.
-- `toInt` parses an input string and returns an integer but also removes any
-  quotes around the map value. For example, `key: "{{ "6" | toInt }}"` =>
-  `key: 6`.
-- `toLiteral` removes any quotes around the template string after it is
-  processed. For example, `key: "{{ "[10.10.10.10, 1.1.1.1]" | toLiteral }}` =>
-  `key: [10.10.10.10, 1.1.1.1]`. A good use-case for this is when a `ConfigMap`
-  field contains a JSON string that you want to literally replace the template
-  with and have it treated as the underlying JSON type.
+Function | Description | Example
+--- | --- | ---
+`atoi` | Parses an input string and returns an integer like the [Atoi](https://pkg.go.dev/strconv#Atoi) function. | `{{ "6" \| atoi }}`
+`autoindent` | Automatically indents the input string based on the leading spaces. | `{{ "Templating\nrocks!" \| autoindent }}`
+`base64enc` | Decodes the input Base64 string to its decoded form. |`{{ "VGVtcGxhdGVzIHJvY2shCg==" \| base64dec }}`
+`base64enc` | Encodes an input string in the Base64 format. | `{{ "Templating rocks!" \| base64enc }}`
+`indent` | Indents the input string by the specified amount. | `{{ "Templating\nrocks!" \| indent 4 }}`
+`fromClusterClaim` | Returns the value of a specific `ClusterClaim`. | `{{ fromClusterClaim "name" }}`
+`fromConfigMap` | Returns the value of a key inside a `ConfigMap`. | `{{ fromConfigMap "namespace" "config-map-name" "key" }}`
+`copyConfigMapData` | Returns the `data` contents of the specified `ConfigMap` | `{{ copyConfigMapData "namespace" "config-map-name" }}`
+`fromSecret` | Returns the value of a key inside a `Secret`. If the `EncryptionMode` is set to `EncryptionEnabled`, this will return an encrypted value. | `{{ fromSecret "namespace" "secret-name" "key" }}`
+`copySecretData` | Returns the `data` contents of the specified `Secret`. If the `EncryptionMode` is set to `EncryptionEnabled`, this will return an encrypted value. | `{{ copySecretData "namespace" "secret-name" }}`
+`lookup` | Generic lookup function for any Kubernetes object. | `{{ (lookup "v1" "Secret" "namespace" "name").data.key }}`
+`protect` | Encrypts any string using AES-CBC. | `{{ "super-secret" \| protect }}`
+`toBool` | Parses an input boolean string converts it to a boolean but also removes any quotes around the map value. | `key: "{{ "true" \| toBool }}"` => `key: true`
+`toInt` | Parses an input string and returns an integer but also removes anyquotes around the map value. |  `key: "{{ "6" \| toInt }}"` => `key: 6`
+`toLiteral` | Removes any quotes around the template string after it is processed. | `key: "{{ "[10.10.10.10, 1.1.1.1]" \| toLiteral }}` => `key: [10.10.10.10, 1.1.1.1]`
 
 ## `template-resolver` CLI (Experimental)
 
