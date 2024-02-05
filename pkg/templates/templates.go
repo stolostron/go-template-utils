@@ -598,7 +598,6 @@ func (t *TemplateResolver) ResolveTemplate(
 	}
 
 	err = tmpl.Execute(&buf, ctx)
-
 	if err != nil {
 		tmplRawStr := string(tmplRaw)
 		klog.Errorf("error resolving the template %v,\n template str %v,\n error: %v", tmplRawStr, templateStr, err)
