@@ -49,8 +49,8 @@ func setUp() {
 	}
 
 	var err error
-	k8sConfig, err = testEnv.Start()
 
+	k8sConfig, err = testEnv.Start()
 	if err != nil {
 		panic(err.Error())
 	}

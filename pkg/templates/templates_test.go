@@ -163,8 +163,8 @@ func doResolveTest(t *testing.T, test resolveTestCase) {
 
 	if !test.config.InputIsYAML {
 		var err error
-		tmplStr, err = yamlToJSON([]byte(test.inputTmpl))
 
+		tmplStr, err = yamlToJSON([]byte(test.inputTmpl))
 		if err != nil {
 			t.Fatalf(err.Error())
 		}

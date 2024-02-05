@@ -268,7 +268,6 @@ func TestCopySecretData(t *testing.T) {
 			}
 			var contents map[string]string
 			err = json.Unmarshal(jsonval, &contents)
-
 			if err != nil {
 				t.Fatalf(err.Error())
 			}
@@ -379,7 +378,6 @@ func TestCopySecretDataProtected(t *testing.T) {
 			}
 			var contents map[string]string
 			err = json.Unmarshal(jsonval, &contents)
-
 			if err != nil {
 				t.Fatalf(err.Error())
 			}
@@ -477,7 +475,6 @@ func TestCopyConfigMapData(t *testing.T) {
 			}
 			var contents map[string]string
 			err = json.Unmarshal(jsonval, &contents)
-
 			if err != nil {
 				t.Fatalf(err.Error())
 			}
