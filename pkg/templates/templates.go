@@ -173,6 +173,8 @@ type TemplateResolver struct {
 	// If caching is disabled, this will act as a temporary cache for objects during the execution of the
 	// ResolveTemplate call.
 	tempCallCache client.ObjectCache
+	// When a pre-existing DynamicWatcher is used, let the caller fully manage the QueryBatch.
+	skipBatchManagement bool
 }
 
 type CacheCleanUpFunc func() error
@@ -267,6 +269,34 @@ func NewResolverWithCaching(
 	resolver.tempCallCache = nil
 
 	return resolver, channel, err
+}
+
+// NewResolverWithDynamicWatcher creates a new caching TemplateResolver instance, using the provided dependency-watcher.
+// The caller is responsible for managing the given DynamicWatcher, including starting and stopping it. The caller must
+// start a query batch on the DynamicWatcher for the "watcher" object before calling ResolveTemplate.
+//
+// - dynWatcher is an already running DynamicWatcher from kubernetes-dependency-watches.
+//
+// - config is the Config instance for configuring optional values for template processing.
+func NewResolverWithDynamicWatcher(dynWatcher client.DynamicWatcher, config Config) (*TemplateResolver, error) {
+	if (config.StartDelim != "" && config.StopDelim == "") || (config.StartDelim == "" && config.StopDelim != "") {
+		return nil, fmt.Errorf("the configurations StartDelim and StopDelim cannot be set independently")
+	}
+
+	// It's only required to check config.StartDelim since it's invalid to set these independently
+	if config.StartDelim == "" {
+		config.StartDelim = defaultStartDelim
+		config.StopDelim = defaultStopDelim
+	}
+
+	return &TemplateResolver{
+		config:              config,
+		dynamicClient:       nil,
+		kubeConfig:          nil,
+		dynamicWatcher:      dynWatcher,
+		tempCallCache:       nil,
+		skipBatchManagement: true,
+	}, nil
 }
 
 // HasTemplate performs a simple check for the template start delimiter or the "$ocm_encrypted" prefix
@@ -557,30 +587,32 @@ func (t *TemplateResolver) ResolveTemplate(
 	if t.dynamicWatcher != nil {
 		watcher := *options.Watcher
 
-		err := t.dynamicWatcher.StartQueryBatch(watcher)
-		if err != nil {
-			if !errors.Is(err, client.ErrQueryBatchInProgress) {
-				return resolvedResult, err
-			}
-
-			if !options.DisableAutoCacheCleanUp {
-				return resolvedResult, fmt.Errorf(
-					"ResolveTemplate cannot be called with the same watchedObject in parallel: %w", err,
-				)
-			}
-		}
-
-		if options.DisableAutoCacheCleanUp {
-			resolvedResult.CacheCleanUp = func() error {
-				return t.dynamicWatcher.EndQueryBatch(*options.Watcher)
-			}
-		} else {
-			defer func() {
-				err := t.dynamicWatcher.EndQueryBatch(watcher)
-				if err != nil && !errors.Is(err, client.ErrQueryBatchNotStarted) {
-					klog.Errorf("failed to end the query batch for %s: %v", watcher, err)
+		if !t.skipBatchManagement {
+			err := t.dynamicWatcher.StartQueryBatch(watcher)
+			if err != nil {
+				if !errors.Is(err, client.ErrQueryBatchInProgress) {
+					return resolvedResult, err
 				}
-			}()
+
+				if !options.DisableAutoCacheCleanUp {
+					return resolvedResult, fmt.Errorf(
+						"ResolveTemplate cannot be called with the same watchedObject in parallel: %w", err,
+					)
+				}
+			}
+
+			if options.DisableAutoCacheCleanUp {
+				resolvedResult.CacheCleanUp = func() error {
+					return t.dynamicWatcher.EndQueryBatch(*options.Watcher)
+				}
+			} else {
+				defer func() {
+					err := t.dynamicWatcher.EndQueryBatch(watcher)
+					if err != nil && !errors.Is(err, client.ErrQueryBatchNotStarted) {
+						klog.Errorf("failed to end the query batch for %s: %v", watcher, err)
+					}
+				}()
+			}
 		}
 
 		for i, contextTransformer := range options.ContextTransformers {

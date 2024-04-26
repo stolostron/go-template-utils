@@ -16,6 +16,7 @@ import (
 	"github.com/stolostron/kubernetes-dependency-watches/client"
 	yaml "gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 func TestNewResolver(t *testing.T) {
@@ -42,6 +43,28 @@ func TestNewResolverWithCaching(t *testing.T) {
 	defer cancelFunc()
 
 	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
+	if err != nil {
+		t.Fatalf("No error was expected: %v", err)
+	}
+
+	if resolver.config.StartDelim != "{{" || resolver.config.StopDelim != "}}" {
+		t.Fatalf(
+			"Expected delimiters: {{ and }}  got: %s and %s",
+			resolver.config.StartDelim,
+			resolver.config.StopDelim,
+		)
+	}
+}
+
+func TestNewResolverWithDynamicWatcher(t *testing.T) {
+	t.Parallel()
+
+	dynWatcher, err := client.New(k8sConfig, fakeReconciler{}, &client.Options{EnableCache: true})
+	if err != nil {
+		t.Fatalf("No error was expected: %v", err)
+	}
+
+	resolver, err := NewResolverWithDynamicWatcher(dynWatcher, Config{})
 	if err != nil {
 		t.Fatalf("No error was expected: %v", err)
 	}
@@ -470,6 +493,91 @@ func TestResolveTemplateWithCachingListQuery(t *testing.T) {
 	_, err = resolver.ResolveTemplate(tmplStrBytes, nil, &ResolveOptions{Watcher: &watcher})
 	if err != nil {
 		t.Fatal(err.Error())
+	}
+}
+
+type fakeReconciler struct{}
+
+func (r fakeReconciler) Reconcile(_ context.Context, _ client.ObjectIdentifier) (reconcile.Result, error) {
+	return reconcile.Result{}, nil
+}
+
+func TestResolveTemplateWithPreexistingWatcher(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	fr := fakeReconciler{}
+
+	dynWatcher, err := client.New(k8sConfig, fr, &client.Options{EnableCache: true})
+	if err != nil {
+		t.Fatalf("No error was expected: %v", err)
+	}
+
+	resolver, err := NewResolverWithDynamicWatcher(dynWatcher, Config{})
+	if err != nil {
+		t.Fatalf("No error was expected: %v", err)
+	}
+
+	tmplStr := `data1: '{{ (lookup "v1" "ConfigMap" "testns" "testcm-enva").data ` +
+		`| mustToRawJson | toLiteral }}'`
+
+	tmplStrBytes, err := yamlToJSON([]byte(tmplStr))
+	if err != nil {
+		t.Fatalf("No error was expected: %v", err)
+	}
+
+	watcher := client.ObjectIdentifier{
+		Version:   "v1",
+		Kind:      "ConfigMap",
+		Namespace: "testns",
+		Name:      "watcher",
+	}
+
+	_, err = resolver.ResolveTemplate(tmplStrBytes, nil, &ResolveOptions{Watcher: &watcher})
+	if err == nil || !strings.Contains(err.Error(), "DynamicWatcher must be started") {
+		t.Fatalf("Expected error requiring the DynamicWatcher to be started, got: %v", err)
+	}
+
+	go func() {
+		_ = dynWatcher.Start(ctx)
+	}()
+
+	<-dynWatcher.Started()
+
+	err = dynWatcher.StartQueryBatch(watcher)
+	if err != nil {
+		t.Fatalf("No error was expected: %v", err)
+	}
+
+	defer func() {
+		err := dynWatcher.EndQueryBatch(watcher)
+		if err != nil {
+			t.Fatalf("No error was expected: %v", err)
+		}
+	}()
+
+	// Before resolving the template, do a get on that object through the DynamicWatcher
+	// Then the test will validate that there is only one watch.
+	configMapGVK := schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"}
+
+	_, err = dynWatcher.Get(watcher, configMapGVK, "testns", "testcm-enva")
+	if err != nil {
+		t.Fatalf("No error was expected: %v", err)
+	}
+
+	result, err := resolver.ResolveTemplate(tmplStrBytes, nil, &ResolveOptions{Watcher: &watcher})
+	if err != nil {
+		t.Fatalf("No error was expected: %v", err)
+	}
+
+	if string(result.ResolvedJSON) != `{"data1":{"cmkey1":"cmkey1Val"}}` {
+		t.Fatalf("Unexpected template: %s", string(result.ResolvedJSON))
+	}
+
+	if resolver.GetWatchCount() != 1 {
+		t.Fatalf("Expected a watch count of 1 but got: %d", resolver.GetWatchCount())
 	}
 }
 
