@@ -725,6 +725,13 @@ func TestResolveTemplateErrors(t *testing.T) {
 				ErrInvalidInput,
 			),
 		},
+		"error_on_missing_key": {
+			inputTmpl: `foo: '{{ (lookup "v1" "ConfigMap" "testns" "nonexist-cm").data }}'`,
+			resolveOptions: ResolveOptions{
+				ErrorOnMissingKey: true,
+			},
+			expectedErr: ErrMissingKey,
+		},
 	}
 
 	for testName, test := range testcases {

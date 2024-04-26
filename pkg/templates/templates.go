@@ -59,6 +59,7 @@ var (
 	ErrCacheDisabled            = client.ErrCacheDisabled
 	ErrNoCacheEntry             = client.ErrNoCacheEntry
 	ErrContextTransformerFailed = errors.New("the context transformer failed")
+	ErrMissingKey               = errors.New("missing key while resolving template")
 )
 
 // Config is a struct containing configuration for the API.
@@ -121,6 +122,7 @@ type ResolveOptions struct {
 	DisableAutoCacheCleanUp bool
 	LookupNamespace         string
 	Watcher                 *client.ObjectIdentifier
+	ErrorOnMissingKey       bool
 }
 
 type ClusterScopedObjectIdentifier struct {
@@ -629,10 +631,18 @@ func (t *TemplateResolver) ResolveTemplate(
 		}
 	}
 
+	if options.ErrorOnMissingKey {
+		tmpl = tmpl.Option("missingkey=error")
+	}
+
 	err = tmpl.Execute(&buf, ctx)
 	if err != nil {
 		tmplRawStr := string(tmplRaw)
 		klog.Errorf("error resolving the template %v,\n template str %v,\n error: %v", tmplRawStr, templateStr, err)
+
+		if options.ErrorOnMissingKey && strings.Contains(err.Error(), "no entry for key") {
+			return resolvedResult, fmt.Errorf("%w %v: %w", ErrMissingKey, tmplRawStr, err)
+		}
 
 		return resolvedResult, fmt.Errorf("failed to resolve the template %v: %w", tmplRawStr, err)
 	}
