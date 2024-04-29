@@ -131,7 +131,7 @@ func (t *TemplateResolver) getOrList(
 
 			resultList := unstructured.UnstructuredList{Items: result}
 
-			return resultList.UnstructuredContent(), nil
+			return resultList.DeepCopy().UnstructuredContent(), nil
 		}
 
 		result, err := t.dynamicWatcher.Get(*options.Watcher, gvk, ns, name)
@@ -143,7 +143,7 @@ func (t *TemplateResolver) getOrList(
 			return nil, apierrors.NewNotFound(scopedGVRObj.GroupResource(), name)
 		}
 
-		return result.UnstructuredContent(), nil
+		return result.DeepCopy().UnstructuredContent(), nil
 	}
 
 	// The dynamic watcher is not used, so use the temporary call cache
