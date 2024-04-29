@@ -42,6 +42,10 @@ func TestGetSprigFunc(t *testing.T) {
 			`{{ $a := "Foo Bar" }}{{ default "foo" $a }}`,
 			"Foo Bar",
 		},
+		"dict": {
+			`{{ dict "name1" "value1" "name2" "value2" "name3" "value 3" }}`,
+			"map[name1:value1 name2:value2 name3:value 3]",
+		},
 		"dig": {
 			`{{ dig "user" "role" "foo" "default" (fromJson "{\"user\": {\"role\": {\"foo\": \"bar\"}}}") }}`,
 			"bar",
@@ -58,8 +62,16 @@ func TestGetSprigFunc(t *testing.T) {
 			`{{ $a := fromJson "{\"foo\": \"Bar\"}" }}{{ $a.foo }}`,
 			"Bar",
 		},
+		"get": {
+			`{{ get (dict "key1" "value1") "key1" }}`,
+			"value1",
+		},
 		"has": {
 			`{{ has 2 (list 1 2 3) }}`,
+			"true",
+		},
+		"hasKey": {
+			`{{ hasKey (dict "name1" "value1") "name1" }}`,
 			"true",
 		},
 		"hasPrefix": {
@@ -86,6 +98,10 @@ func TestGetSprigFunc(t *testing.T) {
 			`{{ lower "Foo Bar" }}`,
 			"foo bar",
 		},
+		"merge": {
+			`{{ merge (dict "name1" "value1") (dict "name1" "value1" "name2" "value2") }}`,
+			"map[name1:value1 name2:value2]",
+		},
 		"mul": {
 			`{{ mul 2 2 }}`,
 			"4",
@@ -101,6 +117,10 @@ func TestGetSprigFunc(t *testing.T) {
 		"mustHas": {
 			`{{ mustHas 2 (list 1 2 3) }}`,
 			"true",
+		},
+		"mustMerge": {
+			`{{ mustMerge (dict "name1" "value1") (dict "name3" (list 1 2 3)) }}`,
+			"map[name1:value1 name3:[1 2 3]]",
 		},
 		"mustPrepend": {
 			`{{ mustPrepend (list 1 2 3) 4 }}`,
@@ -141,6 +161,10 @@ func TestGetSprigFunc(t *testing.T) {
 		"semverCompare": {
 			`{{ semverCompare "^1.2.0" "1.2.3" }}`,
 			"true",
+		},
+		"set": {
+			`{{ set (dict) "name4" "value4" }}`,
+			"map[name4:value4]",
 		},
 		"slice": {
 			`{{ slice (list 1 2 3) 1 3 }}`,
@@ -185,6 +209,10 @@ func TestGetSprigFunc(t *testing.T) {
 		"trunc": {
 			`{{ trunc 3 "foo bar" }}`,
 			"foo",
+		},
+		"unset": {
+			`{{ unset (dict "name2" "value2" "name4" "value4") "name4" }}`,
+			"map[name2:value2]",
 		},
 		"until": {
 			`{{ until 3 }}`,
