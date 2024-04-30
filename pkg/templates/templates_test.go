@@ -602,9 +602,17 @@ func TestResolveTemplateDefaultConfig(t *testing.T) {
 			inputTmpl:      `param: '{{ fromConfigMap "testns" "testconfigmap" "ingressSources" | toLiteral }}'`,
 			expectedResult: "param:\n  - 10.10.10.10\n  - 1.1.1.1",
 		},
+		"b64enc": {
+			inputTmpl:      `config1: '{{ "testdata" | b64enc  }}'`,
+			expectedResult: "config1: dGVzdGRhdGE=",
+		},
 		"base64enc": {
 			inputTmpl:      `config1: '{{ "testdata" | base64enc  }}'`,
 			expectedResult: "config1: dGVzdGRhdGE=",
+		},
+		"b64dec": {
+			inputTmpl:      `config2: '{{ "dGVzdGRhdGE=" | b64dec  }}'`,
+			expectedResult: "config2: testdata",
 		},
 		"base64dec": {
 			inputTmpl:      `config2: '{{ "dGVzdGRhdGE=" | base64dec  }}'`,
