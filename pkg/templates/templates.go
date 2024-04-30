@@ -210,7 +210,10 @@ func NewResolver(kubeConfig *rest.Config, config Config) (*TemplateResolver, err
 	tempCallCache := client.NewObjectCache(
 		// Set the missing API resource cache TTL in this mode because the cache just lives for the ResolveTemplate
 		// execution and duplicate queries when a CRD is missing is not necessary.
-		discoveryClient, client.ObjectCacheOptions{MissingAPIResourceCacheTTL: time.Minute},
+		discoveryClient, client.ObjectCacheOptions{
+			MissingAPIResourceCacheTTL: time.Minute,
+			UnsafeDisableDeepCopy:      false,
+		},
 	)
 
 	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
@@ -254,6 +257,7 @@ func NewResolverWithCaching(
 			EnableCache:             true,
 			ObjectCacheOptions: client.ObjectCacheOptions{
 				MissingAPIResourceCacheTTL: config.MissingAPIResourceCacheTTL,
+				UnsafeDisableDeepCopy:      false,
 			},
 		},
 	)
