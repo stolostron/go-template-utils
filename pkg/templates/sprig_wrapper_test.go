@@ -126,6 +126,18 @@ func TestGetSprigFunc(t *testing.T) {
 			`{{ mustPrepend (list 1 2 3) 4 }}`,
 			"[4 1 2 3]",
 		},
+		"mustRegexFind": {
+			`{{ mustRegexFind "[a-zA-Z]{2}[1-9]{2}" "AbCd1234" }}`,
+			"Cd12",
+		},
+		"mustRegexFindAll": {
+			`{{ mustRegexFindAll "[1,3,5,7]" "123456789" -1 }}`,
+			"[1 3 5 7]",
+		},
+		"mustRegexMatch": {
+			`{{ mustRegexMatch "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$" "test@acme@com" }}`,
+			"false",
+		},
 		"mustSlice": {
 			`{{ mustSlice (list 1 2 3) 1 3 }}`,
 			"[2 3]",
@@ -145,6 +157,22 @@ func TestGetSprigFunc(t *testing.T) {
 		"quote": {
 			`{{ "Foo Bar" | quote }}`,
 			"\"Foo Bar\"",
+		},
+		"regexFind": {
+			`{{ regexFind "[a-zA-Z][1-9]" "abcd1234" }}`,
+			"d1",
+		},
+		"regexFindAll": {
+			`{{ regexFindAll "[2,4,6,8]" "123456789" -1 }}`,
+			"[2 4 6 8]",
+		},
+		"regexMatch": {
+			`{{ regexMatch "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$" "test@acme.com" }}`,
+			"true",
+		},
+		"regexQuoteMeta": {
+			`{{ regexQuoteMeta "1.2.3" }}`,
+			`1\.2\.3`,
 		},
 		"replace": {
 			`{{ "Foo Bar" | replace " " "-" }}`,
