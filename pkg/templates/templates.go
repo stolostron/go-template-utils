@@ -510,6 +510,8 @@ func (t *TemplateResolver) ResolveTemplate(
 		"lookup":            t.lookupHelper(options),
 		"base64enc":         base64encode,
 		"base64dec":         base64decode,
+		"b64enc":            base64encode, // Link the Sprig name to our function
+		"b64dec":            base64decode, // Link the Sprig name to our function
 		"autoindent":        autoindent,
 		"indent":            t.indent,
 		"atoi":              atoi,
