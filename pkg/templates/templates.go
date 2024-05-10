@@ -182,6 +182,8 @@ type CacheCleanUpFunc func() error
 type TemplateResult struct {
 	ResolvedJSON []byte
 	CacheCleanUp CacheCleanUpFunc
+	// HasSensitiveData is true if a template references a secret or decrypts an encrypted value.
+	HasSensitiveData bool
 }
 
 // NewResolver creates a new TemplateResolver instance, which is the API for processing templates.
@@ -503,11 +505,11 @@ func (t *TemplateResolver) ResolveTemplate(
 	// Build Map of supported template functions
 	funcMap := template.FuncMap{
 		"copyConfigMapData": t.copyConfigMapDataHelper(options),
-		"copySecretData":    t.copySecretDataHelper(options),
-		"fromSecret":        t.fromSecretHelper(options),
+		"copySecretData":    t.copySecretDataHelper(options, &resolvedResult),
+		"fromSecret":        t.fromSecretHelper(options, &resolvedResult),
 		"fromConfigMap":     t.fromConfigMapHelper(options),
 		"fromClusterClaim":  t.fromClusterClaimHelper(options),
-		"lookup":            t.lookupHelper(options),
+		"lookup":            t.lookupHelper(options, &resolvedResult),
 		"base64enc":         base64encode,
 		"base64dec":         base64decode,
 		"b64enc":            base64encode, // Link the Sprig name to our function
@@ -526,9 +528,9 @@ func (t *TemplateResolver) ResolveTemplate(
 	}
 
 	if options.EncryptionEnabled {
-		funcMap["fromSecret"] = t.fromSecretProtectedHelper(options)
+		funcMap["fromSecret"] = t.fromSecretProtectedHelper(options, &resolvedResult)
 		funcMap["protect"] = t.protectHelper(options)
-		funcMap["copySecretData"] = t.copySecretDataProtectedHelper(options)
+		funcMap["copySecretData"] = t.copySecretDataProtectedHelper(options, &resolvedResult)
 	} else {
 		// In other encryption modes, return a readable error if the protect template function is accidentally used.
 		funcMap["protect"] = func(s string) (string, error) { return "", ErrProtectNotEnabled }
@@ -558,7 +560,7 @@ func (t *TemplateResolver) ResolveTemplate(
 	klog.V(2).Infof("Initial template str to resolve : %v ", templateStr)
 
 	if options.DecryptionEnabled {
-		templateStr, err = t.processEncryptedStrs(options, templateStr)
+		templateStr, err = t.processEncryptedStrs(options, &resolvedResult, templateStr)
 		if err != nil {
 			return resolvedResult, err
 		}

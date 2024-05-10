@@ -22,7 +22,7 @@ func (t *TemplateResolver) fromClusterClaim(options *ResolveOptions, claimName s
 		return "", errors.New("a claim name must be provided")
 	}
 
-	clusterClaim, err := t.getOrList(options, clusterClaimAPIVersion, "ClusterClaim", "", claimName)
+	clusterClaim, err := t.getOrList(options, nil, clusterClaimAPIVersion, "ClusterClaim", "", claimName)
 	if err != nil {
 		return "", err
 	}
