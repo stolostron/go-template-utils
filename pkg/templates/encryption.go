@@ -159,7 +159,11 @@ func pkcs7Unpad(paddedValue []byte) ([]byte, error) {
 // processEncryptedStrs replaces all encrypted strings with the decrypted values. Each decryption is handled
 // concurrently and the concurrency limit is controlled by t.config.DecryptionConcurrency. If a decryption fails,
 // the rest of the decryption is halted and an error is returned.
-func (t *TemplateResolver) processEncryptedStrs(options *ResolveOptions, templateStr string) (string, error) {
+func (t *TemplateResolver) processEncryptedStrs(
+	options *ResolveOptions,
+	templateResult *TemplateResult,
+	templateStr string,
+) (string, error) {
 	// This catching any encrypted string in the format of $ocm_encrypted:<base64 of the encrypted value>.
 	re := regexp.MustCompile(regexp.QuoteMeta(protectedPrefix) + "([a-zA-Z0-9+/=]+)")
 	// Each submatch will have index 0 be the whole match and index 1 as the base64 of the encrypted value.
@@ -168,6 +172,8 @@ func (t *TemplateResolver) processEncryptedStrs(options *ResolveOptions, templat
 	if len(submatches) == 0 {
 		return templateStr, nil
 	}
+
+	templateResult.HasSensitiveData = true
 
 	var numWorkers int
 

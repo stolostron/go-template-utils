@@ -14,15 +14,16 @@ import (
 
 func (t *TemplateResolver) fromSecretHelper(
 	options *ResolveOptions,
+	templateResult *TemplateResult,
 ) func(string, string, string) (string, error) {
 	return func(namespace string, name string, key string) (string, error) {
-		return t.fromSecret(options, namespace, name, key)
+		return t.fromSecret(options, templateResult, namespace, name, key)
 	}
 }
 
 // retrieves the value of the key in the given Secret, namespace.
 func (t *TemplateResolver) fromSecret(
-	options *ResolveOptions, namespace string, name string, key string,
+	options *ResolveOptions, templateResult *TemplateResult, namespace string, name string, key string,
 ) (string, error) {
 	klog.V(2).Infof("fromSecret for namespace: %v, name: %v, key:%v", namespace, name, key)
 
@@ -30,7 +31,7 @@ func (t *TemplateResolver) fromSecret(
 		return "", fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput)
 	}
 
-	secret, err := t.getOrList(options, "v1", "Secret", namespace, name)
+	secret, err := t.getOrList(options, templateResult, "v1", "Secret", namespace, name)
 	if err != nil {
 		return "", fmt.Errorf("failed to get the secret %s from %s: %w", name, namespace, err)
 	}
@@ -42,17 +43,18 @@ func (t *TemplateResolver) fromSecret(
 
 func (t *TemplateResolver) fromSecretProtectedHelper(
 	options *ResolveOptions,
+	templateResult *TemplateResult,
 ) func(string, string, string) (string, error) {
 	return func(namespace string, secretName string, key string) (string, error) {
-		return t.fromSecretProtected(options, namespace, secretName, key)
+		return t.fromSecretProtected(options, templateResult, namespace, secretName, key)
 	}
 }
 
 // fromSecretProtected wraps fromSecret and encrypts the output value using the "protect" method.
 func (t *TemplateResolver) fromSecretProtected(
-	options *ResolveOptions, namespace string, secretName string, key string,
+	options *ResolveOptions, templateResult *TemplateResult, namespace string, secretName string, key string,
 ) (string, error) {
-	value, err := t.fromSecret(options, namespace, secretName, key)
+	value, err := t.fromSecret(options, templateResult, namespace, secretName, key)
 	if err != nil {
 		return "", err
 	}
@@ -62,7 +64,7 @@ func (t *TemplateResolver) fromSecretProtected(
 
 // copies all data in the given Secret, namespace.
 func (t *TemplateResolver) copySecretDataBase(
-	options *ResolveOptions, namespace string, name string,
+	options *ResolveOptions, templateResult *TemplateResult, namespace string, name string,
 ) (map[string]interface{}, error) {
 	klog.V(2).Infof("copySecretDataBase for namespace: %v, name: %v", namespace, name)
 
@@ -70,7 +72,7 @@ func (t *TemplateResolver) copySecretDataBase(
 		return nil, fmt.Errorf("%w: namespace and name must be specified", ErrInvalidInput)
 	}
 
-	secret, err := t.getOrList(options, "v1", "Secret", namespace, name)
+	secret, err := t.getOrList(options, templateResult, "v1", "Secret", namespace, name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the secret %s from %s: %w", name, namespace, err)
 	}
@@ -80,19 +82,21 @@ func (t *TemplateResolver) copySecretDataBase(
 	return data, nil
 }
 
-func (t *TemplateResolver) copySecretDataHelper(options *ResolveOptions) func(string, string) (string, error) {
+func (t *TemplateResolver) copySecretDataHelper(
+	options *ResolveOptions, templateResult *TemplateResult,
+) func(string, string) (string, error) {
 	return func(namespace string, secretname string) (string, error) {
-		return t.copySecretData(options, namespace, secretname)
+		return t.copySecretData(options, templateResult, namespace, secretname)
 	}
 }
 
 // copies all data in the given Secret, namespace.
 func (t *TemplateResolver) copySecretData(
-	options *ResolveOptions, namespace string, secretname string,
+	options *ResolveOptions, templateResult *TemplateResult, namespace string, secretname string,
 ) (string, error) {
 	klog.V(2).Infof("copySecretData for namespace: %v, secretname: %v", namespace, secretname)
 
-	data, err := t.copySecretDataBase(options, namespace, secretname)
+	data, err := t.copySecretDataBase(options, templateResult, namespace, secretname)
 	if err != nil {
 		return "", err
 	}
@@ -106,18 +110,18 @@ func (t *TemplateResolver) copySecretData(
 }
 
 func (t *TemplateResolver) copySecretDataProtectedHelper(
-	options *ResolveOptions,
+	options *ResolveOptions, templateResult *TemplateResult,
 ) func(string, string) (string, error) {
 	return func(namespace string, secretName string) (string, error) {
-		return t.copySecretDataProtected(options, namespace, secretName)
+		return t.copySecretDataProtected(options, templateResult, namespace, secretName)
 	}
 }
 
 // copySecretDataProtected wraps copySecretData and encrypts the output value using the "protect" method.
 func (t *TemplateResolver) copySecretDataProtected(
-	options *ResolveOptions, namespace string, secretName string,
+	options *ResolveOptions, templateResult *TemplateResult, namespace string, secretName string,
 ) (string, error) {
-	data, err := t.copySecretDataBase(options, namespace, secretName)
+	data, err := t.copySecretDataBase(options, templateResult, namespace, secretName)
 	if err != nil {
 		return "", err
 	}
@@ -155,7 +159,7 @@ func (t *TemplateResolver) fromConfigMap(
 		return "", fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput)
 	}
 
-	configmap, err := t.getOrList(options, "v1", "ConfigMap", namespace, name)
+	configmap, err := t.getOrList(options, nil, "v1", "ConfigMap", namespace, name)
 	if err != nil {
 		err := fmt.Errorf("failed getting the ConfigMap %s from %s: %w", name, namespace, err)
 
@@ -183,7 +187,7 @@ func (t *TemplateResolver) copyConfigMapData(
 		return "", fmt.Errorf("%w: namespace and name must be specified", ErrInvalidInput)
 	}
 
-	configmap, err := t.getOrList(options, "v1", "ConfigMap", namespace, name)
+	configmap, err := t.getOrList(options, nil, "v1", "ConfigMap", namespace, name)
 	if err != nil {
 		return "", fmt.Errorf("failed getting the ConfigMap %s from %s: %w", name, namespace, err)
 	}

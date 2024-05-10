@@ -51,6 +51,7 @@ func (t *TemplateResolver) getNamespace(namespace string, lookupNamespace string
 
 func (t *TemplateResolver) getOrList(
 	options *ResolveOptions,
+	templateResult *TemplateResult,
 	apiVersion string,
 	kind string,
 	namespace string,
@@ -131,6 +132,10 @@ func (t *TemplateResolver) getOrList(
 
 			resultList := unstructured.UnstructuredList{Items: result}
 
+			if templateResult != nil && kind == "Secret" && len(resultList.Items) > 0 {
+				templateResult.HasSensitiveData = true
+			}
+
 			return resultList.UnstructuredContent(), nil
 		}
 
@@ -141,6 +146,10 @@ func (t *TemplateResolver) getOrList(
 
 		if result == nil {
 			return nil, apierrors.NewNotFound(scopedGVRObj.GroupResource(), name)
+		}
+
+		if templateResult != nil && kind == "Secret" {
+			templateResult.HasSensitiveData = true
 		}
 
 		return result.UnstructuredContent(), nil
@@ -199,6 +208,10 @@ func (t *TemplateResolver) getOrList(
 		// Strip out the other metadata to match what is returned from the cache
 		resultUnstructuredList = &unstructured.UnstructuredList{Items: resultUnstructuredList.Items}
 
+		if templateResult != nil && kind == "Secret" && len(resultUnstructuredList.Items) > 0 {
+			templateResult.HasSensitiveData = true
+		}
+
 		return resultUnstructuredList.UnstructuredContent(), nil
 	}
 
@@ -216,11 +229,16 @@ func (t *TemplateResolver) getOrList(
 		return nil, err
 	}
 
+	if templateResult != nil && kind == "Secret" {
+		templateResult.HasSensitiveData = true
+	}
+
 	return resultUnstructured.UnstructuredContent(), nil
 }
 
 func (t *TemplateResolver) lookupHelper(
 	options *ResolveOptions,
+	templateResult *TemplateResult,
 ) func(string, string, string, string, ...string) (map[string]interface{}, error) {
 	return func(
 		apiVersion string,
@@ -229,12 +247,13 @@ func (t *TemplateResolver) lookupHelper(
 		name string,
 		labelSelector ...string,
 	) (map[string]interface{}, error) {
-		return t.lookup(options, apiVersion, kind, namespace, name, labelSelector...)
+		return t.lookup(options, templateResult, apiVersion, kind, namespace, name, labelSelector...)
 	}
 }
 
 func (t *TemplateResolver) lookup(
 	options *ResolveOptions,
+	templateResult *TemplateResult,
 	apiVersion string,
 	kind string,
 	namespace string,
@@ -245,7 +264,7 @@ func (t *TemplateResolver) lookup(
 ) {
 	klog.V(2).Infof("lookup :  %v, %v, %v, %v", apiVersion, kind, namespace, name)
 
-	result, lookupErr := t.getOrList(options, apiVersion, kind, namespace, name, labelSelector...)
+	result, lookupErr := t.getOrList(options, templateResult, apiVersion, kind, namespace, name, labelSelector...)
 
 	// lookups don't fail on errors
 	if apierrors.IsNotFound(lookupErr) {

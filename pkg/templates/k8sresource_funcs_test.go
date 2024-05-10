@@ -78,8 +78,14 @@ func TestFromSecret(t *testing.T) {
 			t.Fatalf(err.Error())
 		}
 
+		templateResult := &TemplateResult{}
+
 		val, err := resolver.fromSecret(
-			&ResolveOptions{LookupNamespace: test.lookupNamespace}, test.inputNs, test.inputCMname, test.inputKey,
+			&ResolveOptions{LookupNamespace: test.lookupNamespace},
+			templateResult,
+			test.inputNs,
+			test.inputCMname,
+			test.inputKey,
 		)
 
 		if err != nil {
@@ -90,8 +96,14 @@ func TestFromSecret(t *testing.T) {
 			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
 				t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
 			}
-		} else if val != base64encode(test.expectedResult) {
-			t.Fatalf("expected : %s , got : %s", base64encode(test.expectedResult), val)
+		} else {
+			if val != base64encode(test.expectedResult) {
+				t.Fatalf("expected : %s , got : %s", base64encode(test.expectedResult), val)
+			}
+
+			if !templateResult.HasSensitiveData {
+				t.Fatalf("expected HasSensitiveData to be set to true")
+			}
 		}
 	}
 }
@@ -247,8 +259,11 @@ func TestCopySecretData(t *testing.T) {
 			t.Fatalf(err.Error())
 		}
 
+		templateResult := &TemplateResult{}
+
 		val, err := resolver.copySecretData(
 			&ResolveOptions{LookupNamespace: test.lookupNamespace},
+			templateResult,
 			test.inputNs,
 			test.inputSecretName,
 		)
@@ -274,6 +289,10 @@ func TestCopySecretData(t *testing.T) {
 
 			if contents[test.inputKey] != base64encode(test.expectedResult) {
 				t.Fatalf("expected : %s , to equal : %s", base64encode(test.expectedResult), contents[test.inputKey])
+			}
+
+			if !templateResult.HasSensitiveData {
+				t.Fatalf("expected HasSensitiveData to be set to true")
 			}
 		}
 	}
@@ -351,6 +370,8 @@ func TestCopySecretDataProtected(t *testing.T) {
 			t.Fatalf(err.Error())
 		}
 
+		templateResult := &TemplateResult{}
+
 		val, err := resolver.copySecretDataProtected(
 			&ResolveOptions{
 				EncryptionConfig: EncryptionConfig{
@@ -359,7 +380,9 @@ func TestCopySecretDataProtected(t *testing.T) {
 					InitializationVector: iv,
 				},
 				LookupNamespace: test.lookupNamespace,
-			}, test.inputNs,
+			},
+			templateResult,
+			test.inputNs,
 			test.inputSecretName,
 		)
 
@@ -384,6 +407,10 @@ func TestCopySecretDataProtected(t *testing.T) {
 
 			if contents[test.inputKey] != test.expectedResult {
 				t.Fatalf("expected : %s , to equal : %s", test.expectedResult, contents[test.inputKey])
+			}
+
+			if !templateResult.HasSensitiveData {
+				t.Fatalf("expected HasSensitiveData to be set to true")
 			}
 		}
 	}

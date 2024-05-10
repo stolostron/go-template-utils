@@ -61,8 +61,11 @@ func TestLookup(t *testing.T) {
 			t.Fatalf(err.Error())
 		}
 
+		templateResult := &TemplateResult{}
+
 		val, err := resolver.lookup(
 			&ResolveOptions{LookupNamespace: test.lookupNamespace},
+			templateResult,
 			test.inputAPIVersion,
 			test.inputKind,
 			test.inputNs,
@@ -84,6 +87,10 @@ func TestLookup(t *testing.T) {
 		if test.expectedExists {
 			if len(val) == 0 {
 				t.Fatal("An object was expected but not returned")
+			}
+
+			if test.inputKind == "Secret" && !templateResult.HasSensitiveData {
+				t.Fatalf("expected HasSensitiveData to be set to true")
 			}
 		} else if len(val) != 0 {
 			t.Fatal("An object was unexpected but one was returned")
@@ -216,6 +223,7 @@ func TestLookupWithLabels(t *testing.T) {
 		//nolint:gocritic
 		val, err := resolver.lookup(
 			&ResolveOptions{LookupNamespace: test.lookupNamespace},
+			nil,
 			test.inputAPIVersion,
 			test.inputKind,
 			test.inputNs,
@@ -356,11 +364,14 @@ func TestLookupClusterScoped(t *testing.T) {
 			t.Fatalf(err.Error())
 		}
 
+		templateResult := &TemplateResult{}
+
 		val, err := resolver.lookup(
 			&ResolveOptions{
 				LookupNamespace:        test.lookupNamespace,
 				ClusterScopedAllowList: test.allowlist,
 			},
+			templateResult,
 			test.inputAPIVersion,
 			test.inputKind,
 			test.inputNs,
@@ -385,6 +396,10 @@ func TestLookupClusterScoped(t *testing.T) {
 			}
 		} else if len(val) != 0 {
 			t.Fatal("An object was unexpected but one was returned")
+		}
+
+		if templateResult.HasSensitiveData {
+			t.Fatalf("expected HasSensitiveData to be set to false")
 		}
 	}
 }
