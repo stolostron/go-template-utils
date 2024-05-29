@@ -75,19 +75,15 @@ var (
 // - StopDelim customizes the stop delimiter used to distinguish a template action. This defaults
 // to "}}". If StartDelim is set, this must also be set.
 //
-// - InputIsYAML can be set to true to indicate that the input to the template is already in YAML format and thus does
-// not need to be converted from JSON to YAML before template processing occurs. This should be set to true when
-// passing raw YAML directly to the template resolver.
-//
 // - MissingAPIResourceCacheTTL can be set if you want to temporarily cache an API resource is missing to avoid
 // duplicate API queries when a CRD is missing. By default, this will not be cached. Note that this only affects
 // when caching is enabled.
 type Config struct {
-	AdditionalIndentation      uint
-	DisabledFunctions          []string
-	StartDelim                 string
-	StopDelim                  string
-	InputIsYAML                bool
+	AdditionalIndentation uint
+	DisabledFunctions     []string
+	StartDelim            string
+	StopDelim             string
+
 	MissingAPIResourceCacheTTL time.Duration
 }
 
@@ -108,6 +104,10 @@ type Config struct {
 // The caller must call the CacheCleanUp function returned from ResolveTemplate when done. This is useful if you are
 // splitting up calls to ResolveTemplate for a single template owner object.
 //
+// - InputIsYAML can be set to true to indicate that the input to the template is already in YAML format and thus does
+// not need to be converted from JSON to YAML before template processing occurs. This should be set to true when
+// passing raw YAML directly to the template resolver.
+//
 // - LookupNamespace is the namespace to restrict "lookup" template functions (e.g. fromConfigMap)
 // to. If this is not set (i.e. an empty string), then all namespaces can be used.
 //
@@ -119,6 +119,7 @@ type ResolveOptions struct {
 	ClusterScopedAllowList []ClusterScopedObjectIdentifier
 	EncryptionConfig
 	DisableAutoCacheCleanUp bool
+	InputIsYAML             bool
 	LookupNamespace         string
 	Watcher                 *client.ObjectIdentifier
 }
@@ -396,13 +397,6 @@ func getValidContext(context interface{}) (ctx interface{}, _ error) {
 	return context, nil
 }
 
-// SetInputIsYAML sets the resolver's inputIsYAML configuration value.
-func (t *TemplateResolver) SetInputIsYAML(inputIsYAML bool) {
-	klog.V(2).Infof("Setting InputIsYAML to %t", inputIsYAML)
-
-	t.config.InputIsYAML = inputIsYAML
-}
-
 // validateEncryptionConfig validates an EncryptionConfig struct to ensure that if encryption
 // and/or decryption are enabled that the AES Key and Initialization Vector are valid.
 func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
@@ -546,7 +540,7 @@ func (t *TemplateResolver) ResolveTemplate(
 	// convert the JSON to YAML if necessary
 	var templateStr string
 
-	if !t.config.InputIsYAML {
+	if !options.InputIsYAML {
 		templateYAMLBytes, err := JSONToYAML(tmplRaw)
 		if err != nil {
 			return resolvedResult, fmt.Errorf("failed to convert the policy template to YAML: %w", err)
