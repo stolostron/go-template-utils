@@ -53,16 +53,16 @@ Function | Description | Example
 `toInt` | Parses an input string and returns an integer but also removes anyquotes around the map value. |  `key: "{{ "6" \| toInt }}"` => `key: 6`
 `toLiteral` | Removes any quotes around the template string after it is processed. | `key: "{{ "[10.10.10.10, 1.1.1.1]" \| toLiteral }}` => `key: [10.10.10.10, 1.1.1.1]`
 
-## `template-resolver` CLI (Experimental)
+## `template-resolver` CLI (Beta)
 
 The `template-resolver` CLI tool is used to help during policy development involving
 templates. Note that the generated output is only partially validated for
 syntax.
 
-### Building the binary
+### Installing the binary
 
 ```bash
-go install ./experimental/template-resolver
+go install github.com/stolostron/go-template-utils/v4/cmd/template-resolver@latest
 ```
 
 ### Managed Cluster Templates Example
