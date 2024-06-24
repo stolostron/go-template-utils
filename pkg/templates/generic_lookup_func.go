@@ -5,6 +5,7 @@ package templates
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -296,4 +297,99 @@ func onAllowlist(allowlist []ClusterScopedObjectIdentifier, rsrc ClusterScopedOb
 	}
 
 	return false
+}
+
+func (t *TemplateResolver) getInfraNodesHelper(
+	options *ResolveOptions,
+	templateResult *TemplateResult,
+) func() (
+	map[string]interface{}, error,
+) {
+	return func() (
+		map[string]interface{}, error,
+	) {
+		return t.getInfraNodes(options, templateResult)
+	}
+}
+
+// function getInfraNodes gets a listing of all nodes with only the
+// infra role specified.  Any nodes that include other roles in addition
+// to the infra nodes are not included.   node-role.kubernetes.io/infra
+func (t *TemplateResolver) getInfraNodes(
+	options *ResolveOptions,
+	templateResult *TemplateResult,
+) (
+	map[string]interface{}, error,
+) {
+	result := []unstructured.Unstructured{}
+
+	infNodes, err := t.getOrList(options, templateResult, "v1", "Node", "", "", "node-role.kubernetes.io/infra")
+	if err != nil {
+		return nil, err
+	}
+
+	var nodeList unstructured.UnstructuredList
+
+	nlByte, err := json.Marshal(infNodes)
+	if err != nil {
+		return nil, err
+	}
+
+	_ = json.Unmarshal(nlByte, &nodeList)
+
+	// check if the nodes found contain any other role labels
+	for _, node := range nodeList.Items {
+		isInfraNode := true
+
+		for k := range node.GetLabels() {
+			if strings.HasPrefix(k, "node-role.kubernetes.io") &&
+				k != "node-role.kubernetes.io/infra" &&
+				k != "node-role.kubernetes.io/worker" {
+				isInfraNode = false
+
+				break
+			}
+		}
+
+		if isInfraNode {
+			result = append(result, node)
+		}
+	}
+
+	resultList := unstructured.UnstructuredList{Items: result}
+
+	return resultList.UnstructuredContent(), nil
+}
+
+func (t *TemplateResolver) hasInfraNodesHelper(
+	options *ResolveOptions,
+) func() (bool, error) {
+	return func() (
+		bool, error,
+	) {
+		return t.hasInfraNodes(options)
+	}
+}
+
+// function hasInfraNodes returns true if there are any nodes labeled with only the
+// infra role.  Does not include infra nodes which have additional roles on them.
+func (t *TemplateResolver) hasInfraNodes(
+	options *ResolveOptions,
+) (bool, error) {
+	var resolvedResult TemplateResult
+	var nodeList unstructured.UnstructuredList
+
+	infNodes, err := t.getInfraNodes(options, &resolvedResult)
+	if err != nil {
+		return false, err
+	}
+
+	nlByte, err := json.Marshal(infNodes)
+	if err != nil {
+		return false, err
+	}
+
+	_ = json.Unmarshal(nlByte, &nodeList)
+
+	return (len(nodeList.Items) > 0), nil
 }
