@@ -509,6 +509,8 @@ func (t *TemplateResolver) ResolveTemplate(
 		"fromSecret":        t.fromSecretHelper(options, &resolvedResult),
 		"fromConfigMap":     t.fromConfigMapHelper(options),
 		"fromClusterClaim":  t.fromClusterClaimHelper(options),
+		"getInfraNodes":     t.getInfraNodesHelper(options, &resolvedResult),
+		"hasInfraNodes":     t.hasInfraNodesHelper(options),
 		"lookup":            t.lookupHelper(options, &resolvedResult),
 		"base64enc":         base64encode,
 		"base64dec":         base64decode,

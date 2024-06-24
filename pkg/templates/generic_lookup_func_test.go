@@ -5,10 +5,9 @@ package templates
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
-
-	"golang.org/x/exp/slices"
 )
 
 func TestLookup(t *testing.T) {
@@ -401,5 +400,70 @@ func TestLookupClusterScoped(t *testing.T) {
 		if templateResult.HasSensitiveData {
 			t.Fatalf("expected HasSensitiveData to be set to false")
 		}
+	}
+}
+
+func TestGetInfraNodes(t *testing.T) {
+	t.Parallel()
+
+	resolver, err := NewResolver(k8sConfig, Config{})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	templateResult := &TemplateResult{}
+	expectedNodeNames := []string{"node-infra1", "node-infra2"}
+
+	val, err := resolver.getInfraNodes(
+		&ResolveOptions{
+			LookupNamespace:        "",
+			ClusterScopedAllowList: nil,
+		},
+		templateResult,
+	)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	if len(val["items"].([]interface{})) != 2 {
+		t.Fatal("An object was expected but not returned")
+	} else {
+		for _, lstObj := range val["items"].([]interface{}) {
+			refObject := lstObj.(map[string]interface{})
+			refObjMetadata := refObject["metadata"].(map[string]interface{})
+			if !slices.Contains(expectedNodeNames, refObjMetadata["name"].(string)) {
+				t.Fatalf(
+					"Received: %s"+
+						"expected node name:  %v,",
+					refObjMetadata["name"], expectedNodeNames)
+			}
+		}
+	}
+
+	if templateResult.HasSensitiveData {
+		t.Fatalf("expected HasSensitiveData to be set to false")
+	}
+}
+
+func TestHasInfraNodes(t *testing.T) {
+	t.Parallel()
+
+	resolver, err := NewResolver(k8sConfig, Config{})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	val, err := resolver.hasInfraNodes(
+		&ResolveOptions{
+			LookupNamespace:        "",
+			ClusterScopedAllowList: nil,
+		},
+	)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	if !val {
+		t.Fatal("Infra nodes should exist, but returned false")
 	}
 }
