@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -18,13 +19,35 @@ import (
 )
 
 func ProcessTemplate(yamlFile, hubKubeConfigPath, clusterName string) {
-	if yamlFile == "" {
-		fmt.Fprintln(os.Stderr, "Please specify an input YAML file using -i")
-		os.Exit(1)
+	var inputReader io.Reader
+
+	// Handle stdin input if empty or a hyphen, otherwise assume it's a file path
+	if yamlFile == "" || yamlFile == "-" {
+		stdinInfo, err := os.Stdin.Stat()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to read from stdin: %v\n", err)
+			os.Exit(1)
+		}
+
+		if stdinInfo.Size() == 0 {
+			fmt.Fprint(os.Stderr, "Failed to read from stdin: input is empty\n")
+			os.Exit(1)
+		}
+
+		inputReader = os.Stdin
+		yamlFile = "<stdin>"
+	} else {
+		var err error
+
+		// #nosec G304 -- Reading in a file is required for the tool to work.
+		inputReader, err = os.Open(yamlFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to read the file \"%s\": %v\n", yamlFile, err)
+			os.Exit(1)
+		}
 	}
 
-	// #nosec G304 -- Reading in a file is required for the tool to work.
-	yamlBytes, err := os.ReadFile(yamlFile)
+	yamlBytes, err := io.ReadAll(inputReader)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to read the file \"%s\": %v\n", yamlFile, err)
 		os.Exit(1)
