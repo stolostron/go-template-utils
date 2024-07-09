@@ -25,6 +25,7 @@ func main() {
     	number for the log level verbosity`)
 	}
 
+	// Handle flag arguments
 	klog.InitFlags(nil)
 	flag.StringVar(&hubKubeConfigPath, "hub-kubeconfig", "", "the input kubeconfig to also resolve hub templates")
 	flag.StringVar(
@@ -32,15 +33,19 @@ func main() {
 	)
 	flag.Parse()
 
+	// Handle file path positional argument
+	yamlFile := ""
 	args := flag.Args()
-	if len(args) != 1 {
+
+	// Validate the file path positional argument--an empty argument or `-` reads input from `stdin`
+	if len(args) > 1 {
 		fmt.Fprintln(
 			os.Stderr, "Exactly one positional argument of the YAML file to resolve templates must be provided",
 		)
 		os.Exit(1)
+	} else if len(args) == 1 {
+		yamlFile = args[0]
 	}
-
-	yamlFile := args[0]
 
 	if hubKubeConfigPath != "" && clusterName == "" {
 		fmt.Fprintln(
