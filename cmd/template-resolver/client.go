@@ -23,6 +23,8 @@ func main() {
     	the input kubeconfig to also resolve hub templates
   -v value
     	number for the log level verbosity`)
+
+		os.Exit(0)
 	}
 
 	// Handle flag arguments
@@ -39,22 +41,52 @@ func main() {
 
 	// Validate the file path positional argument--an empty argument or `-` reads input from `stdin`
 	if len(args) > 1 {
-		fmt.Fprintln(
-			os.Stderr, "Exactly one positional argument of the YAML file to resolve templates must be provided",
+		errAndExit(
+			"Exactly one positional argument of the YAML file to resolve templates must be provided. " +
+				"Use a hyphen (\"-\") to read from stdin.",
 		)
-		os.Exit(1)
-	} else if len(args) == 1 {
+	}
+
+	// Print usage if no arguments are given and stdin isn't detected
+	if len(args) == 0 {
+		stdinInfo, err := os.Stdin.Stat()
+		if err != nil {
+			errAndExit(fmt.Sprintf("Error reading stdin: %v", err))
+		}
+
+		if (stdinInfo.Mode() & os.ModeCharDevice) != 0 {
+			flag.Usage()
+		}
+	}
+
+	// Set YAML path if a positional argument is provided
+	if len(args) == 1 {
 		yamlFile = args[0]
 	}
 
 	if hubKubeConfigPath != "" && clusterName == "" {
-		fmt.Fprintln(
-			os.Stderr,
-			"When a hub kubeconfig is provided, you must provide a managed cluster name for hub templates to resolve "+
+		errAndExit(
+			"When a hub kubeconfig is provided, you must provide a managed cluster name for hub templates to resolve " +
 				"using the -cluster-name argument",
 		)
-		os.Exit(1)
 	}
 
-	templateresolver.ProcessTemplate(yamlFile, hubKubeConfigPath, clusterName)
+	yamlBytes, err := templateresolver.HandleFile(yamlFile)
+	if err != nil {
+		errAndExit(fmt.Sprintf("Error handling YAML file input: %v", err))
+	}
+
+	resolvedYAML, err := templateresolver.ProcessTemplate(yamlBytes, hubKubeConfigPath, clusterName)
+	if err != nil {
+		errAndExit(fmt.Sprintf("Error processing templates: %v", err))
+	}
+
+	//nolint: forbidigo
+	fmt.Print(string(resolvedYAML))
+}
+
+// errAndExit prints an error message and exits with exit code 1
+func errAndExit(err string) {
+	fmt.Fprintln(os.Stderr, err)
+	os.Exit(1)
 }
