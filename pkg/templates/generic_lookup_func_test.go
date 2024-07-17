@@ -5,10 +5,9 @@ package templates
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
-
-	"golang.org/x/exp/slices"
 )
 
 func TestLookup(t *testing.T) {
@@ -401,5 +400,101 @@ func TestLookupClusterScoped(t *testing.T) {
 		if templateResult.HasSensitiveData {
 			t.Fatalf("expected HasSensitiveData to be set to false")
 		}
+	}
+}
+
+func TestGetNodesWithExactRoles(t *testing.T) {
+	t.Parallel()
+
+	testcases := []struct {
+		roleNames        []string
+		expectedErr      error
+		expectedExists   bool
+		expectedObjNames []string
+	}{
+		{
+			[]string{"infra"},
+			nil,
+			true,
+			[]string{"node-infra1", "node-infra2"},
+		},
+		{
+			[]string{"storage"},
+			nil,
+			false,
+			nil,
+		},
+		{
+			[]string{"infra", "storage"},
+			nil,
+			true,
+			[]string{"node-storage"},
+		},
+	}
+
+	for _, test := range testcases {
+		resolver, err := NewResolver(k8sConfig, Config{})
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
+
+		templateResult := &TemplateResult{}
+
+		val, err := resolver.getNodesWithExactRoles(
+			&ResolveOptions{
+				LookupNamespace:        "",
+				ClusterScopedAllowList: nil,
+			},
+			templateResult,
+			test.roleNames...,
+		)
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
+
+		if len(val["items"].([]interface{})) == 0 && test.expectedExists {
+			t.Fatal("An object was expected but not returned")
+		} else {
+			for _, lstObj := range val["items"].([]interface{}) {
+				refObject := lstObj.(map[string]interface{})
+				refObjMetadata := refObject["metadata"].(map[string]interface{})
+				if !slices.Contains(test.expectedObjNames, refObjMetadata["name"].(string)) {
+					t.Fatalf(
+						"Received: %s"+
+							"expected node name:  %v,",
+						refObjMetadata["name"], test.expectedObjNames)
+				}
+			}
+		}
+
+		if templateResult.HasSensitiveData {
+			t.Fatalf("expected HasSensitiveData to be set to false")
+		}
+	}
+}
+
+func TestHasNodesWithExactRoles(t *testing.T) {
+	t.Parallel()
+
+	resolver, err := NewResolver(k8sConfig, Config{})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	testRole := []string{"infra"}
+
+	val, err := resolver.hasNodesWithExactRoles(
+		&ResolveOptions{
+			LookupNamespace:        "",
+			ClusterScopedAllowList: nil,
+		},
+		testRole...,
+	)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	if !val {
+		t.Fatal("Infra nodes should exist, but returned false")
 	}
 }

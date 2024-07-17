@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/stolostron/kubernetes-dependency-watches/client"
@@ -296,4 +297,104 @@ func onAllowlist(allowlist []ClusterScopedObjectIdentifier, rsrc ClusterScopedOb
 	}
 
 	return false
+}
+
+func (t *TemplateResolver) getNodesWithExactRolesHelper(
+	options *ResolveOptions,
+	templateResult *TemplateResult,
+) func(...string) (
+	map[string]interface{}, error,
+) {
+	return func(name ...string) (
+		map[string]interface{}, error,
+	) {
+		return t.getNodesWithExactRoles(options, templateResult, name...)
+	}
+}
+
+// function getNodesWithExactRoles returns a list of all nodes with only the
+// roles specified.  Any nodes that include other roles in addition
+// to the specified roles are not included.
+func (t *TemplateResolver) getNodesWithExactRoles(
+	options *ResolveOptions,
+	templateResult *TemplateResult,
+	name ...string,
+) (
+	map[string]interface{}, error,
+) {
+	var searchRoles []string
+
+	result := []unstructured.Unstructured{}
+
+	for _, n := range name {
+		if strings.TrimSpace(n) != "" {
+			searchRoles = append(searchRoles, fmt.Sprintf("node-role.kubernetes.io/%s", n))
+		}
+	}
+
+	if len(searchRoles) == 0 {
+		return nil, fmt.Errorf("%w: at least one name must be specified", ErrInvalidInput)
+	}
+
+	nodes, err := t.getOrList(options, templateResult, "v1", "Node", "", "", searchRoles...)
+	if err != nil {
+		return nil, err
+	}
+
+	// append the worker role to the searchRoles list, this will cause the label check
+	// below to ignore the worker role when evaluating if the node should be included
+	// in the output list of nodes
+	searchRoles = append(searchRoles, "node-role.kubernetes.io/worker")
+
+	nodeList := unstructured.UnstructuredList{}
+	nodeList.SetUnstructuredContent(nodes)
+
+	// check if the nodes found contain any other role labels
+	for _, node := range nodeList.Items {
+		isMatchedNode := true
+
+		for k := range node.GetLabels() {
+			if strings.HasPrefix(k, "node-role.kubernetes.io") &&
+				!slices.Contains(searchRoles, k) {
+				isMatchedNode = false
+
+				break
+			}
+		}
+
+		if isMatchedNode {
+			result = append(result, node)
+		}
+	}
+
+	resultList := unstructured.UnstructuredList{Items: result}
+
+	return resultList.UnstructuredContent(), nil
+}
+
+func (t *TemplateResolver) hasNodesWithExactRolesHelper(
+	options *ResolveOptions,
+) func(...string) (bool, error) {
+	return func(name ...string) (
+		bool, error,
+	) {
+		return t.hasNodesWithExactRoles(options, name...)
+	}
+}
+
+// function hasNodesWithExactRoles returns true if there are any nodes labeled with only the
+// specified roles.  Does not include nodes which have additional roles on them.
+func (t *TemplateResolver) hasNodesWithExactRoles(
+	options *ResolveOptions, name ...string,
+) (bool, error) {
+	var resolvedResult TemplateResult
+
+	nodes, err := t.getNodesWithExactRoles(options, &resolvedResult, name...)
+	if err != nil {
+		return false, err
+	}
+
+	items, _, _ := unstructured.NestedSlice(nodes, "items")
+
+	return len(items) > 0, nil
 }

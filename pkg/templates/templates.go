@@ -498,22 +498,24 @@ func (t *TemplateResolver) ResolveTemplate(
 
 	// Build Map of supported template functions
 	funcMap := template.FuncMap{
-		"copyConfigMapData": t.copyConfigMapDataHelper(options),
-		"copySecretData":    t.copySecretDataHelper(options, &resolvedResult),
-		"fromSecret":        t.fromSecretHelper(options, &resolvedResult),
-		"fromConfigMap":     t.fromConfigMapHelper(options),
-		"fromClusterClaim":  t.fromClusterClaimHelper(options),
-		"lookup":            t.lookupHelper(options, &resolvedResult),
-		"base64enc":         base64encode,
-		"base64dec":         base64decode,
-		"b64enc":            base64encode, // Link the Sprig name to our function
-		"b64dec":            base64decode, // Link the Sprig name to our function
-		"autoindent":        autoindent,
-		"indent":            t.indent,
-		"atoi":              atoi,
-		"toInt":             toInt,
-		"toBool":            toBool,
-		"toLiteral":         toLiteral,
+		"copyConfigMapData":      t.copyConfigMapDataHelper(options),
+		"copySecretData":         t.copySecretDataHelper(options, &resolvedResult),
+		"fromSecret":             t.fromSecretHelper(options, &resolvedResult),
+		"fromConfigMap":          t.fromConfigMapHelper(options),
+		"fromClusterClaim":       t.fromClusterClaimHelper(options),
+		"getNodesWithExactRoles": t.getNodesWithExactRolesHelper(options, &resolvedResult),
+		"hasNodesWithExactRoles": t.hasNodesWithExactRolesHelper(options),
+		"lookup":                 t.lookupHelper(options, &resolvedResult),
+		"base64enc":              base64encode,
+		"base64dec":              base64decode,
+		"b64enc":                 base64encode, // Link the Sprig name to our function
+		"b64dec":                 base64decode, // Link the Sprig name to our function
+		"autoindent":             autoindent,
+		"indent":                 t.indent,
+		"atoi":                   atoi,
+		"toInt":                  toInt,
+		"toBool":                 toBool,
+		"toLiteral":              toLiteral,
 	}
 
 	// Add all the functions from sprig we will support
