@@ -52,6 +52,8 @@ Function | Description | Example
 `toBool` | Parses an input boolean string converts it to a boolean but also removes any quotes around the map value. | `key: "{{ "true" \| toBool }}"` => `key: true`
 `toInt` | Parses an input string and returns an integer but also removes anyquotes around the map value. |  `key: "{{ "6" \| toInt }}"` => `key: 6`
 `toLiteral` | Removes any quotes around the template string after it is processed. | `key: "{{ "[10.10.10.10, 1.1.1.1]" \| toLiteral }}` => `key: [10.10.10.10, 1.1.1.1]`
+`getNodesWithExactRoles` | Returns a list of nodes with only the role(s) specified, ignores nodes that have any additional roles except "*node-role.kubernetes.io/worker*" role. | `{{ (getNodesWithExactRoles "infra").items }}`
+`hasNodesWithExactRoles` | Returns `true` if the cluster contains node(s) with only the role(s) specified, ignores nodes that have any additional roles except "*node-role.kubernetes.io/worker*" role. | `key: {{ (hasNodesWithExactRoles "infra") }}` => `key: true`
 
 ## `template-resolver` CLI (Beta)
 

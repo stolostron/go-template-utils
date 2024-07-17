@@ -185,6 +185,63 @@ func setUp() {
 		panic(err.Error())
 	}
 
+	// sample Nodes to test Infra node lookups
+	nodea1 := corev1.Node{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Node",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-infra1",
+			Labels: map[string]string{
+				"node-role.kubernetes.io/infra": "",
+			},
+		},
+	}
+
+	nodea2 := corev1.Node{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Node",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-infra2",
+			Labels: map[string]string{
+				"node-role.kubernetes.io/infra":  "",
+				"node-role.kubernetes.io/worker": "",
+			},
+		},
+	}
+
+	nodeb := corev1.Node{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Node",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-storage",
+			Labels: map[string]string{
+				"node-role.kubernetes.io/infra":   "",
+				"node-role.kubernetes.io/storage": "",
+			},
+		},
+	}
+
+	_, err = k8sClient.CoreV1().Nodes().Create(ctx, &nodea1, metav1.CreateOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	_, err = k8sClient.CoreV1().Nodes().Create(ctx, &nodea2, metav1.CreateOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	_, err = k8sClient.CoreV1().Nodes().Create(ctx, &nodeb, metav1.CreateOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
 	k8sDynClient, err := dynamic.NewForConfig(k8sConfig)
 	if err != nil {
 		panic(err.Error())
