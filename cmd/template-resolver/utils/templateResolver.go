@@ -15,7 +15,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/stolostron/go-template-utils/v5/pkg/templates"
+	"github.com/stolostron/go-template-utils/v6/pkg/templates"
 )
 
 // HandleFile takes a file path and returns the resulting byte array. If an

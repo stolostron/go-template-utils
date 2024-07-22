@@ -64,7 +64,7 @@ func TestNewResolverWithDynamicWatcher(t *testing.T) {
 		t.Fatalf("No error was expected: %v", err)
 	}
 
-	resolver, err := NewResolverWithDynamicWatcher(dynWatcher, Config{})
+	resolver, err := NewResolverWithDynamicWatcher(dynWatcher, Config{SkipBatchManagement: true})
 	if err != nil {
 		t.Fatalf("No error was expected: %v", err)
 	}
@@ -232,6 +232,11 @@ func TestResolveTemplateWithCaching(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
+	err = resolver.StartQueryBatch(client.ObjectIdentifier{})
+	if err == nil || !strings.Contains(err.Error(), "SkipBatchManagement set to true") {
+		t.Fatalf("Expected an error due SkipBatchManagement not being set to true but got %v", err)
+	}
+
 	tmplStr := `
 data1: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'
 data2: '{{ fromSecret "testns" "testsecret" "secretkey2" }}'
@@ -325,13 +330,27 @@ data4: '{{ (lookup "v1" "Secret" "testns" "does-not-exist").data.key }}'
 	}
 }
 
+func TestStartQueryBatchNoCaching(t *testing.T) {
+	t.Parallel()
+
+	resolver, err := NewResolver(k8sConfig, Config{})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	err = resolver.StartQueryBatch(client.ObjectIdentifier{})
+	if err == nil || !errors.Is(err, ErrCacheDisabled) {
+		t.Fatalf("Expected an error due to the caching being disabled but got %v", err)
+	}
+}
+
 func TestResolveTemplateWithCachingManualCleanUp(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
-	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
+	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{SkipBatchManagement: true})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -351,8 +370,12 @@ func TestResolveTemplateWithCachingManualCleanUp(t *testing.T) {
 	}
 
 	resolveOptions := &ResolveOptions{
-		DisableAutoCacheCleanUp: true,
-		Watcher:                 &watcher,
+		Watcher: &watcher,
+	}
+
+	err = resolver.StartQueryBatch(watcher)
+	if err != nil {
+		t.Fatal(err.Error())
 	}
 
 	result, err := resolver.ResolveTemplate(tmplStrBytes, nil, resolveOptions)
@@ -388,7 +411,8 @@ func TestResolveTemplateWithCachingManualCleanUp(t *testing.T) {
 		t.Fatalf("Expected two watches but got %d", resolver.GetWatchCount())
 	}
 
-	if err := result2.CacheCleanUp(); err != nil {
+	err = resolver.EndQueryBatch(watcher)
+	if err != nil {
 		t.Fatal(err.Error())
 	}
 }
@@ -515,7 +539,7 @@ func TestResolveTemplateWithPreexistingWatcher(t *testing.T) {
 		t.Fatalf("No error was expected: %v", err)
 	}
 
-	resolver, err := NewResolverWithDynamicWatcher(dynWatcher, Config{})
+	resolver, err := NewResolverWithDynamicWatcher(dynWatcher, Config{SkipBatchManagement: true})
 	if err != nil {
 		t.Fatalf("No error was expected: %v", err)
 	}
