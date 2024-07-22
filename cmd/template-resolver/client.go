@@ -9,7 +9,7 @@ import (
 
 	"k8s.io/klog"
 
-	templateresolver "github.com/stolostron/go-template-utils/v5/cmd/template-resolver/utils"
+	templateresolver "github.com/stolostron/go-template-utils/v6/cmd/template-resolver/utils"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-module github.com/stolostron/go-template-utils/v5
+module github.com/stolostron/go-template-utils/v6
 
 go 1.21
 

@@ -78,13 +78,17 @@ var (
 // - MissingAPIResourceCacheTTL can be set if you want to temporarily cache an API resource is missing to avoid
 // duplicate API queries when a CRD is missing. By default, this will not be cached. Note that this only affects
 // when caching is enabled.
+//
+// - SkipBatchManagement can be set if multiple calls to ResolveTemplate are needed for one watcher before API watches
+// and cache entries are cleaned up. The manual control is done with the StartQueryBatch and EndQueryBatch methods.
+// This has no effect if caching is not enabled.
 type Config struct {
-	AdditionalIndentation uint
-	DisabledFunctions     []string
-	StartDelim            string
-	StopDelim             string
-
+	AdditionalIndentation      uint
+	DisabledFunctions          []string
+	StartDelim                 string
+	StopDelim                  string
 	MissingAPIResourceCacheTTL time.Duration
+	SkipBatchManagement        bool
 }
 
 // ResolveOptions is a struct containing configuration for calling ResolveTemplate.
@@ -100,10 +104,6 @@ type Config struct {
 //
 // - EncryptionConfig is the configuration for template encryption/decryption functionality.
 //
-// - DisableAutoCacheCleanUp will not clean up stale API watches and cache entries after ResolveTemplate is called.
-// The caller must call the CacheCleanUp function returned from ResolveTemplate when done. This is useful if you are
-// splitting up calls to ResolveTemplate for a single template owner object.
-//
 // - InputIsYAML can be set to true to indicate that the input to the template is already in YAML format and thus does
 // not need to be converted from JSON to YAML before template processing occurs. This should be set to true when
 // passing raw YAML directly to the template resolver.
@@ -118,10 +118,9 @@ type ResolveOptions struct {
 	) (transformedContext interface{}, err error)
 	ClusterScopedAllowList []ClusterScopedObjectIdentifier
 	EncryptionConfig
-	DisableAutoCacheCleanUp bool
-	InputIsYAML             bool
-	LookupNamespace         string
-	Watcher                 *client.ObjectIdentifier
+	InputIsYAML     bool
+	LookupNamespace string
+	Watcher         *client.ObjectIdentifier
 }
 
 type ClusterScopedObjectIdentifier struct {
@@ -174,15 +173,10 @@ type TemplateResolver struct {
 	// If caching is disabled, this will act as a temporary cache for objects during the execution of the
 	// ResolveTemplate call.
 	tempCallCache client.ObjectCache
-	// When a pre-existing DynamicWatcher is used, let the caller fully manage the QueryBatch.
-	skipBatchManagement bool
 }
-
-type CacheCleanUpFunc func() error
 
 type TemplateResult struct {
 	ResolvedJSON []byte
-	CacheCleanUp CacheCleanUpFunc
 	// HasSensitiveData is true if a template references a secret or decrypts an encrypted value.
 	HasSensitiveData bool
 }
@@ -297,12 +291,11 @@ func NewResolverWithDynamicWatcher(dynWatcher client.DynamicWatcher, config Conf
 	}
 
 	return &TemplateResolver{
-		config:              config,
-		dynamicClient:       nil,
-		kubeConfig:          nil,
-		dynamicWatcher:      dynWatcher,
-		tempCallCache:       nil,
-		skipBatchManagement: true,
+		config:         config,
+		dynamicClient:  nil,
+		kubeConfig:     nil,
+		dynamicWatcher: dynWatcher,
+		tempCallCache:  nil,
 	}, nil
 }
 
@@ -441,6 +434,33 @@ func validateEncryptionConfig(encryptionConfig EncryptionConfig) error {
 	}
 
 	return nil
+}
+
+// StartQueryBatch will start a query batch transaction for the watcher. After template resolution is complete for a
+// watcher, calling EndQueryBatch will clean up the non-applicable preexisting watches made from before this query
+// batch.
+func (t *TemplateResolver) StartQueryBatch(watcher client.ObjectIdentifier) error {
+	if t.dynamicWatcher == nil {
+		return ErrCacheDisabled
+	}
+
+	if !t.config.SkipBatchManagement {
+		return errors.New(
+			"the TemplateResolver must have SkipBatchManagement set to true to manage the batches explicitly",
+		)
+	}
+
+	return t.dynamicWatcher.StartQueryBatch(watcher)
+}
+
+// EndQueryBatch will stop a query batch transaction for the watcher. This will clean up the non-applicable preexisting
+// watches made from before this query batch.
+func (t *TemplateResolver) EndQueryBatch(watcher client.ObjectIdentifier) error {
+	if t.dynamicWatcher == nil {
+		return ErrCacheDisabled
+	}
+
+	return t.dynamicWatcher.EndQueryBatch(watcher)
 }
 
 // ResolveTemplate accepts a map marshaled as JSON or YAML. It also accepts a struct
@@ -591,32 +611,24 @@ func (t *TemplateResolver) ResolveTemplate(
 	if t.dynamicWatcher != nil {
 		watcher := *options.Watcher
 
-		if !t.skipBatchManagement {
+		if !t.config.SkipBatchManagement {
 			err := t.dynamicWatcher.StartQueryBatch(watcher)
 			if err != nil {
 				if !errors.Is(err, client.ErrQueryBatchInProgress) {
 					return resolvedResult, err
 				}
 
-				if !options.DisableAutoCacheCleanUp {
-					return resolvedResult, fmt.Errorf(
-						"ResolveTemplate cannot be called with the same watchedObject in parallel: %w", err,
-					)
-				}
+				return resolvedResult, fmt.Errorf(
+					"ResolveTemplate cannot be called with the same watchedObject in parallel: %w", err,
+				)
 			}
 
-			if options.DisableAutoCacheCleanUp {
-				resolvedResult.CacheCleanUp = func() error {
-					return t.dynamicWatcher.EndQueryBatch(*options.Watcher)
+			defer func() {
+				err := t.dynamicWatcher.EndQueryBatch(watcher)
+				if err != nil {
+					klog.Errorf("failed to end the query batch for %s: %v", watcher, err)
 				}
-			} else {
-				defer func() {
-					err := t.dynamicWatcher.EndQueryBatch(watcher)
-					if err != nil && !errors.Is(err, client.ErrQueryBatchNotStarted) {
-						klog.Errorf("failed to end the query batch for %s: %v", watcher, err)
-					}
-				}()
-			}
+			}()
 		}
 
 		for i, contextTransformer := range options.ContextTransformers {
