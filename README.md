@@ -64,7 +64,7 @@ syntax.
 ### Installing the binary
 
 ```bash
-go install github.com/stolostron/go-template-utils/v4/cmd/template-resolver@latest
+go install github.com/stolostron/go-template-utils/v6/cmd/template-resolver@latest
 ```
 
 ### Managed Cluster Templates Example
