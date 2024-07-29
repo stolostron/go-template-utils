@@ -7,9 +7,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/stolostron/go-template-utils/v6/cmd/template-resolver/utils"
 	"k8s.io/klog"
-
-	templateresolver "github.com/stolostron/go-template-utils/v6/cmd/template-resolver/utils"
 )
 
 func main() {
@@ -71,12 +70,12 @@ func main() {
 		)
 	}
 
-	yamlBytes, err := templateresolver.HandleFile(yamlFile)
+	yamlBytes, err := utils.HandleFile(yamlFile)
 	if err != nil {
 		errAndExit(fmt.Sprintf("Error handling YAML file input: %v", err))
 	}
 
-	resolvedYAML, err := templateresolver.ProcessTemplate(yamlBytes, hubKubeConfigPath, clusterName)
+	resolvedYAML, err := utils.ProcessTemplate(yamlBytes, hubKubeConfigPath, clusterName)
 	if err != nil {
 		errAndExit(fmt.Sprintf("Error processing templates: %v", err))
 	}

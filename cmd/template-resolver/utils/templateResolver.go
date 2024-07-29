@@ -1,4 +1,4 @@
-package templateresolver
+package utils
 
 import (
 	"bytes"
