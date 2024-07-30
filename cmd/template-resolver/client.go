@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/stolostron/go-template-utils/v6/cmd/template-resolver/utils"
 	"k8s.io/klog"
+
+	"github.com/stolostron/go-template-utils/v6/cmd/template-resolver/utils"
 )
 
 func main() {
