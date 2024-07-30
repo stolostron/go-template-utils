@@ -21,10 +21,6 @@ import (
 // HandleFile takes a file path and returns the resulting byte array. If an
 // empty string ("") or hyphen ("-") is provided, input is read from stdin.
 func HandleFile(yamlFile string) ([]byte, error) {
-	if yamlFile == "" {
-		return nil, fmt.Errorf("provided filepath is empty")
-	}
-
 	var inputReader io.Reader
 
 	// Handle stdin input given a hyphen, otherwise assume it's a file path
