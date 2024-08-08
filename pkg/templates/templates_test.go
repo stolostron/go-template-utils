@@ -724,6 +724,16 @@ func TestResolveTemplateErrors(t *testing.T) {
 			ctx:         struct{ Foo map[int]string }{Foo: map[int]string{47: "something"}},
 			expectedErr: ErrInvalidContextType,
 		},
+		"invalid_context_nested_struct": {
+			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
+			ctx:         struct{ Metadata struct{ NestedInt int } }{struct{ NestedInt int }{NestedInt: 3}},
+			expectedErr: ErrInvalidContextType,
+		},
+		"invalid_context_not_struct": {
+			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
+			ctx:         map[string]string{"hello": "world"},
+			expectedErr: ErrInvalidContextType,
+		},
 		"disabled_fromSecret": {
 			inputTmpl: `data: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`,
 			config:    Config{DisabledFunctions: []string{"fromSecret"}},
@@ -835,6 +845,13 @@ func TestResolveTemplateWithConfig(t *testing.T) {
 func TestResolveTemplateWithContext(t *testing.T) {
 	t.Parallel()
 
+	type partialMetadata struct {
+		Annotations map[string]string
+		Labels      map[string]string
+		Name        string
+		Namespace   string
+	}
+
 	testcases := map[string]resolveTestCase{
 		"ClusterName": {
 			inputTmpl:      `config1: '{{ .ClusterName  }}'`,
@@ -857,6 +874,30 @@ func TestResolveTemplateWithContext(t *testing.T) {
 			inputTmpl:      `value: '{{ .Foo.greeting }}'`,
 			ctx:            struct{ Foo map[string]string }{Foo: map[string]string{"greeting": "hello"}},
 			expectedResult: "value: hello",
+		},
+		"nested_struct": {
+			inputTmpl: `value: '{{ .Metadata.Labels.hello }} {{ .Metadata.Namespace }}'`,
+			ctx: struct{ Metadata partialMetadata }{
+				Metadata: partialMetadata{
+					Labels: map[string]string{
+						"hello": "world",
+					},
+					Namespace: "spacename",
+				},
+			},
+			expectedResult: "value: world spacename",
+		},
+		"nested_map2": {
+			inputTmpl: `value: '{{ .Metadata.labels.hello }} {{ .Metadata.namespace }}'`,
+			ctx: struct{ Metadata map[string]interface{} }{
+				Metadata: map[string]interface{}{
+					"labels": map[string]string{
+						"hello": "world",
+					},
+					"namespace": "spacename",
+				},
+			},
+			expectedResult: "value: world spacename",
 		},
 	}
 
