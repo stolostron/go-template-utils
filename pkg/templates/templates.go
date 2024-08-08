@@ -49,7 +49,8 @@ var (
 	ErrProtectNotEnabled     = errors.New("the protect template function is not enabled in this mode")
 	ErrNewLinesNotAllowed    = errors.New("new lines are not allowed in the string passed to the toLiteral function")
 	ErrInvalidContextType    = errors.New(
-		"the input context must be a struct, with either string fields or map[string]string fields",
+		"the input context must be a struct with fields (recursively) of type string, map[string]string, " +
+			"map[string]interface{}, or struct",
 	)
 	ErrMissingNamespace = errors.New(
 		"the lookup of a single namespaced resource must have a namespace specified",
@@ -352,42 +353,70 @@ func UsesEncryption(template []byte, startDelim string, stopDelim string) bool {
 	return usesEncryption
 }
 
-// getValidContext takes an input context struct with string fields and
-// validates it. If it is valid, the context will be returned as is. If the
-// input context is nil, an empty struct will be returned. If it's not valid, an
-// error will be returned.
-func getValidContext(context interface{}) (ctx interface{}, _ error) {
-	var ctxType reflect.Type
-
-	if context == nil {
-		ctx = struct{}{}
-
-		return ctx, nil
+// getValidContext takes an input context struct and validates it. If it is valid, the context will be returned as is.
+// If the input context is nil, an empty struct will be returned. If it's not valid, an error will be returned.
+func getValidContext(value interface{}) (interface{}, error) {
+	if value == nil {
+		return struct{}{}, nil
 	}
 
-	ctxType = reflect.TypeOf(context)
-
-	if ctxType.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("%w, got %s", ErrInvalidContextType, ctxType)
+	// Require the context to be a struct
+	if reflect.TypeOf(value).Kind() != reflect.Struct {
+		return nil, fmt.Errorf("%w, got %s", ErrInvalidContextType, reflect.TypeOf(value))
 	}
 
-	for i := 0; i < ctxType.NumField(); i++ {
-		f := ctxType.Field(i)
+	// Require the context to have fields of strings or maps/structs with string/map values/fields.
+	err := getValidContextHelper(value)
+	if err != nil {
+		return nil, err
+	}
 
-		switch f.Type.Kind() {
-		case reflect.String:
-			// good
-		case reflect.Map:
-			// check if it's map[string]string
-			if f.Type.Elem().Kind() != reflect.String || f.Type.Key().Kind() != reflect.String {
-				return nil, ErrInvalidContextType
+	return value, nil
+}
+
+func getValidContextHelper(value interface{}) error {
+	f := reflect.TypeOf(value)
+
+	switch f.Kind() {
+	case reflect.String:
+		return nil
+	case reflect.Struct:
+		for i := 0; i < f.NumField(); i++ {
+			err := getValidContextHelper(reflect.ValueOf(value).Field(i).Interface())
+			if err != nil {
+				return err
 			}
-		default:
-			return nil, ErrInvalidContextType
 		}
-	}
 
-	return context, nil
+		return nil
+	case reflect.Map:
+		// Only allow string keys in maps
+		if f.Key().Kind() != reflect.String {
+			return ErrInvalidContextType
+		}
+
+		// Check if it's a map of maps/strings. This is to allow things such as the Kubernetes metadata field which has
+		// string (e.g. name) and map[string]string (e.g. labels) values.
+		if f.Elem().Kind() == reflect.Interface || f.Elem().Kind() == reflect.Map {
+			for _, key := range reflect.ValueOf(value).MapKeys() {
+				err := getValidContextHelper(reflect.ValueOf(value).MapIndex(key).Interface())
+				if err != nil {
+					return err
+				}
+			}
+
+			return nil
+		}
+
+		// Check if it's map[string]string
+		if f.Elem().Kind() != reflect.String {
+			return ErrInvalidContextType
+		}
+
+		return nil
+	default:
+		return ErrInvalidContextType
+	}
 }
 
 // validateEncryptionConfig validates an EncryptionConfig struct to ensure that if encryption
@@ -463,8 +492,8 @@ func (t *TemplateResolver) EndQueryBatch(watcher client.ObjectIdentifier) error 
 	return t.dynamicWatcher.EndQueryBatch(watcher)
 }
 
-// ResolveTemplate accepts a map marshaled as JSON or YAML. It also accepts a struct
-// with string fields that will be made available when the template is processed.
+// ResolveTemplate accepts a map marshaled as JSON or YAML. It also accepts a combination of structs and maps that
+// ultimately end in a string value to be made available when the template is processed.
 // For example, if the argument is `struct{ClusterName string}{"cluster1"}`,
 // the value `cluster1` would be available with `{{ .ClusterName }}`. This can
 // also be `nil` if no fields should be made available.
