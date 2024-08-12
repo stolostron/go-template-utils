@@ -18,6 +18,17 @@ import (
 	"github.com/stolostron/go-template-utils/v6/pkg/templates"
 )
 
+type hubTemplateCtx struct {
+	ManagedClusterName   string
+	ManagedClusterLabels map[string]string
+}
+
+type hubTemplateOptions struct {
+	config templates.Config
+	opts   templates.ResolveOptions
+	ctx    hubTemplateCtx
+}
+
 // HandleFile takes a file path and returns the resulting byte array. If an
 // empty string ("") or hyphen ("-") is provided, input is read from stdin.
 func HandleFile(yamlFile string) ([]byte, error) {
@@ -54,26 +65,18 @@ func HandleFile(yamlFile string) ([]byte, error) {
 	return yamlBytes, nil
 }
 
-// ProcessTemplate takes a YAML byte array input, unmarshals it to a Policy, processes the
-// templates, and marshals it back to YAML, returning the resulting byte array. Validation is
-// performed along the way, returning an error if any failures are found. It uses the
-// `hubKubeConfigPath` and `clusterName` to establish a dynamic client with the hub to resolve any
-// hub templates it finds.
+// ProcessTemplate takes a YAML byte array input, unmarshals it to a Policy, ConfigPolicy,
+// or object-templates-raw, processes the templates, and marshals it back to YAML,
+// returning the resulting byte array. Validation is performed along the way, returning
+// an error if any failures are found. It uses the `hubKubeConfigPath` and `clusterName`
+// to establish a dynamic client with the hub to resolve any hub templates it finds.
+// Note that a hub resolver only supports resolving Policies.
 func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName string) ([]byte, error) {
 	policy := unstructured.Unstructured{}
 
 	err := yaml.Unmarshal(yamlBytes, &policy.Object)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse input to YAML: %w", err)
-	}
-
-	if policy.GetKind() != "Policy" && policy.GetAPIVersion() != "policy.open-cluster-management.io/v1" {
-		return nil, fmt.Errorf("the input YAML file is not a v1 Policy manifest")
-	}
-
-	policyTemplates, _, err := unstructured.NestedSlice(policy.Object, "spec", "policy-templates")
-	if err != nil {
-		return nil, fmt.Errorf("invalid policy-templates array was provided: %w", err)
 	}
 
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
@@ -84,18 +87,20 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName string) ([
 		return nil, fmt.Errorf("failed to determine the kubeconfig to use: %w", err)
 	}
 
+	hubTemplateOpts := &hubTemplateOptions{
+		config: templates.Config{
+			AdditionalIndentation: 8,
+			DisabledFunctions:     []string{},
+			StartDelim:            "{{hub",
+			StopDelim:             "hub}}",
+		},
+	}
+
 	var hubResolver *templates.TemplateResolver
 
-	hubTemplateCtx := struct {
-		ManagedClusterName   string
-		ManagedClusterLabels map[string]string
-	}{ManagedClusterName: clusterName}
-
-	var hubResolveOptions templates.ResolveOptions
-
 	if hubKubeConfigPath != "" {
-		if policy.GetNamespace() == "" {
-			return nil, fmt.Errorf("the input Policy manifest must specify a namespace for hub templates")
+		if policy.GetKind() == "Policy" && policy.GetNamespace() == "" {
+			return nil, fmt.Errorf("the input Policy must specify a namespace for hub templates")
 		}
 
 		hubKubeConfig, err := clientcmd.BuildConfigFromFlags("", hubKubeConfigPath)
@@ -119,16 +124,10 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName string) ([
 			return nil, fmt.Errorf("failed to get the ManagedCluster object for %s: %w", clusterName, err)
 		}
 
-		hubTemplateCtx.ManagedClusterLabels = mc.GetLabels()
+		hubTemplateOpts.ctx.ManagedClusterName = clusterName
+		hubTemplateOpts.ctx.ManagedClusterLabels = mc.GetLabels()
 
-		hubTemplatesConfig := templates.Config{
-			AdditionalIndentation: 8,
-			DisabledFunctions:     []string{},
-			StartDelim:            "{{hub",
-			StopDelim:             "hub}}",
-		}
-
-		hubResolveOptions = templates.ResolveOptions{
+		hubTemplateOpts.opts = templates.ResolveOptions{
 			ClusterScopedAllowList: []templates.ClusterScopedObjectIdentifier{{
 				Group: "cluster.open-cluster-management.io",
 				Kind:  "ManagedCluster",
@@ -137,10 +136,17 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName string) ([
 			LookupNamespace: policy.GetNamespace(),
 		}
 
-		hubResolver, err = templates.NewResolver(hubKubeConfig, hubTemplatesConfig)
+		hubResolver, err = templates.NewResolver(hubKubeConfig, hubTemplateOpts.config)
 		if err != nil {
 			return nil, fmt.Errorf("failed to instantiate the hub template resolver: %w", err)
 		}
+
+		hubResolvedObject, err := resolveHubTemplates(policy.Object, hubResolver, hubTemplateOpts)
+		if err != nil {
+			return nil, err
+		}
+
+		policy.Object = hubResolvedObject
 	}
 
 	resolver, err := templates.NewResolver(kubeConfig, templates.Config{})
@@ -148,15 +154,57 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName string) ([
 		return nil, fmt.Errorf("failed to instantiate the template resolver: %w", err)
 	}
 
+	switch policy.GetKind() {
+	case "Policy":
+		err = processPolicyTemplate(&policy, resolver)
+	case "ConfigurationPolicy":
+		err = processConfigPolicyTemplate(&policy, resolver)
+	default:
+		if _, ok := policy.Object["object-templates-raw"]; !ok {
+			return nil, fmt.Errorf("invalid YAML. Supported types: Policy, " +
+				"ConfigurationPolicy, object-templates-raw")
+		}
+
+		err = processObjTemplatesRaw(&policy, resolver)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	resolvedJSON, err := json.Marshal(policy.Object)
+	if err != nil {
+		return nil, fmt.Errorf("invalid JSON resulted after resolving templates: %w", err)
+	}
+
+	resolvedYAML, err := templates.JSONToYAML(resolvedJSON)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert the processed object back to YAML: %w", err)
+	}
+
+	return resolvedYAML, nil
+}
+
+// ProcessPolicyTemplate takes the unmarshalled Policy YAML as input and resolves
+// all valid ConfigurationPolicy templates specified in the policy-templates field
+func processPolicyTemplate(
+	policy *unstructured.Unstructured,
+	resolver *templates.TemplateResolver,
+) error {
+	policyTemplates, _, err := unstructured.NestedSlice(policy.Object, "spec", "policy-templates")
+	if err != nil {
+		return fmt.Errorf("invalid policy-templates array was provided: %w", err)
+	}
+
 	for i := range policyTemplates {
 		policyTemplate, ok := policyTemplates[i].(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("invalid policy-templates entry was provided: %w", err)
+			return fmt.Errorf("invalid policy-templates entry was provided: %w", err)
 		}
 
 		objectDefinition, ok := policyTemplate["objectDefinition"].(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("invalid policy-templates entry was provided: %w", err)
+			return fmt.Errorf("invalid policy-templates entry was provided: %w", err)
 		}
 
 		objectDefinitionUnstructured := unstructured.Unstructured{Object: objectDefinition}
@@ -168,143 +216,213 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName string) ([
 			continue
 		}
 
-		if hubResolver != nil {
-			objectDefinitionJSON, err := json.Marshal(objectDefinition)
-			if err != nil {
-				return nil, fmt.Errorf("invalid policy-templates entry at index %d: %w", i, err)
-			}
-
-			hubTemplateResult, err := hubResolver.ResolveTemplate(
-				objectDefinitionJSON, hubTemplateCtx, &hubResolveOptions,
-			)
-			if err != nil {
-				return nil, fmt.Errorf("invalid policy-templates entry at index %d: %w", i, err)
-			}
-
-			var resolvedObjectDefinition map[string]interface{}
-
-			err = json.Unmarshal(hubTemplateResult.ResolvedJSON, &resolvedObjectDefinition)
-			if err != nil {
-				return nil, fmt.Errorf(
-					"invalid policy-templates entry at index %d after resolving templates: %w",
-					i,
-					err,
-				)
-			}
-
-			err = unstructured.SetNestedField(policyTemplate, resolvedObjectDefinition, "objectDefinition")
-			if err != nil {
-				return nil, fmt.Errorf(
-					"invalid policy-templates entry at index %d after resolving templates: %w",
-					i,
-					err,
-				)
-			}
-
-			objectDefinition = policyTemplate["objectDefinition"].(map[string]interface{})
-			objectDefinitionUnstructured.Object = objectDefinition
-		}
-
-		var rawDataList [][]byte
-
-		resolveOptions := templates.ResolveOptions{}
-
-		oTRaw, oTRawFound, _ := unstructured.NestedString(objectDefinition, "spec", "object-templates-raw")
-		if oTRawFound {
-			resolveOptions.InputIsYAML = true
-
-			rawDataList = [][]byte{[]byte(oTRaw)}
-		} else {
-			resolveOptions.InputIsYAML = false
-
-			objTemplates, _, err := unstructured.NestedSlice(objectDefinition, "spec", "object-templates")
-			if err != nil {
-				return nil, fmt.Errorf(
-					"invalid object-templates array in ConfigurationPolicy at policy-templates index %d: %w",
-					i,
-					err,
-				)
-			}
-
-			for _, objTemplate := range objTemplates {
-				jsonBytes, err := json.Marshal(objTemplate)
-				if err != nil {
-					return nil, fmt.Errorf(
-						"invalid object-templates array in ConfigurationPolicy at policy-templates index %d: %w",
-						i,
-						err,
-					)
-				}
-
-				rawDataList = append(rawDataList, jsonBytes)
-			}
-		}
-
-		objectTemplates := make([]interface{}, 0, len(rawDataList))
-
-		for _, rawData := range rawDataList {
-			if bytes.Contains(rawData, []byte("{{hub")) {
-				return nil, fmt.Errorf(
-					"unresolved hub template in ConfigurationPolicy at policy-templates index %d. "+
-						"Use the -hub-kubeconfig argument",
-					i,
-				)
-			}
-
-			tmplResult, err := resolver.ResolveTemplate(rawData, nil, &resolveOptions)
-			if err != nil {
-				return nil, fmt.Errorf("failed to process the templates at policy-templates index %d: %w", i, err)
-			}
-
-			var resolvedOT interface{}
-
-			err = json.Unmarshal(tmplResult.ResolvedJSON, &resolvedOT)
-			if err != nil {
-				return nil, fmt.Errorf("failed to process the templates at policy-templates index %d: %w", i, err)
-			}
-
-			if oTRawFound {
-				switch v := resolvedOT.(type) {
-				case []interface{}:
-					objectTemplates = v
-				case nil:
-					objectTemplates = []interface{}{}
-				default:
-					return nil, fmt.Errorf(
-						"object-templates-raw in policy-templates index %d was not an array after templates were "+
-							"resolved",
-						i,
-					)
-				}
-
-				unstructured.RemoveNestedField(objectDefinition, "spec", "object-templates-raw")
-
-				break
-			}
-
-			objectTemplates = append(objectTemplates, resolvedOT)
-		}
-
-		err = unstructured.SetNestedSlice(objectDefinition, objectTemplates, "spec", "object-templates")
+		objectDefinition, err = processObjectTemplates(objectDefinition, resolver)
 		if err != nil {
-			return nil, fmt.Errorf("failed to process the templates at policy-templates index %d: %w", i, err)
+			return fmt.Errorf("%w (in policy-templates at index %d)", err, i)
+		}
+
+		err = unstructured.SetNestedField(policyTemplate, objectDefinition, "objectDefinition")
+		if err != nil {
+			return fmt.Errorf(
+				"invalid policy-templates entry at index %d after resolving templates: %w",
+				i,
+				err,
+			)
 		}
 	}
 
 	err = unstructured.SetNestedSlice(policy.Object, policyTemplates, "spec", "policy-templates")
 	if err != nil {
-		return nil, fmt.Errorf("invalid policy-templates after resolving templates: %w", err)
+		return fmt.Errorf("invalid policy-templates after resolving templates: %w", err)
 	}
 
-	resolvedPolicy, err := json.Marshal(policy.Object)
+	return nil
+}
+
+// ProcessConfigPolicyTemplate takes the unmarshalled ConfigPolicy YAML as input
+// and resolves its templates
+func processConfigPolicyTemplate(
+	policy *unstructured.Unstructured,
+	resolver *templates.TemplateResolver,
+) error {
+	resolvedPolicy, err := processObjectTemplates(policy.Object, resolver)
 	if err != nil {
-		return nil, fmt.Errorf("invalid JSON resulted after resolving templates: %w", err)
+		return err
 	}
 
-	resolvedYAML, err := templates.JSONToYAML(resolvedPolicy)
+	policy.Object = resolvedPolicy
+
+	return nil
+}
+
+// ProcessObjTemplatesRaw takes a YAML string representation and
+// resolves the object's hub and managed templates
+func processObjTemplatesRaw(
+	raw *unstructured.Unstructured,
+	resolver *templates.TemplateResolver,
+) error {
+	var rawDataList [][]byte
+
+	resolveOptions := templates.ResolveOptions{}
+
+	oTRaw, _, _ := unstructured.NestedString(raw.Object, "object-templates-raw")
+	if oTRaw != "" {
+		resolveOptions.InputIsYAML = true
+
+		rawDataList = [][]byte{[]byte(oTRaw)}
+	} else {
+		return fmt.Errorf("invalid object-templates-raw after resolving hub templates")
+	}
+
+	objectTemplates, err := resolveObjTemplates(true, rawDataList, resolver, resolveOptions)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert the processed Policy back to YAML: %w", err)
+		return err
 	}
 
-	return resolvedYAML, nil
+	unstructured.RemoveNestedField(raw.Object, "object-templates-raw")
+
+	err = unstructured.SetNestedSlice(raw.Object, objectTemplates, "object-templates")
+	if err != nil {
+		return fmt.Errorf("failed to process the object-templates-raw: %w", err)
+	}
+
+	return nil
+}
+
+// ProcessObjectTemplates takes any nested object and resolves its hub and managed templates
+func processObjectTemplates(
+	objectDefinition map[string]interface{},
+	resolver *templates.TemplateResolver,
+) (map[string]interface{}, error) {
+	var rawDataList [][]byte
+
+	resolveOptions := templates.ResolveOptions{}
+
+	oTRaw, oTRawFound, _ := unstructured.NestedString(objectDefinition, "spec", "object-templates-raw")
+	if oTRawFound {
+		resolveOptions.InputIsYAML = true
+
+		rawDataList = [][]byte{[]byte(oTRaw)}
+	} else {
+		resolveOptions.InputIsYAML = false
+
+		objTemplates, _, err := unstructured.NestedSlice(objectDefinition, "spec", "object-templates")
+		if err != nil {
+			return nil, fmt.Errorf(
+				"invalid object-templates array in Configuration Policy: %w",
+				err,
+			)
+		}
+
+		for _, objTemplate := range objTemplates {
+			jsonBytes, err := json.Marshal(objTemplate)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"invalid object-templates array in Configuration Policy: %w",
+					err,
+				)
+			}
+
+			rawDataList = append(rawDataList, jsonBytes)
+		}
+	}
+
+	objectTemplates, err := resolveObjTemplates(oTRawFound, rawDataList, resolver, resolveOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	if oTRawFound {
+		unstructured.RemoveNestedField(objectDefinition, "spec", "object-templates-raw")
+	}
+
+	err = unstructured.SetNestedSlice(objectDefinition, objectTemplates, "spec", "object-templates")
+	if err != nil {
+		return nil, fmt.Errorf("failed to process the templates: %w", err)
+	}
+
+	return objectDefinition, nil
+}
+
+// resolveHubTemplates takes a hub templateResolver and any nested object
+// and resolves its hub templates
+func resolveHubTemplates(
+	objectDefinition map[string]interface{},
+	hubResolver *templates.TemplateResolver,
+	hubTemplateOpts *hubTemplateOptions,
+) (map[string]interface{}, error) {
+	objectDefinitionJSON, err := json.Marshal(objectDefinition)
+	if err != nil {
+		return nil, fmt.Errorf("invalid object: %w", err)
+	}
+
+	hubTemplateResult, err := hubResolver.ResolveTemplate(
+		objectDefinitionJSON, hubTemplateOpts.ctx, &hubTemplateOpts.opts,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("invalid object: %w", err)
+	}
+
+	var resolvedObjectDefinition map[string]interface{}
+
+	err = json.Unmarshal(hubTemplateResult.ResolvedJSON, &resolvedObjectDefinition)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"invalid object after resolving hub templates: %w", err,
+		)
+	}
+
+	return resolvedObjectDefinition, nil
+}
+
+// resolveObjTemplates resolves the templates in the
+// object-templates/object-templates-raw field
+func resolveObjTemplates(
+	isRawTemplates bool,
+	rawDataList [][]byte,
+	resolver *templates.TemplateResolver,
+	resolveOptions templates.ResolveOptions,
+) ([]interface{}, error) {
+	objectTemplates := make([]interface{}, 0, len(rawDataList))
+
+	for _, rawData := range rawDataList {
+		if bytes.Contains(rawData, []byte("{{hub")) {
+			return nil, fmt.Errorf(
+				"unresolved hub template in YAML input. " +
+					"Use the -hub-kubeconfig argument",
+			)
+		}
+
+		tmplResult, err := resolver.ResolveTemplate(rawData, nil, &resolveOptions)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process the templates: %w", err)
+		}
+
+		var resolvedOT interface{}
+
+		err = json.Unmarshal(tmplResult.ResolvedJSON, &resolvedOT)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process the templates: %w", err)
+		}
+
+		if isRawTemplates {
+			switch v := resolvedOT.(type) {
+			case []interface{}:
+				objectTemplates = v
+			case nil:
+				objectTemplates = []interface{}{}
+			default:
+				return nil, fmt.Errorf(
+					"object-templates-raw was not an array after templates were " +
+						"resolved",
+				)
+			}
+
+			break
+		}
+
+		objectTemplates = append(objectTemplates, resolvedOT)
+	}
+
+	return objectTemplates, nil
 }
