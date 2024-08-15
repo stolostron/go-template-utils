@@ -120,6 +120,9 @@ func (t *TemplateResolver) getOrList(
 		if !onAllowlist(options.ClusterScopedAllowList, rsrcIdentifier) {
 			return nil, ClusterScopedLookupRestrictedError{kind, name}
 		}
+
+		// If the namespace is restricted but this is a cluster scoped resource, unset the namespace.
+		ns = ""
 	}
 
 	if t.dynamicWatcher != nil {
