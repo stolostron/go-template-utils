@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/spf13/cast v1.6.0
-	github.com/stolostron/kubernetes-dependency-watches v0.8.0
+	github.com/stolostron/kubernetes-dependency-watches v0.9.1
 	golang.org/x/exp v0.0.0-20240525044651-4c93da0ed11d
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.29.5
