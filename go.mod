@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
+	github.com/pmezard/go-difflib v1.0.0
 	github.com/spf13/cast v1.6.0
 	github.com/spf13/cobra v1.7.0
 	github.com/stolostron/kubernetes-dependency-watches v0.9.1
