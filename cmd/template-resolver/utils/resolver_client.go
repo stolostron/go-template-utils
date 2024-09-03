@@ -7,16 +7,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Struct representing the templateresolver command
+// Struct representing the template-resolver command
 type TemplateResolver struct {
 	hubKubeConfigPath string
 	clusterName       string
 }
 
 func (t *TemplateResolver) GetCmd() *cobra.Command {
-	// templateResolverCmd represents the templateresolver command
+	// templateResolverCmd represents the template-resolver command
 	templateResolverCmd := &cobra.Command{
-		Use:   "templateresolver",
+		Use:   "template-resolver",
 		Short: "Locally resolve Policy templates",
 		Long:  "Locally resolve Policy templates",
 		Args:  cobra.MaximumNArgs(1),
@@ -24,7 +24,7 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 	}
 
 	// Initialize variables used to collect user input from CLI flags
-	// Add templateresolver command and parse flags
+	// Add template-resolver command and parse flags
 	templateResolverCmd.Flags().StringVar(
 		&t.hubKubeConfigPath,
 		"hub-kubeconfig",
@@ -88,7 +88,7 @@ func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) e
 	return nil
 }
 
-// Execute runs the `templateresolver` command.
+// Execute runs the `template-resolver` command.
 func Execute() error {
 	tmplResolverCmd := TemplateResolver{}
 
