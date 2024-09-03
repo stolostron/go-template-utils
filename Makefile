@@ -53,3 +53,7 @@ test-coverage: test
 
 .PHONY: gosec-scan
 gosec-scan:
+
+.PHONY: testdata/crds.yaml
+testdata/crds.yaml: kustomize
+	$(KUSTOMIZE) build testdata/crds-kustomize > testdata/crds.yaml

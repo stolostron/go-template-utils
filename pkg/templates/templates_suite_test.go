@@ -45,7 +45,7 @@ func setUp() {
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{"../../test_data/crds/clusterclaim.yaml"},
+		CRDDirectoryPaths: []string{"../../testdata/crds.yaml"},
 	}
 
 	var err error

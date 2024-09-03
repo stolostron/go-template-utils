@@ -35,4 +35,5 @@ jobs:
       - name: Verify format
         run: |
           make fmt
+          make testdata/crds.yaml
           git diff --exit-code
