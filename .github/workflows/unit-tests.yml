@@ -17,8 +17,6 @@ jobs:
     steps:
       - name: Checkout the repo
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Fetch all history for all tags and branches
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -28,9 +26,8 @@ jobs:
 
       - name: Test Coverage and Report Generation
         run: |
-          make test-coverage | tee report_unit.json
+          make test-coverage
           make gosec-scan
-          cat gosec.json
 
       - name: Store the GitHub triggering event for the sonarcloud workflow
         if: |
