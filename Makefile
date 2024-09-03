@@ -13,8 +13,6 @@ export GOPATH ?= $(GOPATH_DEFAULT)
 GOBIN_DEFAULT := $(GOPATH)/bin
 export GOBIN ?= $(GOBIN_DEFAULT)
 export PATH := $(LOCAL_BIN):$(GOBIN):$(PATH)
-TESTARGS_DEFAULT := "-v"
-export TESTARGS ?= $(TESTARGS_DEFAULT)
 
 include build/common/Makefile.common.mk
 
@@ -50,7 +48,7 @@ test: envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test $(TESTARGS) ./...
 
 .PHONY: test-coverage
-test-coverage: TESTARGS = -v -json -cover -covermode=atomic -coverprofile=coverage.out
+test-coverage: TESTARGS = -cover -covermode=atomic -coverprofile=coverage.out
 test-coverage: test
 
 .PHONY: gosec-scan
