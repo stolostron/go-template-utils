@@ -11,6 +11,7 @@ import (
 type TemplateResolver struct {
 	hubKubeConfigPath string
 	clusterName       string
+	hubNamespace      string
 }
 
 func (t *TemplateResolver) GetCmd() *cobra.Command {
@@ -36,6 +37,12 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 		"cluster-name",
 		"",
 		"the cluster name to use as .ManagedClusterName when resolving hub templates",
+	)
+	templateResolverCmd.Flags().StringVar(
+		&t.hubNamespace,
+		"hub-namespace",
+		"",
+		"the namespace on the hub to restrict namespaced lookups to when resolving hub templates",
 	)
 
 	return templateResolverCmd
@@ -77,7 +84,7 @@ func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) e
 		return fmt.Errorf("error handling YAML file input: %w", err)
 	}
 
-	resolvedYAML, err := ProcessTemplate(yamlBytes, t.hubKubeConfigPath, t.clusterName)
+	resolvedYAML, err := ProcessTemplate(yamlBytes, t.hubKubeConfigPath, t.clusterName, t.hubNamespace)
 	if err != nil {
 		return fmt.Errorf("error processing templates: %w", err)
 	}

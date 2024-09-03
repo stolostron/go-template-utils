@@ -68,10 +68,9 @@ func HandleFile(yamlFile string) ([]byte, error) {
 // ProcessTemplate takes a YAML byte array input, unmarshals it to a Policy, ConfigPolicy,
 // or object-templates-raw, processes the templates, and marshals it back to YAML,
 // returning the resulting byte array. Validation is performed along the way, returning
-// an error if any failures are found. It uses the `hubKubeConfigPath` and `clusterName`
+// an error if any failures are found. It uses the `hubKubeConfigPath`, `hubNS` and `clusterName`
 // to establish a dynamic client with the hub to resolve any hub templates it finds.
-// Note that a hub resolver only supports resolving Policies.
-func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName string) ([]byte, error) {
+func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS string) ([]byte, error) {
 	policy := unstructured.Unstructured{}
 
 	err := yaml.Unmarshal(yamlBytes, &policy.Object)
@@ -99,8 +98,26 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName string) ([
 	var hubResolver *templates.TemplateResolver
 
 	if hubKubeConfigPath != "" {
-		if policy.GetKind() == "Policy" && policy.GetNamespace() == "" {
-			return nil, fmt.Errorf("the input Policy must specify a namespace for hub templates")
+		if policy.GetKind() == "Policy" {
+			// neither specified
+			if hubNS == "" && policy.GetNamespace() == "" {
+				return nil, fmt.Errorf("a namespace must be specified for hub templates, " +
+					"either in the input Policy or as an argument")
+			}
+
+			// both specified and don't match
+			if hubNS != "" && policy.GetNamespace() != "" && hubNS != policy.GetNamespace() {
+				return nil, fmt.Errorf("the namespace specified in the Policy and the " +
+					"hub-namespace argument must match")
+			}
+
+			// either hubNS is already specified, or we'll use the one in the policy
+			if policy.GetNamespace() != "" {
+				hubNS = policy.GetNamespace()
+			}
+		} else if hubNS == "" {
+			// Non-Policy types just always require the argument
+			return nil, fmt.Errorf("a hub namespace must be provided when a hub kubeconfig is provided")
 		}
 
 		hubKubeConfig, err := clientcmd.BuildConfigFromFlags("", hubKubeConfigPath)
@@ -133,7 +150,7 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName string) ([
 				Kind:  "ManagedCluster",
 				Name:  clusterName,
 			}},
-			LookupNamespace: policy.GetNamespace(),
+			LookupNamespace: hubNS,
 		}
 
 		hubResolver, err = templates.NewResolver(hubKubeConfig, hubTemplateOpts.config)

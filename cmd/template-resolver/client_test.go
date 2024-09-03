@@ -51,13 +51,15 @@ func cliTest(testName string) func(t *testing.T) {
 
 		kcPath := ""
 		clusterName := ""
+		hubNS := ""
 
 		if strings.HasSuffix(testName, "_hub") {
 			kcPath = kubeconfigPath
 			clusterName = "local-cluster"
+			hubNS = "policies"
 		}
 
-		resolvedYAML, err := utils.ProcessTemplate(inputBytes, kcPath, clusterName)
+		resolvedYAML, err := utils.ProcessTemplate(inputBytes, kcPath, clusterName, hubNS)
 		if err != nil {
 			t.Fatal(err)
 		}
