@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coolest-car
+  namespace: policies
+data:
+  model: Subaru Baja
