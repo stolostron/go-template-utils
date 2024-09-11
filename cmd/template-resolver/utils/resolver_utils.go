@@ -98,26 +98,32 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS str
 	var hubResolver *templates.TemplateResolver
 
 	if hubKubeConfigPath != "" {
-		if policy.GetKind() == "Policy" {
-			// neither specified
-			if hubNS == "" && policy.GetNamespace() == "" {
-				return nil, fmt.Errorf("a namespace must be specified for hub templates, " +
-					"either in the input Policy or as an argument")
-			}
+		customSA, _, _ := unstructured.NestedString(policy.Object, "spec", "hubTemplateOptions", "serviceAccountName")
 
-			// both specified and don't match
-			if hubNS != "" && policy.GetNamespace() != "" && hubNS != policy.GetNamespace() {
-				return nil, fmt.Errorf("the namespace specified in the Policy and the " +
-					"hub-namespace argument must match")
-			}
+		if customSA == "" {
+			if policy.GetKind() == "Policy" {
+				// neither specified
+				if hubNS == "" && policy.GetNamespace() == "" {
+					return nil, fmt.Errorf("a namespace must be specified for hub templates, " +
+						"either in the input Policy or as an argument if spec.hubTemplateOptions.serviceAccountName " +
+						"is not specified")
+				}
 
-			// either hubNS is already specified, or we'll use the one in the policy
-			if policy.GetNamespace() != "" {
-				hubNS = policy.GetNamespace()
+				// both specified and don't match
+				if hubNS != "" && policy.GetNamespace() != "" && hubNS != policy.GetNamespace() {
+					return nil, fmt.Errorf("the namespace specified in the Policy and the " +
+						"hub-namespace argument must match")
+				}
+
+				// either hubNS is already specified, or we'll use the one in the policy
+				if policy.GetNamespace() != "" {
+					hubNS = policy.GetNamespace()
+				}
+			} else if hubNS == "" {
+				// Non-Policy types just always require the argument
+				return nil, fmt.Errorf("a hub namespace must be provided when a hub kubeconfig is provided " +
+					"and spec.hubTemplateOptions.serviceAccountName is not specified")
 			}
-		} else if hubNS == "" {
-			// Non-Policy types just always require the argument
-			return nil, fmt.Errorf("a hub namespace must be provided when a hub kubeconfig is provided")
 		}
 
 		hubKubeConfig, err := clientcmd.BuildConfigFromFlags("", hubKubeConfigPath)
@@ -144,13 +150,16 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS str
 		hubTemplateOpts.ctx.ManagedClusterName = clusterName
 		hubTemplateOpts.ctx.ManagedClusterLabels = mc.GetLabels()
 
-		hubTemplateOpts.opts = templates.ResolveOptions{
-			ClusterScopedAllowList: []templates.ClusterScopedObjectIdentifier{{
-				Group: "cluster.open-cluster-management.io",
-				Kind:  "ManagedCluster",
-				Name:  clusterName,
-			}},
-			LookupNamespace: hubNS,
+		// If a custom service account is provided, assume the hub kubeconfig is for that service account
+		if customSA == "" {
+			hubTemplateOpts.opts = templates.ResolveOptions{
+				ClusterScopedAllowList: []templates.ClusterScopedObjectIdentifier{{
+					Group: "cluster.open-cluster-management.io",
+					Kind:  "ManagedCluster",
+					Name:  clusterName,
+				}},
+				LookupNamespace: hubNS,
+			}
 		}
 
 		hubResolver, err = templates.NewResolver(hubKubeConfig, hubTemplateOpts.config)

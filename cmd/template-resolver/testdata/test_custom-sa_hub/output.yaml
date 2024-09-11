@@ -1,0 +1,30 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  labels:
+    state: nc
+  name: custom-sa
+  namespace: policies
+spec:
+  disabled: false
+  hubTemplateOptions:
+    serviceAccountName: custom-sa
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: custom-sa
+        spec:
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  labels:
+                    random-name: random
+                  name: random
+                  namespace: default
+          remediationAction: enforce
+          severity: low
