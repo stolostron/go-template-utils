@@ -27,5 +27,6 @@ spec:
                   labels:
                     cluster-name: {{hub .ManagedClusterName hub}}
                     ford.com/model: Mustang
+                    policy-name: {{hub .PolicyMetadata.name hub}}
             {{- end }}
             {{- end }}

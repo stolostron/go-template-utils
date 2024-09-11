@@ -21,6 +21,7 @@ import (
 type hubTemplateCtx struct {
 	ManagedClusterName   string
 	ManagedClusterLabels map[string]string
+	PolicyMetadata       map[string]interface{}
 }
 
 type hubTemplateOptions struct {
@@ -145,6 +146,15 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS str
 		mc, err := dynamicHubClient.Resource(mcGVR).Get(context.TODO(), clusterName, v1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to get the ManagedCluster object for %s: %w", clusterName, err)
+		}
+
+		if policy.GetKind() == "Policy" {
+			hubTemplateOpts.ctx.PolicyMetadata = map[string]interface{}{
+				"annotations": policy.GetAnnotations(),
+				"labels":      policy.GetLabels(),
+				"name":        policy.GetName(),
+				"namespace":   policy.GetNamespace(),
+			}
 		}
 
 		hubTemplateOpts.ctx.ManagedClusterName = clusterName
