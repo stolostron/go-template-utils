@@ -10,7 +10,7 @@ import (
 var (
 	sprigFuncMap = sprig.FuncMap()
 
-	// ExportedSprigFunctions lists all of the functions from sprig that will be exposed
+	// exportedSprigFunctions lists all of the functions from sprig that will be exposed
 	exportedSprigFunctions = []string{
 		"add",
 		"append",
@@ -78,4 +78,10 @@ var (
 
 func getSprigFunc(funcName string) (result interface{}) {
 	return sprigFuncMap[funcName]
+}
+
+// AvailableSprigFunctions returns a copy of the list of functions that this
+// library makes available from the Sprig library.
+func AvailableSprigFunctions() []string {
+	return append(make([]string, 0, len(exportedSprigFunctions)), exportedSprigFunctions...)
 }
