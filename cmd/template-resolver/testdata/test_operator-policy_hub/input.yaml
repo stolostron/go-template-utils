@@ -1,0 +1,22 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: an-operator-policy
+  namespace: policies
+spec:
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
+          name: some-operator
+        spec:
+          complianceType: musthave
+          remediationAction: enforce
+          severity: high
+          subscription:
+            name: '{{hub .ManagedClusterLabels.testlabel hub}}'
+            namespace: '{{ fromConfigMap "default" "operator-config" "namespace" }}'
+          upgradeApproval: Automatic
+          versions: []

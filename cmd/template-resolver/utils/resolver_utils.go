@@ -195,6 +195,8 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS str
 		err = processPolicyTemplate(&policy, resolver)
 	case "ConfigurationPolicy":
 		err = processConfigPolicyTemplate(&policy, resolver)
+	case "OperatorPolicy":
+		_, err = processOperatorPolicyTemplates(policy.Object, resolver)
 	default:
 		if _, ok := policy.Object["object-templates-raw"]; !ok {
 			return nil, fmt.Errorf("invalid YAML. Supported types: Policy, " +
@@ -243,18 +245,29 @@ func processPolicyTemplate(
 			return fmt.Errorf("invalid policy-templates entry was provided: %w", err)
 		}
 
-		objectDefinitionUnstructured := unstructured.Unstructured{Object: objectDefinition}
-		if objectDefinitionUnstructured.GetAPIVersion() != "policy.open-cluster-management.io/v1" {
-			continue
-		}
+		templateObj := unstructured.Unstructured{Object: objectDefinition}
 
-		if objectDefinitionUnstructured.GetKind() != "ConfigurationPolicy" {
-			continue
-		}
+		switch templateObj.GetAPIVersion() {
+		case "policy.open-cluster-management.io/v1":
+			if templateObj.GetKind() != "ConfigurationPolicy" {
+				continue
+			}
 
-		objectDefinition, err = processObjectTemplates(objectDefinition, resolver)
-		if err != nil {
-			return fmt.Errorf("%w (in policy-templates at index %d)", err, i)
+			objectDefinition, err = processObjectTemplates(objectDefinition, resolver)
+			if err != nil {
+				return fmt.Errorf("%w (in policy-templates at index %d)", err, i)
+			}
+		case "policy.open-cluster-management.io/v1beta1":
+			if templateObj.GetKind() != "OperatorPolicy" {
+				continue
+			}
+
+			objectDefinition, err = processOperatorPolicyTemplates(objectDefinition, resolver)
+			if err != nil {
+				return fmt.Errorf("%w (in policy-templates at index %d)", err, i)
+			}
+		default:
+			continue
 		}
 
 		err = unstructured.SetNestedField(policyTemplate, objectDefinition, "objectDefinition")
@@ -384,6 +397,53 @@ func processObjectTemplates(
 	}
 
 	return objectDefinition, nil
+}
+
+func processOperatorPolicyTemplates(
+	operatorPolicy map[string]interface{},
+	resolver *templates.TemplateResolver,
+) (map[string]interface{}, error) {
+	resolveOptions := templates.ResolveOptions{
+		InputIsYAML: false,
+	}
+
+	opGroup, found, err := unstructured.NestedMap(operatorPolicy, "spec", "operatorGroup")
+	if err != nil {
+		return nil, fmt.Errorf("invalid operatorGroup: %w", err)
+	}
+
+	if found {
+		resolved, err := resolveManagedTemplate(opGroup, "operatorGroup", resolver, resolveOptions)
+		if err != nil {
+			return nil, err
+		}
+
+		err = unstructured.SetNestedField(operatorPolicy, resolved, "spec", "operatorGroup")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	sub, found, err := unstructured.NestedMap(operatorPolicy, "spec", "subscription")
+	if err != nil {
+		return nil, fmt.Errorf("invalid subscription: %w", err)
+	}
+
+	if found {
+		resolved, err := resolveManagedTemplate(sub, "subscription", resolver, resolveOptions)
+		if err != nil {
+			return nil, err
+		}
+
+		err = unstructured.SetNestedField(operatorPolicy, resolved, "spec", "subscription")
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, fmt.Errorf("spec.subscription must be set in OperatorPolicies")
+	}
+
+	return operatorPolicy, nil
 }
 
 // resolveHubTemplates takes a hub templateResolver and any nested object and resolves its hub templates
