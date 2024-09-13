@@ -3,6 +3,7 @@ kind: ManagedCluster
 metadata:
   labels:
     local-cluster: 'true'
+    testlabel: hello-world
   name: local-cluster
 spec:
   hubAcceptsClient: true
