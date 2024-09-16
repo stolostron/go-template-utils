@@ -317,7 +317,7 @@ func processObjTemplatesRaw(
 	}
 
 	if bytes.Contains([]byte(oTRaw), []byte("{{hub")) {
-		return fmt.Errorf("unresolved hub template in YAML input. Use the -hub-kubeconfig argument")
+		return fmt.Errorf("unresolved hub template in YAML input. Use the hub-kubeconfig argument")
 	}
 
 	tmplResult, err := resolver.ResolveTemplate([]byte(oTRaw), nil, &resolveOptions)
@@ -490,7 +490,7 @@ func resolveManagedTemplate(
 	}
 
 	if bytes.Contains(rawData, []byte("{{hub")) {
-		return nil, fmt.Errorf("unresolved hub template in YAML input. Use the -hub-kubeconfig argument")
+		return nil, fmt.Errorf("unresolved hub template in YAML input. Use the hub-kubeconfig argument")
 	}
 
 	tmplResult, err := resolver.ResolveTemplate(rawData, nil, &resolveOptions)
