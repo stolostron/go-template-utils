@@ -75,7 +75,7 @@ func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) e
 	if t.hubKubeConfigPath != "" && t.clusterName == "" {
 		return fmt.Errorf(
 			"when a hub kubeconfig is provided, you must provide a managed cluster name for hub templates to resolve " +
-				"using the -cluster-name argument",
+				"using the cluster-name argument",
 		)
 	}
 
