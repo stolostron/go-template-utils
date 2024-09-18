@@ -166,8 +166,7 @@ type EncryptionConfig struct {
 type TemplateResolver struct {
 	config Config
 	// Used when caching is disabled.
-	dynamicClient *dynamic.DynamicClient
-	kubeConfig    *rest.Config
+	dynamicClient dynamic.Interface
 	// Used when instantiated with NewResolverWithCaching. This will create watches and the cache will get
 	// automatically updated.
 	dynamicWatcher client.DynamicWatcher
@@ -182,12 +181,32 @@ type TemplateResult struct {
 	HasSensitiveData bool
 }
 
-// NewResolver creates a new TemplateResolver instance, which is the API for processing templates.
+// NewResolver creates a new (non-caching) TemplateResolver instance, which is the API for processing templates.
 //
 // - kubeConfig is the rest.Config instance used to create Kubernetes clients for template processing.
 //
 // - config is the Config instance for configuring optional values for template processing.
 func NewResolver(kubeConfig *rest.Config, config Config) (*TemplateResolver, error) {
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(kubeConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewResolverWithClients(dynamicClient, discoveryClient, config)
+}
+
+// NewResolverWithClients creates a new (non-caching) TemplateResolver instance, which is the API for processing
+// templates.
+func NewResolverWithClients(
+	dynamicClient dynamic.Interface,
+	discoveryClient discovery.DiscoveryInterface,
+	config Config,
+) (*TemplateResolver, error) {
 	if (config.StartDelim != "" && config.StopDelim == "") || (config.StartDelim == "" && config.StopDelim != "") {
 		return nil, fmt.Errorf("the configurations StartDelim and StopDelim cannot be set independently")
 	}
@@ -200,11 +219,6 @@ func NewResolver(kubeConfig *rest.Config, config Config) (*TemplateResolver, err
 
 	klog.V(2).Infof("Using the delimiters of %s and %s", config.StartDelim, config.StopDelim)
 
-	discoveryClient, err := discovery.NewDiscoveryClientForConfig(kubeConfig)
-	if err != nil {
-		return nil, err
-	}
-
 	tempCallCache := client.NewObjectCache(
 		// Set the missing API resource cache TTL in this mode because the cache just lives for the ResolveTemplate
 		// execution and duplicate queries when a CRD is missing is not necessary.
@@ -214,13 +228,11 @@ func NewResolver(kubeConfig *rest.Config, config Config) (*TemplateResolver, err
 		},
 	)
 
-	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil, err
-	}
-
 	return &TemplateResolver{
-		config: config, dynamicClient: dynamicClient, kubeConfig: kubeConfig, tempCallCache: tempCallCache,
+		config:         config,
+		dynamicClient:  dynamicClient,
+		dynamicWatcher: nil,
+		tempCallCache:  tempCallCache,
 	}, nil
 }
 
@@ -294,7 +306,6 @@ func NewResolverWithDynamicWatcher(dynWatcher client.DynamicWatcher, config Conf
 	return &TemplateResolver{
 		config:         config,
 		dynamicClient:  nil,
-		kubeConfig:     nil,
 		dynamicWatcher: dynWatcher,
 		tempCallCache:  nil,
 	}, nil
