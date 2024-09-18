@@ -1,13 +1,13 @@
 module github.com/stolostron/go-template-utils/v6
 
-go 1.22
+go 1.22.0
 
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/spf13/cast v1.6.0
 	github.com/spf13/cobra v1.7.0
-	github.com/stolostron/kubernetes-dependency-watches v0.9.1
+	github.com/stolostron/kubernetes-dependency-watches v0.9.2-0.20240918155814-3a67a6be1808
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.29.5
 	k8s.io/apimachinery v0.29.5
