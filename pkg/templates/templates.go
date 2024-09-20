@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
@@ -251,7 +252,7 @@ func NewResolverWithClients(
 func NewResolverWithCaching(
 	ctx context.Context, kubeConfig *rest.Config, config Config,
 ) (
-	*TemplateResolver, *source.Channel, error,
+	*TemplateResolver, source.TypedSource[reconcile.Request], error,
 ) {
 	resolver, err := NewResolver(kubeConfig, config)
 	if err != nil {
