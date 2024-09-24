@@ -42,6 +42,7 @@ func (t *TemplateResolver) protect(options *ResolveOptions, value string) (strin
 	}
 
 	blockSize := block.BlockSize()
+	// #nosec G407 -- Onus to randomize the IV is on the consuming controller.
 	blockMode := cipher.NewCBCEncrypter(block, options.InitializationVector)
 
 	valueBytes := []byte(value)
@@ -85,6 +86,7 @@ func (t *TemplateResolver) decrypt(options *ResolveOptions, value string) (strin
 			continue
 		}
 
+		// #nosec G407 -- Onus to randomize the IV is on the consuming controller.
 		blockMode := cipher.NewCBCDecrypter(block, options.InitializationVector)
 		decryptedValue = make([]byte, len(decodedValue))
 		blockMode.CryptBlocks(decryptedValue, decodedValue)
