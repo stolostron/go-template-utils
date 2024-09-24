@@ -83,7 +83,7 @@ var (
 // duplicate API queries when a CRD is missing. By default, this will not be cached. Note that this only affects
 // when caching is enabled.
 type Config struct {
-	AdditionalIndentation      uint
+	AdditionalIndentation      uint32
 	DisabledFunctions          []string
 	StartDelim                 string
 	StopDelim                  string
