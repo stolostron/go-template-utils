@@ -85,7 +85,7 @@ var (
 // and cache entries are cleaned up. The manual control is done with the StartQueryBatch and EndQueryBatch methods.
 // This has no effect if caching is not enabled.
 type Config struct {
-	AdditionalIndentation      uint
+	AdditionalIndentation      uint32
 	DisabledFunctions          []string
 	StartDelim                 string
 	StopDelim                  string
