@@ -17,9 +17,10 @@ type TemplateResolver struct {
 func (t *TemplateResolver) GetCmd() *cobra.Command {
 	// templateResolverCmd represents the template-resolver command
 	templateResolverCmd := &cobra.Command{
-		Use:   `template-resolver [flags] [file|-]
+		Use: `template-resolver [flags] [file|-]
 
-  The file positional argument is the path to a policy YAML manifest. If file is a dash ('-') or absent, template-resolver reads from the standard input.`,
+  The file positional argument is the path to a policy YAML manifest. If file 
+  is a dash ('-') or absent, template-resolver reads from the standard input.`,
 		Short: "Locally resolve Policy templates",
 		Long:  "Locally resolve Policy templates",
 		Args:  cobra.MaximumNArgs(1),
@@ -38,7 +39,7 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 		&t.clusterName,
 		"cluster-name",
 		"",
-		"the cluster name to use for the .ManagedClusterName template variable when resolving hub templates",
+		"the cluster name to use for the .ManagedClusterName template variable when resolving hub cluster templates",
 	)
 	templateResolverCmd.Flags().StringVar(
 		&t.hubNamespace,
@@ -62,9 +63,7 @@ func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) e
 		}
 
 		if (stdinInfo.Mode() & os.ModeCharDevice) != 0 {
-			err := cmd.Usage()
-
-			return err
+			return fmt.Errorf("failed to read from stdin: input is not a pipe")
 		}
 	}
 
@@ -88,11 +87,13 @@ func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) e
 
 	resolvedYAML, err := ProcessTemplate(yamlBytes, t.hubKubeConfigPath, t.clusterName, t.hubNamespace)
 	if err != nil {
-		return fmt.Errorf("error processing templates: %w", err)
+		cmd.Printf("error processing templates: %s\n", err.Error())
+
+		os.Exit(2)
 	}
 
-	//nolint:forbidigo
-	fmt.Print(string(resolvedYAML))
+	cmd.SetOut(os.Stdout)
+	cmd.Print(string(resolvedYAML))
 
 	return nil
 }
