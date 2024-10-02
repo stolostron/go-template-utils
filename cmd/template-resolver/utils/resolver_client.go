@@ -17,7 +17,9 @@ type TemplateResolver struct {
 func (t *TemplateResolver) GetCmd() *cobra.Command {
 	// templateResolverCmd represents the template-resolver command
 	templateResolverCmd := &cobra.Command{
-		Use:   "template-resolver",
+		Use:   `template-resolver [flags] [file|-]
+
+  The file positional argument is the path to a policy YAML manifest. If file is a dash ('-') or absent, template-resolver reads from the standard input.`,
 		Short: "Locally resolve Policy templates",
 		Long:  "Locally resolve Policy templates",
 		Args:  cobra.MaximumNArgs(1),
@@ -36,7 +38,7 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 		&t.clusterName,
 		"cluster-name",
 		"",
-		"the cluster name to use as .ManagedClusterName when resolving hub templates",
+		"the cluster name to use for the .ManagedClusterName template variable when resolving hub templates",
 	)
 	templateResolverCmd.Flags().StringVar(
 		&t.hubNamespace,
