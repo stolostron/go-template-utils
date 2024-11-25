@@ -15,4 +15,5 @@ spec:
     name: my-favorite-operator
     namespace: foobar
   upgradeApproval: Automatic
-  versions: []
+  versions:
+    - some-version
