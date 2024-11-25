@@ -15,4 +15,6 @@ spec:
     name: my-favorite-operator
     namespace: '{{ fromConfigMap "default" "operator-config" "namespace" }}'
   upgradeApproval: Automatic
-  versions: []
+  versions:
+    - '{{ if true }}some-version{{ end }}'
+    - '{{ if false }}I will be ignored {{ end }}'

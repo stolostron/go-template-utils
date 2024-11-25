@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -441,6 +442,33 @@ func processOperatorPolicyTemplates(
 		}
 	} else {
 		return nil, fmt.Errorf("spec.subscription must be set in OperatorPolicies")
+	}
+
+	versions, found, err := unstructured.NestedStringSlice(operatorPolicy, "spec", "versions")
+	if err != nil {
+		return nil, fmt.Errorf("invalid versions: %w", err)
+	}
+
+	if found {
+		resolved, err := resolveManagedTemplate(versions, "versions", resolver, resolveOptions)
+		if err != nil {
+			return nil, err
+		}
+
+		resolvedVersions := make([]interface{}, 0, len(resolved.([]interface{})))
+
+		for _, version := range resolved.([]interface{}) {
+			trimmedVersion := strings.TrimSpace(version.(string))
+
+			if trimmedVersion != "" {
+				resolvedVersions = append(resolvedVersions, trimmedVersion)
+			}
+		}
+
+		err = unstructured.SetNestedField(operatorPolicy, resolvedVersions, "spec", "versions")
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return operatorPolicy, nil
