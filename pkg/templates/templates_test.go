@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"text/template"
 
 	"github.com/stolostron/kubernetes-dependency-watches/client"
 	yaml "gopkg.in/yaml.v3"
@@ -242,6 +243,7 @@ data1: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'
 data2: '{{ fromSecret "testns" "testsecret" "secretkey2" }}'
 data3: '{{ .CustomVar }}'
 data4: '{{ (lookup "v1" "Secret" "testns" "does-not-exist").data.key }}'
+data5: '{{ customFunc }}'
 `
 
 	tmplStrBytes, err := yamlToJSON([]byte(tmplStr))
@@ -281,9 +283,18 @@ data4: '{{ (lookup "v1" "Secret" "testns" "does-not-exist").data.key }}'
 		return typedTemplateCtx, nil
 	}
 
+	customFuncCalled := false
+
 	resolveOptions := &ResolveOptions{
 		Watcher:             &watcher,
 		ContextTransformers: []func(CachingQueryAPI, interface{}) (interface{}, error){transformer},
+		CustomFunctions: template.FuncMap{
+			"customFunc": func() string {
+				customFuncCalled = true
+
+				return ""
+			},
+		},
 	}
 
 	result, err := resolver.ResolveTemplate(tmplStrBytes, templateCtx, resolveOptions)
@@ -292,10 +303,14 @@ data4: '{{ (lookup "v1" "Secret" "testns" "does-not-exist").data.key }}'
 	}
 
 	expected := `{"data1":"c2VjcmV0a2V5MVZhbA==","data2":"c2VjcmV0a2V5MlZhbA==","data3":"c",` +
-		`"data4":"\u003cno value\u003e"}`
+		`"data4":"\u003cno value\u003e","data5":""}`
 
 	if string(result.ResolvedJSON) != expected {
 		t.Fatalf("Unexpected template: %s", string(result.ResolvedJSON))
+	}
+
+	if !customFuncCalled {
+		t.Fatalf("Expected customFunc to be called")
 	}
 
 	// One for the transformer and one for the lookup and one for the failed lookup

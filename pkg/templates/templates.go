@@ -104,6 +104,8 @@ type Config struct {
 // may be used in any or all of the fields. The default behavior when LookupNamespace is set is to
 // deny all cluster-scoped lookups.
 //
+// - CustomFunctions is an optional map of custom functions available during template resolution.
+//
 // - EncryptionConfig is the configuration for template encryption/decryption functionality.
 //
 // - InputIsYAML can be set to true to indicate that the input to the template is already in YAML format and thus does
@@ -119,6 +121,7 @@ type ResolveOptions struct {
 		queryAPI CachingQueryAPI, context interface{},
 	) (transformedContext interface{}, err error)
 	ClusterScopedAllowList []ClusterScopedObjectIdentifier
+	CustomFunctions        template.FuncMap
 	EncryptionConfig
 	InputIsYAML     bool
 	LookupNamespace string
@@ -595,6 +598,10 @@ func (t *TemplateResolver) ResolveTemplate(
 
 	for _, funcName := range t.config.DisabledFunctions {
 		delete(funcMap, funcName)
+	}
+
+	for customFuncName, customFunc := range options.CustomFunctions {
+		funcMap[customFuncName] = customFunc
 	}
 
 	// create template processor and Initialize function map
