@@ -1,0 +1,14 @@
+object-templates-raw: |
+  {{- range (lookup "v1" "ConfigMap" "default" "").items }}
+  {{- if and .data.model (contains "Mustang" .data.model) }}
+  - complianceType: musthave
+    objectDefinition:
+      kind: ConfigMap
+      apiVersion: v1
+      metadata:
+        name: {{ .metadata.name }}
+        namespace: {{ .metadata.namespace }}
+        labels:
+          ford.com/model: Mustang
+  {{- end }}
+  {{- end }}

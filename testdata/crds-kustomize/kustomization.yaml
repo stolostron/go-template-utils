@@ -1,0 +1,3 @@
+resources:
+  - https://raw.githubusercontent.com/open-cluster-management-io/api/main/cluster/v1alpha1/0000_02_clusters.open-cluster-management.io_clusterclaims.crd.yaml
+  - https://raw.githubusercontent.com/open-cluster-management-io/api/main/cluster/v1/0000_00_clusters.open-cluster-management.io_managedclusters.crd.yaml

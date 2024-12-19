@@ -1,0 +1,26 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: an-operator-policy
+spec:
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
+          name: some-operator
+        spec:
+          complianceType: musthave
+          operatorGroup:
+            name: my-group
+            namespace: foobar
+            targetNamespaces:
+              - foobar
+          remediationAction: enforce
+          severity: high
+          subscription:
+            name: my-favorite-operator
+            namespace: foobar
+          upgradeApproval: Automatic
+          versions: []

@@ -1,0 +1,28 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: label-configmaps
+  namespace: policies
+spec:
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: label-configmaps
+        spec:
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  labels:
+                    cluster-name: local-cluster
+                    ford.com/model: Mustang
+                    policy-name: label-configmaps
+                  name: cool-car
+                  namespace: default
+          remediationAction: enforce
+          severity: low

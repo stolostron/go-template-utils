@@ -1,0 +1,18 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: ConfigurationPolicy
+metadata:
+  name: label-configmaps
+  namespace: my-cluster
+spec:
+  object-templates:
+    - complianceType: musthave
+      objectDefinition:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          labels:
+            cars.com/model: Subaru Baja
+          name: coolest-car
+          namespace: default
+  remediationAction: enforce
+  severity: low

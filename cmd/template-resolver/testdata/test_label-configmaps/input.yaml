@@ -1,0 +1,29 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: label-configmaps
+spec:
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: label-configmaps
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{- range (lookup "v1" "ConfigMap" "default" "").items }}
+            {{- if and .data.model (contains "Mustang" .data.model) }}
+            - complianceType: musthave
+              objectDefinition:
+                kind: ConfigMap
+                apiVersion: v1
+                metadata:
+                  name: {{ .metadata.name }}
+                  namespace: {{ .metadata.namespace }}
+                  labels:
+                    ford.com/model: Mustang
+            {{- end }}
+            {{- end }}

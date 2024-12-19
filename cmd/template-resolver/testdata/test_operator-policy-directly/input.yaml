@@ -1,0 +1,20 @@
+apiVersion: policy.open-cluster-management.io/v1beta1
+kind: OperatorPolicy
+metadata:
+  name: some-operator
+spec:
+  complianceType: musthave
+  operatorGroup:
+    name: my-group
+    namespace: '{{ fromConfigMap "default" "operator-config" "namespace" }}'
+    targetNamespaces:
+      - '{{ fromConfigMap "default" "operator-config" "namespace" }}'
+  remediationAction: enforce
+  severity: high
+  subscription:
+    name: my-favorite-operator
+    namespace: '{{ fromConfigMap "default" "operator-config" "namespace" }}'
+  upgradeApproval: Automatic
+  versions:
+    - '{{ if true }}some-version{{ end }}'
+    - '{{ if false }}I will be ignored {{ end }}'
