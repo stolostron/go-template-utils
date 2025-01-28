@@ -72,7 +72,9 @@ func HandleFile(yamlFile string) ([]byte, error) {
 // returning the resulting byte array. Validation is performed along the way, returning
 // an error if any failures are found. It uses the `hubKubeConfigPath`, `hubNS` and `clusterName`
 // to establish a dynamic client with the hub to resolve any hub templates it finds.
-func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS string) ([]byte, error) {
+func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
+	objNamespace, objName string,
+) ([]byte, error) {
 	policy := unstructured.Unstructured{}
 
 	err := yaml.Unmarshal(yamlBytes, &policy.Object)
@@ -191,20 +193,25 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS str
 		return nil, fmt.Errorf("failed to instantiate the template resolver: %w", err)
 	}
 
+	tempCtx := templates.TemplateContext{
+		ObjectNamespace: objNamespace,
+		ObjectName:      objName,
+	}
+
 	switch policy.GetKind() {
 	case "Policy":
-		err = processPolicyTemplate(&policy, resolver)
+		err = processPolicyTemplate(&policy, resolver, tempCtx)
 	case "ConfigurationPolicy":
-		err = processConfigPolicyTemplate(&policy, resolver)
+		err = processConfigPolicyTemplate(&policy, resolver, tempCtx)
 	case "OperatorPolicy":
-		_, err = processOperatorPolicyTemplates(policy.Object, resolver)
+		_, err = processOperatorPolicyTemplates(policy.Object, resolver, tempCtx)
 	default:
 		if _, ok := policy.Object["object-templates-raw"]; !ok {
 			return nil, fmt.Errorf("invalid YAML. Supported types: Policy, " +
-				"ConfigurationPolicy, object-templates-raw")
+				"ConfigurationPolicy, OperatorPolicy, object-templates-raw")
 		}
 
-		err = processObjTemplatesRaw(&policy, resolver)
+		err = processObjTemplatesRaw(&policy, resolver, tempCtx)
 	}
 
 	if err != nil {
@@ -229,6 +236,7 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS str
 func processPolicyTemplate(
 	policy *unstructured.Unstructured,
 	resolver *templates.TemplateResolver,
+	tempCtx templates.TemplateContext,
 ) error {
 	policyTemplates, _, err := unstructured.NestedSlice(policy.Object, "spec", "policy-templates")
 	if err != nil {
@@ -254,7 +262,7 @@ func processPolicyTemplate(
 				continue
 			}
 
-			objectDefinition, err = processObjectTemplates(objectDefinition, resolver)
+			objectDefinition, err = processObjectTemplates(objectDefinition, resolver, tempCtx)
 			if err != nil {
 				return fmt.Errorf("%w (in policy-templates at index %d)", err, i)
 			}
@@ -263,7 +271,7 @@ func processPolicyTemplate(
 				continue
 			}
 
-			objectDefinition, err = processOperatorPolicyTemplates(objectDefinition, resolver)
+			objectDefinition, err = processOperatorPolicyTemplates(objectDefinition, resolver, tempCtx)
 			if err != nil {
 				return fmt.Errorf("%w (in policy-templates at index %d)", err, i)
 			}
@@ -294,8 +302,9 @@ func processPolicyTemplate(
 func processConfigPolicyTemplate(
 	policy *unstructured.Unstructured,
 	resolver *templates.TemplateResolver,
+	tempCtx templates.TemplateContext,
 ) error {
-	resolvedPolicy, err := processObjectTemplates(policy.Object, resolver)
+	resolvedPolicy, err := processObjectTemplates(policy.Object, resolver, tempCtx)
 	if err != nil {
 		return err
 	}
@@ -309,6 +318,7 @@ func processConfigPolicyTemplate(
 func processObjTemplatesRaw(
 	raw *unstructured.Unstructured,
 	resolver *templates.TemplateResolver,
+	tempCtx templates.TemplateContext,
 ) error {
 	resolveOptions := templates.ResolveOptions{InputIsYAML: true}
 
@@ -321,7 +331,7 @@ func processObjTemplatesRaw(
 		return fmt.Errorf("unresolved hub template in YAML input. Use the hub-kubeconfig argument")
 	}
 
-	tmplResult, err := resolver.ResolveTemplate([]byte(oTRaw), nil, &resolveOptions)
+	tmplResult, err := resolver.ResolveTemplate([]byte(oTRaw), tempCtx, &resolveOptions)
 	if err != nil {
 		return fmt.Errorf("failed to process the templates: %w", err)
 	}
@@ -358,12 +368,13 @@ func processObjTemplatesRaw(
 func processObjectTemplates(
 	objectDefinition map[string]interface{},
 	resolver *templates.TemplateResolver,
+	tempCtx templates.TemplateContext,
 ) (map[string]interface{}, error) {
 	_, oTRawFound, _ := unstructured.NestedString(objectDefinition, "spec", "object-templates-raw")
 	if oTRawFound {
 		policy := unstructured.Unstructured{Object: objectDefinition["spec"].(map[string]interface{})}
 
-		err := processObjTemplatesRaw(&policy, resolver)
+		err := processObjTemplatesRaw(&policy, resolver, tempCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -384,7 +395,7 @@ func processObjectTemplates(
 	for i, objTemplate := range objTemplates {
 		fieldName := fmt.Sprintf("object-templates[%v]", i)
 
-		resolved, err := resolveManagedTemplate(objTemplate, fieldName, resolver, resolveOptions)
+		resolved, err := resolveManagedTemplate(objTemplate, fieldName, resolver, resolveOptions, tempCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -403,6 +414,7 @@ func processObjectTemplates(
 func processOperatorPolicyTemplates(
 	operatorPolicy map[string]interface{},
 	resolver *templates.TemplateResolver,
+	tempCtx templates.TemplateContext,
 ) (map[string]interface{}, error) {
 	resolveOptions := templates.ResolveOptions{
 		InputIsYAML: false,
@@ -414,7 +426,7 @@ func processOperatorPolicyTemplates(
 	}
 
 	if found {
-		resolved, err := resolveManagedTemplate(opGroup, "operatorGroup", resolver, resolveOptions)
+		resolved, err := resolveManagedTemplate(opGroup, "operatorGroup", resolver, resolveOptions, tempCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -431,7 +443,7 @@ func processOperatorPolicyTemplates(
 	}
 
 	if found {
-		resolved, err := resolveManagedTemplate(sub, "subscription", resolver, resolveOptions)
+		resolved, err := resolveManagedTemplate(sub, "subscription", resolver, resolveOptions, tempCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -450,7 +462,7 @@ func processOperatorPolicyTemplates(
 	}
 
 	if found {
-		resolved, err := resolveManagedTemplate(versions, "versions", resolver, resolveOptions)
+		resolved, err := resolveManagedTemplate(versions, "versions", resolver, resolveOptions, tempCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -511,6 +523,7 @@ func resolveManagedTemplate(
 	fieldName string,
 	resolver *templates.TemplateResolver,
 	resolveOptions templates.ResolveOptions,
+	tempCtx templates.TemplateContext,
 ) (interface{}, error) {
 	rawData, err := json.Marshal(field)
 	if err != nil {
@@ -521,7 +534,7 @@ func resolveManagedTemplate(
 		return nil, fmt.Errorf("unresolved hub template in YAML input. Use the hub-kubeconfig argument")
 	}
 
-	tmplResult, err := resolver.ResolveTemplate(rawData, nil, &resolveOptions)
+	tmplResult, err := resolver.ResolveTemplate(rawData, tempCtx, &resolveOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process the templates: %w", err)
 	}

@@ -10,5 +10,6 @@ object-templates-raw: |
         namespace: {{ .metadata.namespace }}
         labels:
           ford.com/model: Mustang
+          name: {{ $.ObjectName }}
   {{- end }}
   {{- end }}

@@ -128,6 +128,11 @@ type ResolveOptions struct {
 	Watcher         *client.ObjectIdentifier
 }
 
+type TemplateContext struct {
+	ObjectNamespace string
+	ObjectName      string
+}
+
 type ClusterScopedObjectIdentifier struct {
 	Group string
 	Kind  string

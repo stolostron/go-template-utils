@@ -1,0 +1,25 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: ConfigurationPolicy
+metadata:
+  name: obj-ns-name
+spec:
+  namespaceSelector:
+    include:
+      - my-obj-namespace
+  object-templates:
+    - complianceType: musthave
+      objectDefinition:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          labels:
+            case13: passed
+            name: my-obj-name
+            namespace: my-obj-namespace
+          name: my-obj-name
+          namespace: my-obj-namespace
+      objectSelector:
+        matchExpressions:
+          - key: my-obj
+            operator: Exists
+  remediationAction: enforce

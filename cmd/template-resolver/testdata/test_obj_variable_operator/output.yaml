@@ -1,0 +1,11 @@
+apiVersion: policy.open-cluster-management.io/v1beta1
+kind: OperatorPolicy
+metadata:
+  name: some-operator
+spec:
+  complianceType: musthave
+  remediationAction: enforce
+  severity: high
+  subscription:
+    name: my-favorite-operator
+    namespace: my-obj-namespace
