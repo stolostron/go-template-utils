@@ -6,5 +6,6 @@ object-templates:
       metadata:
         labels:
           ford.com/model: Mustang
+          name: my-obj-name
         name: cool-car
         namespace: default

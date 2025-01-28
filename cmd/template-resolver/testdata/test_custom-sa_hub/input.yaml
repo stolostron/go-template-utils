@@ -28,3 +28,4 @@ spec:
                   namespace: default
                   labels:
                     random-name: '{{hub (lookup "v1" "Namespace" "" "random").metadata.name hub}}'
+                    name: '{{ .ObjectName }}'

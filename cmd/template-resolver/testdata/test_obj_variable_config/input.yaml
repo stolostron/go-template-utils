@@ -1,0 +1,25 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: ConfigurationPolicy
+metadata:
+  name: obj-ns-name
+spec:
+  remediationAction: enforce
+  namespaceSelector:
+    include:
+      - my-obj-namespace
+  object-templates:
+    - complianceType: musthave
+      objectSelector:
+        matchExpressions:
+          - key: my-obj
+            operator: Exists
+      objectDefinition:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          namespace: '{{ .ObjectNamespace }}'
+          name: '{{ .ObjectName }}'
+          labels:
+            case13: passed
+            name: '{{ .ObjectName }}'
+            namespace: "{{ .ObjectNamespace }}"

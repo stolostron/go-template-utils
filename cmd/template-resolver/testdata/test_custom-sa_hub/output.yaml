@@ -23,6 +23,7 @@ spec:
                 kind: ConfigMap
                 metadata:
                   labels:
+                    name: my-obj-name
                     random-name: random
                   name: random
                   namespace: default

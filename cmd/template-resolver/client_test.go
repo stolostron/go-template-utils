@@ -59,7 +59,10 @@ func cliTest(testName string) func(t *testing.T) {
 			hubNS = "policies"
 		}
 
-		resolvedYAML, err := utils.ProcessTemplate(inputBytes, kcPath, clusterName, hubNS)
+		objNamespace := "my-obj-namespace"
+		objName := "my-obj-name"
+
+		resolvedYAML, err := utils.ProcessTemplate(inputBytes, kcPath, clusterName, hubNS, objNamespace, objName)
 		if err != nil {
 			t.Fatal(err)
 		}
