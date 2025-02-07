@@ -14,6 +14,9 @@ type TemplateResolver struct {
 	hubNamespace      string
 	objNamespace      string
 	objName           string
+	saveResources     string
+	// saveHubResources Output doesn't include "ManagedClusters" resources,
+	saveHubResources string
 }
 
 func (t *TemplateResolver) GetCmd() *cobra.Command {
@@ -63,6 +66,22 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 			"when policy uses namespaceSelector or objectSelector",
 	)
 
+	templateResolverCmd.Flags().StringVar(
+		&t.saveResources,
+		"save-resources",
+		"s",
+		"the path to save the output containing resources used. "+
+			"This output can be used as input resources for the dry-run CLI or for local environment testing.",
+	)
+
+	templateResolverCmd.Flags().StringVar(
+		&t.saveHubResources,
+		"save-hub-resources",
+		"s",
+		"the path to save the output containing resources used in the hub cluster. "+
+			"This output can be used as input resources for the dry-run CLI or for local environment testing.",
+	)
+
 	return templateResolverCmd
 }
 
@@ -101,7 +120,7 @@ func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) e
 	}
 
 	resolvedYAML, err := ProcessTemplate(yamlBytes, t.hubKubeConfigPath,
-		t.clusterName, t.hubNamespace, t.objNamespace, t.objName)
+		t.clusterName, t.hubNamespace, t.objNamespace, t.objName, t.saveResources, t.saveHubResources)
 	if err != nil {
 		cmd.Printf("error processing templates: %s\n", err.Error())
 

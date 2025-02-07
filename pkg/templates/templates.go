@@ -182,6 +182,9 @@ type TemplateResolver struct {
 	// If caching is disabled, this will act as a temporary cache for objects during the execution of the
 	// ResolveTemplate call.
 	tempCallCache client.ObjectCache
+	// Use in template resolver CLI to create outputs including resources used in fromSecret, fromConfigMap,
+	// loopUp etc functions.
+	usedResources []unstructured.Unstructured
 }
 
 type TemplateResult struct {
@@ -868,6 +871,22 @@ func (t *TemplateResolver) indent(spaces int, v string) string {
 	npad := "\n" + pad + strings.Replace(v, "\n", "\n"+pad, -1)
 
 	return strings.TrimSpace(npad)
+}
+
+// Avoid duplicate entries since operatorPolicy calls ProcessTemplate multiple times
+// for the same objectTemplate.
+func (t *TemplateResolver) appendUsedResources(input unstructured.Unstructured) {
+	for _, res := range t.usedResources {
+		if reflect.DeepEqual(res, input) { // Keep only non-matching elements
+			return // Resource already exists, no need to append
+		}
+	}
+
+	t.usedResources = append(t.usedResources, input)
+}
+
+func (t *TemplateResolver) GetUsedResources() []unstructured.Unstructured {
+	return t.usedResources
 }
 
 // This is so that the user gets a nicer error in the event some valid scenario slips through the

@@ -73,7 +73,7 @@ func HandleFile(yamlFile string) ([]byte, error) {
 // an error if any failures are found. It uses the `hubKubeConfigPath`, `hubNS` and `clusterName`
 // to establish a dynamic client with the hub to resolve any hub templates it finds.
 func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
-	objNamespace, objName string,
+	objNamespace, objName, saveResourcesPath, saveHubResourcesPath string,
 ) ([]byte, error) {
 	policy := unstructured.Unstructured{}
 
@@ -185,6 +185,11 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
 			return nil, err
 		}
 
+		err = createSaveResourcesOutput(saveHubResourcesPath, hubResolver)
+		if err != nil {
+			return nil, err
+		}
+
 		policy.Object = hubResolvedObject
 	}
 
@@ -228,7 +233,38 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
 		return nil, fmt.Errorf("failed to convert the processed object back to YAML: %w", err)
 	}
 
+	err = createSaveResourcesOutput(saveResourcesPath, resolver)
+	if err != nil {
+		return nil, err
+	}
+
 	return resolvedYAML, nil
+}
+
+func createSaveResourcesOutput(path string, resolver *templates.TemplateResolver) error {
+	if path != "" {
+		f, err := os.Create(path) //#nosec G304 -- files accessed here are on the user's local system
+		if err != nil {
+			return err
+		}
+
+		defer f.Close()
+
+		usedResources := resolver.GetUsedResources()
+
+		for _, r := range usedResources {
+			fmt.Fprintln(f, "---")
+
+			out, err := yaml.Marshal(r.Object)
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprint(f, string(out))
+		}
+	}
+
+	return nil
 }
 
 // ProcessPolicyTemplate takes the unmarshalled Policy YAML as input and resolves

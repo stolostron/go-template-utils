@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -52,20 +56,36 @@ func cliTest(testName string) func(t *testing.T) {
 		kcPath := ""
 		clusterName := ""
 		hubNS := ""
+		saveHubResources := ""
+
+		tmpDir := t.TempDir()
 
 		if strings.HasSuffix(testName, "_hub") {
 			kcPath = kubeconfigPath
 			clusterName = "local-cluster"
 			hubNS = "policies"
+			saveHubResources = filepath.Join(tmpDir, "save_hub_resources.yaml")
 		}
 
 		objNamespace := "my-obj-namespace"
 		objName := "my-obj-name"
 
-		resolvedYAML, err := utils.ProcessTemplate(inputBytes, kcPath, clusterName, hubNS, objNamespace, objName)
+		saveResources := filepath.Join(tmpDir, "save_resources.yaml")
+
+		resolvedYAML, err := utils.ProcessTemplate(inputBytes, kcPath, clusterName,
+			hubNS, objNamespace, objName, saveResources, saveHubResources)
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		// Compare the saved resources. Use hubCluster resources
+		// if testName ends with "_hub" as well.
+		// otherwise test only managedCluster resources.
+		if strings.HasSuffix(testName, "_hub") {
+			compareSaveResources(t, testName, saveHubResources, true)
+		}
+
+		compareSaveResources(t, testName, saveResources, false)
 
 		if !bytes.Equal(expectedBytes, resolvedYAML) {
 			//nolint: forbidigo
@@ -90,4 +110,69 @@ func cliTest(testName string) func(t *testing.T) {
 			t.Fatalf("Mismatch in resolved output; diff:\n%v", diff)
 		}
 	}
+}
+
+func compareSaveResources(t *testing.T, testName, saveResources string, isHub bool) {
+	t.Helper()
+
+	fileName := "save_resources.yaml"
+	if isHub {
+		fileName = "save_hub_resources.yaml"
+	}
+
+	expectedPath := fmt.Sprintf("testdata/test_%s/%s", testName, fileName)
+
+	expectedBytes, err := readFile(expectedPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			t.Logf("Expected file is missing, skipping %s comparison", fileName)
+
+			return
+		}
+
+		t.Fatal("Failed to read expected file:", err)
+	}
+
+	actualBytes, err := readFile(saveResources)
+	if err != nil {
+		t.Fatal("Failed to read actual file:", err)
+	}
+
+	if len(actualBytes) == 0 {
+		t.Fatalf("Actual file %s is empty, expected file has content", testName+"/"+fileName)
+	}
+
+	// Compare resource counts
+	expectCount := strings.Count(string(expectedBytes), "---")
+	actualCount := strings.Count(string(actualBytes), "---")
+
+	if expectCount != actualCount {
+		t.Fatalf("Mismatch in resource count: expected %d, but got %d", expectCount, actualCount)
+	}
+
+	// Validate expected lines exist in actual output.
+	// To ignore field like creationTimestamp, resourceVersion, uid
+	expectScanner := bufio.NewScanner(bytes.NewBuffer(expectedBytes))
+	for expectScanner.Scan() {
+		expectLine := expectScanner.Text()
+		if expectLine != "---" && !strings.Contains(string(actualBytes), expectLine) {
+			t.Fatalf("The line '%s' is missing in actual result", expectLine)
+		}
+	}
+
+	if err := expectScanner.Err(); err != nil {
+		t.Fatalf("Error reading expected file: %v", err)
+	}
+}
+
+// readFile is a helper function to read file contents.
+func readFile(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	defer f.Close()
+
+	return io.ReadAll(f)
 }
