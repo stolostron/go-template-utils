@@ -15,3 +15,4 @@ spec:
           namespace: '{{ (lookup "v1" "ConfigMap" "default" "cool-car").metadata.namespace }}'
           labels:
             ford.com/model: '{{ fromConfigMap "default" "cool-car" "model" }}'
+

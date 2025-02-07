@@ -216,6 +216,11 @@ func (t *TemplateResolver) getOrList(
 			templateResult.HasSensitiveData = true
 		}
 
+		// Cache a not found result
+		for _, i := range resultUnstructuredList.Items {
+			t.appendUsedResources(i)
+		}
+
 		return resultUnstructuredList.UnstructuredContent(), nil
 	}
 
@@ -232,6 +237,9 @@ func (t *TemplateResolver) getOrList(
 
 		return nil, err
 	}
+
+	// Cache a not found result
+	t.appendUsedResources(*resultUnstructured)
 
 	if templateResult != nil && kind == "Secret" {
 		templateResult.HasSensitiveData = true
