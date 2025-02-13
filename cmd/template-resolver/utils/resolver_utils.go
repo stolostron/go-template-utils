@@ -43,7 +43,7 @@ func HandleFile(yamlFile string) ([]byte, error) {
 			return nil, fmt.Errorf("failed to read from stdin: %w", err)
 		}
 
-		if stdinInfo.Size() == 0 {
+		if stdinInfo.Size() == 0 && (stdinInfo.Mode()&os.ModeNamedPipe) == 0 {
 			return nil, fmt.Errorf("failed to read from stdin: input is empty")
 		}
 
