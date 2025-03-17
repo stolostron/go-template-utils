@@ -75,7 +75,7 @@ func TestFromSecret(t *testing.T) {
 	for _, test := range testcases {
 		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		templateResult := &TemplateResult{}
@@ -90,7 +90,7 @@ func TestFromSecret(t *testing.T) {
 
 		if err != nil {
 			if test.expectedErr == nil {
-				t.Fatalf(err.Error())
+				t.Fatal(err)
 			}
 
 			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
@@ -172,7 +172,7 @@ func TestFromConfigMap(t *testing.T) {
 	for _, test := range testcases {
 		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		val, err := resolver.fromConfigMap(
@@ -181,7 +181,7 @@ func TestFromConfigMap(t *testing.T) {
 
 		if err != nil {
 			if test.expectedErr == nil {
-				t.Fatalf(err.Error())
+				t.Fatal(err)
 			}
 
 			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
@@ -256,7 +256,7 @@ func TestCopySecretData(t *testing.T) {
 	for _, test := range testcases {
 		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		templateResult := &TemplateResult{}
@@ -270,7 +270,7 @@ func TestCopySecretData(t *testing.T) {
 
 		if err != nil {
 			if test.expectedErr == nil {
-				t.Fatalf(err.Error())
+				t.Fatal(err)
 			}
 
 			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
@@ -279,12 +279,14 @@ func TestCopySecretData(t *testing.T) {
 		} else {
 			jsonval, err := yamlToJSON([]byte(val))
 			if err != nil {
-				t.Fatalf(err.Error())
+				t.Fatal(err)
 			}
+
 			var contents map[string]string
+
 			err = json.Unmarshal(jsonval, &contents)
 			if err != nil {
-				t.Fatalf(err.Error())
+				t.Fatal(err)
 			}
 
 			if contents[test.inputKey] != base64encode(test.expectedResult) {
@@ -367,7 +369,7 @@ func TestCopySecretDataProtected(t *testing.T) {
 
 		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		templateResult := &TemplateResult{}
@@ -388,7 +390,7 @@ func TestCopySecretDataProtected(t *testing.T) {
 
 		if err != nil {
 			if test.expectedErr == nil {
-				t.Fatalf(err.Error())
+				t.Fatal(err)
 			}
 
 			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
@@ -397,12 +399,13 @@ func TestCopySecretDataProtected(t *testing.T) {
 		} else {
 			jsonval, err := yamlToJSON([]byte(val))
 			if err != nil {
-				t.Fatalf(err.Error())
+				t.Fatal(err)
 			}
 			var contents map[string]string
+
 			err = json.Unmarshal(jsonval, &contents)
 			if err != nil {
-				t.Fatalf(err.Error())
+				t.Fatal(err)
 			}
 
 			if contents[test.inputKey] != test.expectedResult {
@@ -480,7 +483,7 @@ func TestCopyConfigMapData(t *testing.T) {
 	for _, test := range testcases {
 		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		val, err := resolver.copyConfigMapData(
@@ -489,7 +492,7 @@ func TestCopyConfigMapData(t *testing.T) {
 
 		if err != nil {
 			if test.expectedErr == nil {
-				t.Fatalf(err.Error())
+				t.Fatal(err)
 			}
 
 			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
@@ -498,12 +501,14 @@ func TestCopyConfigMapData(t *testing.T) {
 		} else {
 			jsonval, err := yamlToJSON([]byte(val))
 			if err != nil {
-				t.Fatalf(err.Error())
+				t.Fatal(err)
 			}
+
 			var contents map[string]string
+
 			err = json.Unmarshal(jsonval, &contents)
 			if err != nil {
-				t.Fatalf(err.Error())
+				t.Fatal(err)
 			}
 
 			if contents[test.inputKey] != test.expectedResult {

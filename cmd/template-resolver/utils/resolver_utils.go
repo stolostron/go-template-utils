@@ -47,7 +47,7 @@ func HandleFile(yamlFile string) ([]byte, error) {
 		}
 
 		if stdinInfo.Size() == 0 && (stdinInfo.Mode()&os.ModeNamedPipe) == 0 {
-			return nil, fmt.Errorf("failed to read from stdin: input is empty")
+			return nil, errors.New("failed to read from stdin: input is empty")
 		}
 
 		inputReader = os.Stdin
@@ -111,14 +111,14 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
 			if policy.GetKind() == "Policy" {
 				// neither specified
 				if hubNS == "" && policy.GetNamespace() == "" {
-					return nil, fmt.Errorf("a namespace must be specified for hub templates, " +
+					return nil, errors.New("a namespace must be specified for hub templates, " +
 						"either in the input Policy or as an argument if spec.hubTemplateOptions.serviceAccountName " +
 						"is not specified")
 				}
 
 				// both specified and don't match
 				if hubNS != "" && policy.GetNamespace() != "" && hubNS != policy.GetNamespace() {
-					return nil, fmt.Errorf("the namespace specified in the Policy and the " +
+					return nil, errors.New("the namespace specified in the Policy and the " +
 						"hub-namespace argument must match")
 				}
 
@@ -128,7 +128,7 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
 				}
 			} else if hubNS == "" {
 				// Non-Policy types just always require the argument
-				return nil, fmt.Errorf("a hub namespace must be provided when a hub kubeconfig is provided " +
+				return nil, errors.New("a hub namespace must be provided when a hub kubeconfig is provided " +
 					"and spec.hubTemplateOptions.serviceAccountName is not specified")
 			}
 		}
@@ -215,7 +215,7 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
 		_, err = processOperatorPolicyTemplates(policy.Object, resolver, tempCtx)
 	default:
 		if _, ok := policy.Object["object-templates-raw"]; !ok {
-			return nil, fmt.Errorf("invalid YAML. Supported types: Policy, " +
+			return nil, errors.New("invalid YAML. Supported types: Policy, " +
 				"ConfigurationPolicy, OperatorPolicy, object-templates-raw")
 		}
 
@@ -369,11 +369,11 @@ func processObjTemplatesRaw(
 
 	oTRaw, _, _ := unstructured.NestedString(raw.Object, "object-templates-raw")
 	if oTRaw == "" {
-		return fmt.Errorf("invalid object-templates-raw after resolving hub templates")
+		return errors.New("invalid object-templates-raw after resolving hub templates")
 	}
 
-	if bytes.Contains([]byte(oTRaw), []byte("{{hub")) {
-		return fmt.Errorf("unresolved hub template in YAML input. Use the hub-kubeconfig argument")
+	if strings.Contains(oTRaw, "{{hub") {
+		return errors.New("unresolved hub template in YAML input. Use the hub-kubeconfig argument")
 	}
 
 	tmplResult, err := resolver.ResolveTemplate([]byte(oTRaw), tempCtx, &resolveOptions)
@@ -396,7 +396,7 @@ func processObjTemplatesRaw(
 	case nil:
 		objectTemplates = []interface{}{}
 	default:
-		return fmt.Errorf("object-templates-raw was not an array after templates were resolved")
+		return errors.New("object-templates-raw was not an array after templates were resolved")
 	}
 
 	unstructured.RemoveNestedField(raw.Object, "object-templates-raw")
@@ -525,7 +525,7 @@ func processOperatorPolicyTemplates(
 			return nil, err
 		}
 	} else {
-		return nil, fmt.Errorf("spec.subscription must be set in OperatorPolicies")
+		return nil, errors.New("spec.subscription must be set in OperatorPolicies")
 	}
 
 	versions, found, err := unstructured.NestedStringSlice(operatorPolicy, "spec", "versions")
@@ -603,7 +603,7 @@ func resolveManagedTemplate(
 	}
 
 	if bytes.Contains(rawData, []byte("{{hub")) {
-		return nil, fmt.Errorf("unresolved hub template in YAML input. Use the hub-kubeconfig argument")
+		return nil, errors.New("unresolved hub template in YAML input. Use the hub-kubeconfig argument")
 	}
 
 	tmplResult, err := resolver.ResolveTemplate(rawData, tempCtx, &resolveOptions)
