@@ -94,11 +94,10 @@ func TestNewResolverFailures(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		test := test
-
-		testName := fmt.Sprintf("expectedErr=%s", test.expectedErr)
+		testName := "expectedErr=" + test.expectedErr
 		t.Run("NewResolver: "+testName, func(t *testing.T) {
 			t.Parallel()
+
 			_, err := NewResolver(k8sConfig, test.config)
 			if err == nil {
 				t.Fatal("No error was provided")
@@ -153,11 +152,11 @@ func TestValidateEncryptionFailures(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		test := test
+		testName := "expectedErr=" + test.expectedErr
 
-		testName := fmt.Sprintf("expectedErr=%s", test.expectedErr)
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
+
 			err := validateEncryptionConfig(test.resolveOptions.EncryptionConfig)
 			if err == nil {
 				t.Fatal("No error was provided")
@@ -189,20 +188,20 @@ func doResolveTest(t *testing.T, test resolveTestCase) {
 
 		tmplStr, err = yamlToJSON([]byte(test.inputTmpl))
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 	}
 
 	resolver, err := NewResolver(k8sConfig, test.config)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	tmplResult, err := resolver.ResolveTemplate(tmplStr, test.ctx, &test.resolveOptions)
 
 	if err != nil {
 		if test.expectedErr == nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		if !(errors.Is(err, test.expectedErr) || strings.EqualFold(test.expectedErr.Error(), err.Error())) {
@@ -211,8 +210,9 @@ func doResolveTest(t *testing.T, test resolveTestCase) {
 	} else {
 		val, err := JSONToYAML(tmplResult.ResolvedJSON)
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
+
 		valStr := strings.TrimSuffix(string(val), "\n")
 
 		if valStr != test.expectedResult {
@@ -229,7 +229,7 @@ func TestResolveTemplateWithCaching(t *testing.T) {
 
 	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	err = resolver.StartQueryBatch(client.ObjectIdentifier{})
@@ -246,7 +246,7 @@ data4: '{{ (lookup "v1" "Secret" "testns" "does-not-exist").data.key }}'
 
 	tmplStrBytes, err := yamlToJSON([]byte(tmplStr))
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	// No watcher should cause an error
@@ -335,7 +335,7 @@ func TestStartQueryBatchNoCaching(t *testing.T) {
 
 	resolver, err := NewResolver(k8sConfig, Config{})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	err = resolver.StartQueryBatch(client.ObjectIdentifier{})
@@ -352,14 +352,14 @@ func TestResolveTemplateWithCachingManualCleanUp(t *testing.T) {
 
 	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{SkipBatchManagement: true})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	tmplStr := `data1: '{{ fromSecret "testns" "testsecret" "secretkey1" }}'`
 
 	tmplStrBytes, err := yamlToJSON([]byte(tmplStr))
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	watcher := client.ObjectIdentifier{
@@ -393,7 +393,7 @@ func TestResolveTemplateWithCachingManualCleanUp(t *testing.T) {
 
 	tmplStr2Bytes, err := yamlToJSON([]byte(tmplStr2))
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	result2, err := resolver.ResolveTemplate(tmplStr2Bytes, nil, resolveOptions)
@@ -425,14 +425,14 @@ func TestResolveTemplateWithCachingNotAllowedClusterScoped(t *testing.T) {
 
 	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	tmplStr := `data1: '{{ lookup "v1" "Namespace" "" "some-namespace" }}'`
 
 	tmplStrBytes, err := yamlToJSON([]byte(tmplStr))
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	// No watcher should cause an error
@@ -469,7 +469,7 @@ func TestResolveTemplateWithCachingListQuery(t *testing.T) {
 
 	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	tmplStr := `data1: '{{ (index (lookup "v1" "ConfigMap" "testns" "" "env=a").items 0).data ` +
@@ -477,7 +477,7 @@ func TestResolveTemplateWithCachingListQuery(t *testing.T) {
 
 	tmplStrBytes, err := yamlToJSON([]byte(tmplStr))
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	watcher := client.ObjectIdentifier{
@@ -679,8 +679,6 @@ func TestResolveTemplateDefaultConfig(t *testing.T) {
 	}
 
 	for testName, test := range testcases {
-		test := test
-
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
@@ -770,8 +768,6 @@ func TestResolveTemplateErrors(t *testing.T) {
 	}
 
 	for testName, test := range testcases {
-		test := test
-
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
@@ -832,8 +828,6 @@ func TestResolveTemplateWithConfig(t *testing.T) {
 	}
 
 	for testName, test := range testcases {
-		test := test
-
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
@@ -902,8 +896,6 @@ func TestResolveTemplateWithContext(t *testing.T) {
 	}
 
 	for testName, test := range testcases {
-		test := test
-
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
@@ -1050,8 +1042,6 @@ func TestResolveTemplateWithCrypto(t *testing.T) {
 	}
 
 	for testName, test := range testcases {
-		test := test
-
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 
@@ -1225,7 +1215,7 @@ func TestProcessForDataTypes(t *testing.T) {
 	for _, test := range testcases {
 		resolver, err := NewResolver(k8sConfig, test.config)
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		val := resolver.processForDataTypes(test.input)

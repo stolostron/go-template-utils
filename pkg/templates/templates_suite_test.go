@@ -20,8 +20,6 @@ const testNs = "testns"
 var (
 	k8sConfig       *rest.Config
 	testEnv         *envtest.Environment
-	ctx             context.Context
-	cancel          context.CancelFunc
 	clusterClaimGVR = schema.GroupVersionResource{
 		Group:    "cluster.open-cluster-management.io",
 		Version:  "v1alpha1",
@@ -30,20 +28,24 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	os.Exit(testMain(m))
+	ctx, cancel := context.WithCancel(context.TODO())
+
+	exitCode := testMain(ctx, m)
+
+	// Ensure cleanup runs before exit
+	tearDown()
+	cancel()
+
+	os.Exit(exitCode)
 }
 
-func testMain(m *testing.M) int {
-	defer tearDown()
-
-	setUp()
+func testMain(ctx context.Context, m *testing.M) int {
+	setUp(ctx)
 
 	return m.Run()
 }
 
-func setUp() {
-	ctx, cancel = context.WithCancel(context.TODO())
-
+func setUp(ctx context.Context) {
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{"../../testdata/crds.yaml"},
 	}
@@ -267,8 +269,6 @@ func setUp() {
 }
 
 func tearDown() {
-	cancel()
-
 	err := testEnv.Stop()
 	if err != nil {
 		panic(err.Error())
