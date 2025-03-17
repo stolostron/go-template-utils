@@ -178,11 +178,12 @@ func (t *TemplateResolver) processEncryptedStrs(
 	var numWorkers int
 
 	// Determine how many Goroutines to spawn.
-	if options.DecryptionConcurrency <= 1 {
+	switch {
+	case options.DecryptionConcurrency <= 1:
 		numWorkers = 1
-	} else if len(submatches) > int(options.DecryptionConcurrency) {
+	case len(submatches) > int(options.DecryptionConcurrency):
 		numWorkers = int(options.DecryptionConcurrency)
-	} else {
+	default:
 		numWorkers = len(submatches)
 	}
 
@@ -196,7 +197,7 @@ func (t *TemplateResolver) processEncryptedStrs(
 	defer cancel()
 
 	// Start up all the Goroutines.
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		go t.decryptWrapper(ctx, options, submatchesChan, resultsChan)
 	}
 

@@ -7,7 +7,7 @@ import "testing"
 func TestFromClusterClaimInvalidInput(t *testing.T) {
 	resolver, err := NewResolver(k8sConfig, Config{})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	rv, err := resolver.fromClusterClaim(nil, "")
@@ -23,7 +23,7 @@ func TestFromClusterClaimInvalidInput(t *testing.T) {
 func TestFromClusterClaimNotFound(t *testing.T) {
 	resolver, err := NewResolver(k8sConfig, Config{})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	rv, err := resolver.fromClusterClaim(&ResolveOptions{}, "something-nonexistent")
