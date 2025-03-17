@@ -220,7 +220,7 @@ func NewResolverWithClients(
 	config Config,
 ) (*TemplateResolver, error) {
 	if (config.StartDelim != "" && config.StopDelim == "") || (config.StartDelim == "" && config.StopDelim != "") {
-		return nil, fmt.Errorf("the configurations StartDelim and StopDelim cannot be set independently")
+		return nil, errors.New("the configurations StartDelim and StopDelim cannot be set independently")
 	}
 
 	// It's only required to check config.StartDelim since it's invalid to set these independently
@@ -306,7 +306,7 @@ func NewResolverWithCaching(
 // - config is the Config instance for configuring optional values for template processing.
 func NewResolverWithDynamicWatcher(dynWatcher client.DynamicWatcher, config Config) (*TemplateResolver, error) {
 	if (config.StartDelim != "" && config.StopDelim == "") || (config.StartDelim == "" && config.StopDelim != "") {
-		return nil, fmt.Errorf("the configurations StartDelim and StopDelim cannot be set independently")
+		return nil, errors.New("the configurations StartDelim and StopDelim cannot be set independently")
 	}
 
 	// It's only required to check config.StartDelim since it's invalid to set these independently
@@ -404,7 +404,7 @@ func getValidContextHelper(value interface{}) error {
 	case reflect.String:
 		return nil
 	case reflect.Struct:
-		for i := 0; i < f.NumField(); i++ {
+		for i := range f.NumField() {
 			err := getValidContextHelper(reflect.ValueOf(value).Field(i).Interface())
 			if err != nil {
 				return err
@@ -601,7 +601,7 @@ func (t *TemplateResolver) ResolveTemplate(
 		funcMap["copySecretData"] = t.copySecretDataProtectedHelper(options, &resolvedResult)
 	} else {
 		// In other encryption modes, return a readable error if the protect template function is accidentally used.
-		funcMap["protect"] = func(s string) (string, error) { return "", ErrProtectNotEnabled }
+		funcMap["protect"] = func(_ string) (string, error) { return "", ErrProtectNotEnabled }
 	}
 
 	for _, funcName := range t.config.DisabledFunctions {
@@ -868,7 +868,7 @@ func yamlToJSON(y []byte) ([]byte, error) {
 
 func (t *TemplateResolver) indent(spaces int, v string) string {
 	pad := strings.Repeat(" ", spaces+int(t.config.AdditionalIndentation))
-	npad := "\n" + pad + strings.Replace(v, "\n", "\n"+pad, -1)
+	npad := "\n" + pad + strings.ReplaceAll(v, "\n", "\n"+pad)
 
 	return strings.TrimSpace(npad)
 }
