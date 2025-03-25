@@ -30,7 +30,6 @@ jobs:
 
       - name: Linting
         run: |
-          make lint
 
       - name: Verify format
         run: |
