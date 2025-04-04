@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"text/template"
 
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -426,18 +427,30 @@ func processObjectTemplates(
 		return nil, fmt.Errorf("invalid object-templates array in Configuration Policy: %w", err)
 	}
 
-	resolvedTemplates := make([]interface{}, len(objTemplates))
-	resolveOptions := templates.ResolveOptions{InputIsYAML: false}
+	resolvedTemplates := []interface{}{}
+	resolveOptions := templates.ResolveOptions{
+		InputIsYAML: false,
+	}
 
 	for i, objTemplate := range objTemplates {
 		fieldName := fmt.Sprintf("object-templates[%v]", i)
+		skipObject := false
+		resolveOptions.CustomFunctions = template.FuncMap{
+			"skipObject": func() string {
+				skipObject = true
+
+				return ""
+			},
+		}
 
 		resolved, err := resolveManagedTemplate(objTemplate, fieldName, resolver, resolveOptions, tempCtx)
 		if err != nil {
 			return nil, err
 		}
 
-		resolvedTemplates[i] = resolved
+		if !skipObject {
+			resolvedTemplates = append(resolvedTemplates, resolved)
+		}
 	}
 
 	err = unstructured.SetNestedSlice(objectDefinition, resolvedTemplates, "spec", "object-templates")
