@@ -1,0 +1,19 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: ConfigurationPolicy
+metadata:
+  name: skipobject-name
+spec:
+  object-templates:
+    - complianceType: musthave
+      objectDefinition:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          labels:
+            cluster: '{{ skipObject "not a bool" }}'
+          namespace: my-obj-namespace
+      objectSelector:
+        matchExpressions:
+          - key: my-obj
+            operator: Exists
+  remediationAction: enforce
