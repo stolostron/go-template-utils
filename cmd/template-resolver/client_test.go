@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -43,14 +44,27 @@ func cliTest(testName string) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Parallel()
 
-		inputBytes, err := utils.HandleFile("testdata/test_" + testName + "/input.yaml")
+		filePrefix := "testdata/test_" + testName + "/"
+
+		inputBytes, err := utils.HandleFile(filePrefix + "input.yaml")
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		expectedBytes, err := utils.HandleFile("testdata/test_" + testName + "/output.yaml")
-		if err != nil {
-			t.Fatal(err)
+		expectedBytes := []byte{}
+
+		errorBytes, readErr := readFile(filePrefix + "error.txt")
+		if readErr != nil {
+			if !os.IsNotExist(readErr) {
+				t.Fatal("Failed to read error file:", readErr)
+			}
+		}
+
+		if len(errorBytes) == 0 {
+			expectedBytes, err = utils.HandleFile(filePrefix + "output.yaml")
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 
 		kcPath := ""
@@ -75,7 +89,15 @@ func cliTest(testName string) func(t *testing.T) {
 		resolvedYAML, err := utils.ProcessTemplate(inputBytes, kcPath, clusterName,
 			hubNS, objNamespace, objName, saveResources, saveHubResources)
 		if err != nil {
-			t.Fatal(err)
+			if len(errorBytes) == 0 {
+				t.Fatal(err)
+			}
+
+			// If an error file is provided, overwrite the
+			// expected and resolved with the error contents
+			expectedBytes = errorBytes
+			errMatch := regexp.MustCompile("template: tmpl:[0-9]+:[0-9]+: .*")
+			resolvedYAML = errMatch.Find([]byte(err.Error()))
 		}
 
 		// Compare the saved resources. Use hubCluster resources

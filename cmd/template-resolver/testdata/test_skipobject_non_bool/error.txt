@@ -1,0 +1,1 @@
+template: tmpl:7:19: executing "tmpl" at <skipObject "not a bool">: error calling skipObject: expected boolean but received 'not a bool'
