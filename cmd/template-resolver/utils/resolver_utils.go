@@ -435,10 +435,25 @@ func processObjectTemplates(
 		fieldName := fmt.Sprintf("object-templates[%v]", i)
 		skipObject := false
 		resolveOptions.CustomFunctions = template.FuncMap{
-			"skipObject": func() string {
-				skipObject = true
+			"skipObject": func(skips ...any) (empty string, err error) {
+				switch len(skips) {
+				case 0:
+					skipObject = true
+				case 1:
+					if !skipObject {
+						if skip, ok := skips[0].(bool); ok {
+							skipObject = skip
+						} else {
+							err = fmt.Errorf(
+								"expected boolean but received '%v'", skips[0])
+						}
+					}
+				default:
+					err = fmt.Errorf(
+						"expected one optional boolean argument but received %d arguments", len(skips))
+				}
 
-				return ""
+				return
 			},
 		}
 
