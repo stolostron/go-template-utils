@@ -6,6 +6,7 @@ package templates
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	yaml "gopkg.in/yaml.v3"
@@ -297,6 +298,52 @@ data:
 
 			if actualValue != test.expectedResult {
 				t.Fatalf("Test %s failed. expected : %v , got : %v", funcName, test.expectedResult, actualValue)
+			}
+		})
+	}
+}
+
+func TestSprigFuncErr(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		template    string
+		expectedErr string
+	}{
+		"fail": {
+			`{{ fail "total fail" }}`,
+			`error calling fail: total fail`,
+		},
+	}
+
+	for funcName, test := range tests {
+		t.Run(funcName, func(t *testing.T) {
+			t.Parallel()
+
+			resolver, _ := NewResolver(k8sConfig, Config{})
+
+			policyYAML := `
+---
+data:
+  %s: '%s'
+`
+
+			policyJSON, err := yamlToJSON([]byte(fmt.Sprintf(policyYAML, funcName, test.template)))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to convert the policy YAML to JSON: %v\n", err)
+				panic(err)
+			}
+
+			templateCtx := struct{ Labels map[string]string }{map[string]string{"hello": "world"}}
+
+			_, err = resolver.ResolveTemplate(policyJSON, templateCtx, nil)
+			if err != nil {
+				if !strings.HasSuffix(err.Error(), test.expectedErr) {
+					t.Fatalf("\nTest %s failed. expected error suffix : %s\n", funcName, test.expectedErr)
+				}
+			} else {
+				t.Fatalf(
+					"Test %s failed because it returned no error. Expected error : %s\n", funcName, test.expectedErr)
 			}
 		})
 	}

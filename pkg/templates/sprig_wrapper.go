@@ -23,6 +23,7 @@ var (
 		"dig",
 		"div",
 		"empty",
+		"fail",
 		"fromJson",
 		"get",
 		"has",
