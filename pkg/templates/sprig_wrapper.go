@@ -11,71 +11,106 @@ var (
 	sprigFuncMap = sprig.FuncMap()
 
 	// exportedSprigFunctions lists all of the functions from sprig that will be exposed
+	// ref: https://masterminds.github.io/sprig/
 	exportedSprigFunctions = []string{
-		"add",
-		"append",
+		// STRING
 		"cat",
-		"concat",
 		"contains",
-		"date",
-		"default",
-		"dict",
-		"dig",
-		"div",
-		"empty",
-		"fail",
-		"fromJson",
-		"get",
-		"has",
-		"hasKey",
 		"hasPrefix",
 		"hasSuffix",
-		"htpasswd",
-		"join",
-		"list",
 		"lower",
-		"merge",
-		"mul",
-		"mustAppend",
-		"mustFromJson",
-		"mustHas",
-		"mustMerge",
-		"mustPrepend",
 		"mustRegexFind",
 		"mustRegexFindAll",
 		"mustRegexMatch",
-		"mustSlice",
-		"mustToDate",
-		"mustToJson",
-		"mustToRawJson",
-		"now",
-		"prepend",
 		"quote",
 		"regexFind",
 		"regexFindAll",
 		"regexMatch",
 		"regexQuoteMeta",
 		"replace",
-		"round",
-		"semver",
-		"semverCompare",
-		"set",
-		"slice",
-		"split",
-		"splitn",
-		"sub",
 		"substr",
-		"ternary",
-		"toDate",
-		"toJson",
-		"toRawJson",
 		"trim",
 		"trimAll",
 		"trunc",
-		"unset",
+		"upper",
+
+		// STRING LIST
+		"concat",
+		"join",
+		"split",
+		"splitn",
+
+		// INTEGER MATH
+		"add",
+		"div",
+		"mul",
+		"round",
+		"sub",
+
+		// INTEGER SLICE
 		"until",
 		"untilStep",
-		"upper",
+
+		// FLOAT MATH
+		//   --
+
+		// DATE
+		"date",
+		"mustToDate",
+		"now",
+		"toDate",
+
+		// DEFAULTS
+		"default",
+		"empty",
+		"fromJson",
+		"mustFromJson",
+		"mustToJson",
+		"mustToRawJson",
+		"ternary",
+		"toJson",
+		"toRawJson",
+
+		// ENCODING
+		//   "b64enc" -- Implemented locally
+		//   "b64dec" -- Implemented locally
+
+		// LISTS AND LIST
+		"append",
+		"has",
+		"list",
+		"mustAppend",
+		"mustHas",
+		"mustPrepend",
+		"prepend",
+		"mustSlice",
+		"slice",
+
+		// DICTIONARIES AND DICT
+		"dict",
+		"dig",
+		"get",
+		"hasKey",
+		"merge",
+		"mustMerge",
+		"set",
+		"unset",
+
+		// TYPE CONVERSION
+		//   "atoi" -- Implemented locally
+
+		// PATH AND FILEPATH
+		//   --
+
+		// FLOW CONTROL
+		"fail",
+
+		// VERSION COMPARISON
+		"semver",
+		"semverCompare",
+
+		// CRYPTOGRAPHIC AND SECURITY
+		"htpasswd",
 	}
 )
 
