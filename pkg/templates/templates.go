@@ -588,6 +588,10 @@ func (t *TemplateResolver) ResolveTemplate(
 		"toInt":                  toInt,
 		"toBool":                 toBool,
 		"toLiteral":              toLiteral,
+		"fromJSON":               getSprigFunc("fromJson"),      // Link uppercase invocation to JSON parser
+		"mustFromJSON":           getSprigFunc("mustFromJson"),  // Link uppercase invocation to JSON parser
+		"toRawJSON":              getSprigFunc("toRawJson"),     // Link uppercase invocation to JSON parser
+		"mustToRawJSON":          getSprigFunc("mustToRawJson"), // Link uppercase invocation to JSON parser
 	}
 
 	// Add all the functions from sprig we will support
