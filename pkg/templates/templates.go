@@ -590,6 +590,8 @@ func (t *TemplateResolver) ResolveTemplate(
 		"toLiteral":              toLiteral,
 		"fromJSON":               getSprigFunc("fromJson"),      // Link uppercase invocation to JSON parser
 		"mustFromJSON":           getSprigFunc("mustFromJson"),  // Link uppercase invocation to JSON parser
+		"toJSON":                 getSprigFunc("toJson"),        // Link uppercase invocation to JSON parser
+		"mustToJSON":             getSprigFunc("mustToJson"),    // Link uppercase invocation to JSON parser
 		"toRawJSON":              getSprigFunc("toRawJson"),     // Link uppercase invocation to JSON parser
 		"mustToRawJSON":          getSprigFunc("mustToRawJson"), // Link uppercase invocation to JSON parser
 	}

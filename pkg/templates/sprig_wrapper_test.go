@@ -155,6 +155,14 @@ func TestGetSprigFunc(t *testing.T) {
 			`{{ mustToDate "2006-01-02" "2023-12-31" | date "01/02/2006" }}`,
 			"12/31/2023",
 		},
+		"mustToJson": {
+			`{{ mustToJson .Labels }}`,
+			`{"hello":"world"}`,
+		},
+		"mustToJSON": {
+			`{{ mustToJSON .Labels }}`,
+			`{"hello":"world"}`,
+		},
 		"mustToRawJson": {
 			`{{ mustToRawJson .Labels }}`,
 			`{"hello":"world"}`,
@@ -234,6 +242,14 @@ func TestGetSprigFunc(t *testing.T) {
 		"toDate": {
 			`{{ toDate "2006-01-02" "2023-12-31" | date "01/02/2006" }}`,
 			"12/31/2023",
+		},
+		"toJson": {
+			`{{ toJson .Labels }}`,
+			`{"hello":"world"}`,
+		},
+		"toJSON": {
+			`{{ toJSON .Labels }}`,
+			`{"hello":"world"}`,
 		},
 		"toRawJson": {
 			`{{ toRawJson .Labels }}`,
