@@ -16,6 +16,7 @@ vendor/
 
 .go/
 
+__debug_*
 bin/
 gosec.json
 policy-example.yaml

@@ -691,6 +691,38 @@ func TestResolveTemplateDefaultConfig(t *testing.T) {
 			inputTmpl:      `data: '{{ copySecretData "testns" "testsecret" }}'`,
 			expectedResult: "data:\n  secretkey1: c2VjcmV0a2V5MVZhbA==\n  secretkey2: c2VjcmV0a2V5MlZhbA==",
 		},
+		"toYaml": {
+			inputTmpl:      "data: |\n  {{ until 3 | toYaml | autoindent }}\n",
+			expectedResult: "data: |\n  - 0\n  - 1\n  - 2",
+		},
+		"toYAML": {
+			inputTmpl:      "data: |\n  {{ toYAML (until 3) | indent 2 }}\n",
+			expectedResult: "data: |\n  - 0\n  - 1\n  - 2",
+		},
+		"toYAML_template_chomp": {
+			inputTmpl:      "data: |\n  {{ until 3 | toYAML | autoindent -}}\n",
+			expectedResult: "data: |-\n  - 0\n  - 1\n  - 2",
+		},
+		// These are "tests" covering the odd known issue around multiline
+		// parsing with goyaml.v3 when there's no trailing newline after the template
+		"toYAML_broken_no_newline": {
+			inputTmpl:      "data: |\n  {{ until 3 | toYAML | autoindent }}",
+			expectedResult: "data: '- 0 - 1 - 2'",
+		},
+		"toYAML_broken_yaml_chomp": {
+			inputTmpl:      "data: |-\n  {{ until 3 | toYAML | autoindent }}\n",
+			expectedResult: "data: '- 0 - 1 - 2'",
+		},
+		//
+		//
+		"fromYaml": {
+			inputTmpl:      `data: '{{ ("this:\n  is: inception-y" | fromYaml).this.is }}'`,
+			expectedResult: `data: inception-y`,
+		},
+		"fromYAML": {
+			inputTmpl:      `data: '{{ "this:\n  is: inception-y" | fromYAML }}'`,
+			expectedResult: `data: map[this:map[is:inception-y]]`,
+		},
 	}
 
 	for testName, test := range testcases {
