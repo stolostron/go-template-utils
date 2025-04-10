@@ -368,7 +368,7 @@ func UsesEncryption(template []byte, startDelim string, stopDelim string) bool {
 	// {{ ... | protect }}
 	d1 := regexp.QuoteMeta(startDelim)
 	d2 := regexp.QuoteMeta(stopDelim)
-	re := regexp.MustCompile(d1 + `(\s*fromSecret\s+.*|\s*copySecretData\s+.*|.*\|\s*protect\s*)` + d2)
+	re := regexp.MustCompile(d1 + `-?(\s*fromSecret\s+.*|\s*copySecretData\s+.*|.*\|\s*protect\s*)-?` + d2)
 	usesEncryption := re.MatchString(templateStr)
 
 	klog.V(2).Infof("usesEncryption: %v", usesEncryption)
@@ -594,6 +594,10 @@ func (t *TemplateResolver) ResolveTemplate(
 		"mustToJSON":             getSprigFunc("mustToJson"),    // Link uppercase invocation to JSON parser
 		"toRawJSON":              getSprigFunc("toRawJson"),     // Link uppercase invocation to JSON parser
 		"mustToRawJSON":          getSprigFunc("mustToRawJson"), // Link uppercase invocation to JSON parser
+		"fromYAML":               fromYAML,
+		"toYAML":                 toYAML,
+		"fromYaml":               fromYAML, // Link lowercase invocation to YAML parser
+		"toYaml":                 toYAML,   // Link lowercase invocation to YAML parser
 	}
 
 	// Add all the functions from sprig we will support
@@ -717,8 +721,7 @@ func (t *TemplateResolver) ResolveTemplate(
 
 	resolvedTemplateStr := buf.String()
 	klog.V(3).Infof("resolved template str: %v ", resolvedTemplateStr)
-	// unmarshall before returning
-
+	// unmarshal before returning
 	resolvedTemplateBytes, err := yamlToJSON(buf.Bytes())
 	if err != nil {
 		return resolvedResult, fmt.Errorf("failed to convert the resolved template to JSON: %w", err)
@@ -870,6 +873,53 @@ func yamlToJSON(y []byte) ([]byte, error) {
 
 	// Convert this object to JSON
 	return json.Marshal(yamlObj) //nolint:wrapcheck
+}
+
+// errRecoverPanic catches a Go panic and formats the returned error.
+func errRecoverPanic(err *error, msg string) {
+	if r := recover(); r != nil {
+		*err = fmt.Errorf("%s: %v", msg, r)
+	}
+}
+
+// toYAML takes an interface, marshals it to YAML, and returns a string.
+//
+// The output is unindented, so output must be piped to `autoindent` or
+// `indent N` if indentation is needed.
+func toYAML(v any) (str string, err error) {
+	// Adding a recover here because the marshal has the potential to panic on errors
+	defer errRecoverPanic(&err, "yaml marshal error")
+
+	var data bytes.Buffer
+	encoder := yaml.NewEncoder(&data)
+	encoder.SetIndent(yamlIndentation)
+
+	err = encoder.Encode(v)
+	if err != nil {
+		return
+	}
+
+	// goyaml.v3 has some odd behaviors around newlines that arise because we
+	// marshal/unmarshal in the yamlToJSON function. My observations were:
+	// - If there is a trailing newline, it considers it multiline and leaves the newlines alone.
+	// - If there is no trailing newline, it converts any newline into a space.
+	//   (This includes when users use the YAML chomping syntax '|-')
+	//
+	// The "no trailing newline" issue can be resolved by replacing \n with \n\n
+	// when there's no trailing newline, but that brings additional complexities
+	// since the trailing newline is external to the template and can't be
+	// reliably detected, so it seems it's better to document as a known issue
+	// that chomping shouldn't be used.
+	str = strings.TrimSuffix(data.String(), "\n")
+
+	return
+}
+
+// fromYAML converts a YAML document into an interface{}.
+func fromYAML(str string) (m any, err error) {
+	err = yaml.Unmarshal([]byte(str), &m)
+
+	return
 }
 
 func (t *TemplateResolver) indent(spaces int, v string) string {
