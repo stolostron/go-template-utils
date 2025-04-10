@@ -62,6 +62,10 @@ func TestGetSprigFunc(t *testing.T) {
 			`{{ $a := fromJson "{\"foo\": \"Bar\"}" }}{{ $a.foo }}`,
 			"Bar",
 		},
+		"fromJSON": {
+			`{{ $a := fromJSON "{\"foo\": \"Bar\"}" }}{{ $a.foo }}`,
+			"Bar",
+		},
 		"get": {
 			`{{ get (dict "key1" "value1") "key1" }}`,
 			"value1",
@@ -114,6 +118,10 @@ func TestGetSprigFunc(t *testing.T) {
 			`{{ $a := mustFromJson "{\"foo\": \"Bar\"}" }}{{ $a.foo }}`,
 			"Bar",
 		},
+		"mustFromJSON": {
+			`{{ $a := mustFromJSON "{\"foo\": \"Bar\"}" }}{{ $a.foo }}`,
+			"Bar",
+		},
 		"mustHas": {
 			`{{ mustHas 2 (list 1 2 3) }}`,
 			"true",
@@ -148,6 +156,10 @@ func TestGetSprigFunc(t *testing.T) {
 		},
 		"mustToRawJson": {
 			`{{ mustToRawJson .Labels }}`,
+			`{"hello":"world"}`,
+		},
+		"mustToRawJSON": {
+			`{{ mustToRawJSON .Labels }}`,
 			`{"hello":"world"}`,
 		},
 		"prepend": {
@@ -224,6 +236,10 @@ func TestGetSprigFunc(t *testing.T) {
 		},
 		"toRawJson": {
 			`{{ toRawJson .Labels }}`,
+			`{"hello":"world"}`,
+		},
+		"toRawJSON": {
+			`{{ toRawJSON .Labels }}`,
 			`{"hello":"world"}`,
 		},
 		"trim": {
