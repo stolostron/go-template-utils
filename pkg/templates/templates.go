@@ -791,7 +791,7 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 	d1 := regexp.QuoteMeta(t.config.StartDelim)
 	d2 := regexp.QuoteMeta(t.config.StopDelim)
 	//nolint: lll
-	expression := `:\s+(?:[\|>]-?\s+)?(?:'?\s*)(` + d1 + `(?:.*\|\s*(?:toInt|toBool|toLiteral)|(?:.*(?:copyConfigMapData|copySecretData))).*` + d2 + `)(?:\s*'?)`
+	expression := `:\s+(?:[\|>]-?\s+)?(?:'?\s*)(` + d1 + `-?(?:.*\|\s*(?:toInt|toBool|toLiteral)|(?:.*(?:copyConfigMapData|copySecretData))).*` + d2 + `)(?:\s*'?)`
 	re := regexp.MustCompile(expression)
 	klog.V(2).Infof("\n Pattern: %v\n", re.String())
 
@@ -817,7 +817,7 @@ func (t *TemplateResolver) processForAutoIndent(str string) string {
 	// This is not a very strict regex as occasionally, a user will make a mistake such as
 	// `config: '{{ "hello\nworld" | autoindent }}'`. In that event, `autoindent` will change to
 	// `indent 1`, but `indent` properly handles this.
-	re := regexp.MustCompile(`( *)(?:'|")?(` + d1 + `.*\| *autoindent *` + d2 + `)`)
+	re := regexp.MustCompile(`( *)(?:'|")?(` + d1 + `.*\| *autoindent *-?` + d2 + `)`)
 	klog.V(2).Infof("\n Pattern: %v\n", re.String())
 
 	submatches := re.FindAllStringSubmatch(str, -1)
