@@ -1149,7 +1149,13 @@ func TestUsesEncryption(t *testing.T) {
 		{" I am a {{ fromSecret test-secret }}  encrypted template ", "{{hub", "hub}}", false},
 		{" I am a {{ test-secret | protect }}  encrypted template ", "{{hub", "hub}}", false},
 		{" I am a {{hub sample hub}}  template ", "{{hub", "hub}}", false},
+		{" I am a {{hub fromSecret test-secret -hub}}  template ", "{{hub", "hub}}", true},
+		{" I am a {{hub- fromSecret test-secret hub}}  template ", "{{hub", "hub}}", true},
+		{" I am a {{hub- fromSecret test-secret -hub}}  template ", "{{hub", "hub}}", true},
 		{" I am a {{hub fromSecret test-secret hub}}  template ", "{{hub", "hub}}", true},
+		{" I am a {{hub test-secret | protect -hub}}  template ", "{{hub", "hub}}", true},
+		{" I am a {{hub- test-secret | protect hub}}  template ", "{{hub", "hub}}", true},
+		{" I am a {{hub- test-secret | protect -hub}}  template ", "{{hub", "hub}}", true},
 		{" I am a {{hub test-secret | protect hub}}  template ", "{{hub", "hub}}", true},
 	}
 
