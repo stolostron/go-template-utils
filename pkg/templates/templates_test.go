@@ -206,7 +206,7 @@ func doResolveTest(t *testing.T, test resolveTestCase) {
 		}
 
 		if !(errors.Is(err, test.expectedErr) || strings.EqualFold(test.expectedErr.Error(), err.Error())) {
-			t.Fatalf("expected err: %s got err: %s", test.expectedErr, err)
+			t.Fatalf("expected err:\n%s\ngot err:\n%s", test.expectedErr, err)
 		}
 	} else {
 		val, err := JSONToYAML(tmplResult.ResolvedJSON)
@@ -217,7 +217,7 @@ func doResolveTest(t *testing.T, test resolveTestCase) {
 		valStr := strings.TrimSuffix(string(val), "\n")
 
 		if valStr != test.expectedResult {
-			t.Fatalf("%s expected : '%s' , got : '%s'", test.inputTmpl, test.expectedResult, val)
+			t.Fatalf("Testcase\n%s :\nexpected :\n%s\ngot :\n%s", test.inputTmpl, test.expectedResult, val)
 		}
 	}
 }
