@@ -10,14 +10,14 @@ import (
 
 // Struct representing the template-resolver command
 type TemplateResolver struct {
-	hubKubeConfigPath string
-	clusterName       string
-	hubNamespace      string
-	objNamespace      string
-	objName           string
-	saveResources     string
+	HubKubeConfigPath string `yaml:"hubKubeConfigPath"`
+	ClusterName       string `yaml:"clusterName"`
+	HubNamespace      string `yaml:"hubNamespace"`
+	ObjNamespace      string `yaml:"objNamespace"`
+	ObjName           string `yaml:"objName"`
+	SaveResources     string `yaml:"saveResources"`
 	// saveHubResources Output doesn't include "ManagedClusters" resources
-	saveHubResources string
+	SaveHubResources string `yaml:"saveHubResources"`
 }
 
 func (t *TemplateResolver) GetCmd() *cobra.Command {
@@ -36,35 +36,35 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 	// Initialize variables used to collect user input from CLI flags
 	// Add template-resolver command and parse flags
 	templateResolverCmd.Flags().StringVar(
-		&t.hubKubeConfigPath,
+		&t.HubKubeConfigPath,
 		"hub-kubeconfig",
 		"",
 		"the input kubeconfig to also resolve hub templates",
 	)
 
 	templateResolverCmd.Flags().StringVar(
-		&t.clusterName,
+		&t.ClusterName,
 		"cluster-name",
 		"",
 		"the cluster name to use for the .ManagedClusterName template variable when resolving hub cluster templates",
 	)
 
 	templateResolverCmd.Flags().StringVar(
-		&t.hubNamespace,
+		&t.HubNamespace,
 		"hub-namespace",
 		"",
 		"the namespace on the hub to restrict namespaced lookups to when resolving hub templates",
 	)
 
 	templateResolverCmd.Flags().StringVar(
-		&t.objNamespace,
+		&t.ObjNamespace,
 		"object-namespace",
 		"",
 		"the object namespace to use for the .ObjectNamespace template variable when policy uses namespaceSelector",
 	)
 
 	templateResolverCmd.Flags().StringVar(
-		&t.objName,
+		&t.ObjName,
 		"object-name",
 		"",
 		"the object namespace to use for the .ObjectName template variable "+
@@ -72,7 +72,7 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 	)
 
 	templateResolverCmd.Flags().StringVar(
-		&t.saveResources,
+		&t.SaveResources,
 		"save-resources",
 		"",
 		"the path to save the output containing resources used. "+
@@ -80,7 +80,7 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 	)
 
 	templateResolverCmd.Flags().StringVar(
-		&t.saveHubResources,
+		&t.SaveHubResources,
 		"save-hub-resources",
 		"",
 		"the path to save the output containing resources used in the hub cluster. "+
@@ -112,7 +112,7 @@ func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) e
 	}
 
 	// Validate flag args
-	if t.hubKubeConfigPath != "" && t.clusterName == "" {
+	if t.HubKubeConfigPath != "" && t.ClusterName == "" {
 		return errors.New(
 			"when a hub kubeconfig is provided, you must provide a managed cluster name for hub templates to resolve " +
 				"using the cluster-name argument",
@@ -124,8 +124,7 @@ func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) e
 		return fmt.Errorf("error handling YAML file input: %w", err)
 	}
 
-	resolvedYAML, err := ProcessTemplate(yamlBytes, t.hubKubeConfigPath,
-		t.clusterName, t.hubNamespace, t.objNamespace, t.objName, t.saveResources, t.saveHubResources)
+	resolvedYAML, err := t.ProcessTemplate(yamlBytes)
 	if err != nil {
 		cmd.Printf("error processing templates: %s\n", err.Error())
 
