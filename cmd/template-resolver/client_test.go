@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/pmezard/go-difflib/difflib"
+	"gopkg.in/yaml.v3"
 
 	"github.com/stolostron/go-template-utils/v6/cmd/template-resolver/utils"
 )
@@ -67,6 +68,13 @@ func cliTest(testName string) func(t *testing.T) {
 			}
 		}
 
+		configBytes, readErr := readFile(filePrefix + "config.yaml")
+		if readErr != nil {
+			if !os.IsNotExist(readErr) {
+				t.Fatal("Failed to read config file:", readErr)
+			}
+		}
+
 		var tmplResolver utils.TemplateResolver
 
 		tmpDir := t.TempDir()
@@ -81,6 +89,14 @@ func cliTest(testName string) func(t *testing.T) {
 		tmplResolver.SaveResources = filepath.Join(tmpDir, "save_resources.yaml")
 		tmplResolver.ObjNamespace = "my-obj-namespace"
 		tmplResolver.ObjName = "my-obj-name"
+
+		// Overwrite configuration with test configuration
+		if len(configBytes) > 0 {
+			err = yaml.Unmarshal(configBytes, &tmplResolver)
+			if err != nil {
+				t.Fatal("Failed to parse config file:", err)
+			}
+		}
 
 		resolvedYAML, err := tmplResolver.ProcessTemplate(inputBytes)
 		if err != nil {

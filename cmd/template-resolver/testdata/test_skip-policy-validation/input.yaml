@@ -1,0 +1,2 @@
+test: |
+  {{ toYAML (set (fromYAML (fromConfigMap "policies" "data-yaml" "config.yml")) "greeting" "hello") | autoindent }}
