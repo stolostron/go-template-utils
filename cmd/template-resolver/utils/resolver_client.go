@@ -16,7 +16,7 @@ type TemplateResolver struct {
 	objNamespace      string
 	objName           string
 	saveResources     string
-	// saveHubResources Output doesn't include "ManagedClusters" resources,
+	// saveHubResources Output doesn't include "ManagedClusters" resources
 	saveHubResources string
 }
 
@@ -41,24 +41,28 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 		"",
 		"the input kubeconfig to also resolve hub templates",
 	)
+
 	templateResolverCmd.Flags().StringVar(
 		&t.clusterName,
 		"cluster-name",
 		"",
 		"the cluster name to use for the .ManagedClusterName template variable when resolving hub cluster templates",
 	)
+
 	templateResolverCmd.Flags().StringVar(
 		&t.hubNamespace,
 		"hub-namespace",
 		"",
 		"the namespace on the hub to restrict namespaced lookups to when resolving hub templates",
 	)
+
 	templateResolverCmd.Flags().StringVar(
 		&t.objNamespace,
 		"object-namespace",
 		"",
 		"the object namespace to use for the .ObjectNamespace template variable when policy uses namespaceSelector",
 	)
+
 	templateResolverCmd.Flags().StringVar(
 		&t.objName,
 		"object-name",
@@ -70,7 +74,7 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 	templateResolverCmd.Flags().StringVar(
 		&t.saveResources,
 		"save-resources",
-		"s",
+		"",
 		"the path to save the output containing resources used. "+
 			"This output can be used as input resources for the dry-run CLI or for local environment testing.",
 	)
@@ -78,7 +82,7 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 	templateResolverCmd.Flags().StringVar(
 		&t.saveHubResources,
 		"save-hub-resources",
-		"s",
+		"",
 		"the path to save the output containing resources used in the hub cluster. "+
 			"This output can be used as input resources for the dry-run CLI or for local environment testing.",
 	)
