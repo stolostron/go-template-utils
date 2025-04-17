@@ -72,11 +72,9 @@ func HandleFile(yamlFile string) ([]byte, error) {
 // ProcessTemplate takes a YAML byte array input, unmarshals it to a Policy, ConfigPolicy,
 // or object-templates-raw, processes the templates, and marshals it back to YAML,
 // returning the resulting byte array. Validation is performed along the way, returning
-// an error if any failures are found. It uses the `hubKubeConfigPath`, `hubNS` and `clusterName`
+// an error if any failures are found. It uses the `HubKubeConfigPath`, `HubNamespace` and `ClusterName`
 // to establish a dynamic client with the hub to resolve any hub templates it finds.
-func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
-	objNamespace, objName, saveResourcesPath, saveHubResourcesPath string,
-) ([]byte, error) {
+func (t *TemplateResolver) ProcessTemplate(yamlBytes []byte) ([]byte, error) {
 	policy := unstructured.Unstructured{}
 
 	err := yaml.Unmarshal(yamlBytes, &policy.Object)
@@ -103,36 +101,36 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
 
 	var hubResolver *templates.TemplateResolver
 
-	if hubKubeConfigPath != "" {
+	if t.HubKubeConfigPath != "" {
 		customSA, _, _ := unstructured.NestedString(policy.Object, "spec", "hubTemplateOptions", "serviceAccountName")
 
 		if customSA == "" {
 			if policy.GetKind() == "Policy" {
 				// neither specified
-				if hubNS == "" && policy.GetNamespace() == "" {
+				if t.HubNamespace == "" && policy.GetNamespace() == "" {
 					return nil, errors.New("a namespace must be specified for hub templates, " +
 						"either in the input Policy or as an argument if spec.hubTemplateOptions.serviceAccountName " +
 						"is not specified")
 				}
 
 				// both specified and don't match
-				if hubNS != "" && policy.GetNamespace() != "" && hubNS != policy.GetNamespace() {
+				if t.HubNamespace != "" && policy.GetNamespace() != "" && t.HubNamespace != policy.GetNamespace() {
 					return nil, errors.New("the namespace specified in the Policy and the " +
 						"hub-namespace argument must match")
 				}
 
-				// either hubNS is already specified, or we'll use the one in the policy
+				// either t.HubNamespace is already specified, or we'll use the one in the policy
 				if policy.GetNamespace() != "" {
-					hubNS = policy.GetNamespace()
+					t.HubNamespace = policy.GetNamespace()
 				}
-			} else if hubNS == "" {
+			} else if t.HubNamespace == "" {
 				// Non-Policy types just always require the argument
 				return nil, errors.New("a hub namespace must be provided when a hub kubeconfig is provided " +
 					"and spec.hubTemplateOptions.serviceAccountName is not specified")
 			}
 		}
 
-		hubKubeConfig, err := clientcmd.BuildConfigFromFlags("", hubKubeConfigPath)
+		hubKubeConfig, err := clientcmd.BuildConfigFromFlags("", t.HubKubeConfigPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load the Hub kubeconfig: %w", err)
 		}
@@ -148,9 +146,9 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
 			Resource: "managedclusters",
 		}
 
-		mc, err := dynamicHubClient.Resource(mcGVR).Get(context.TODO(), clusterName, v1.GetOptions{})
+		mc, err := dynamicHubClient.Resource(mcGVR).Get(context.TODO(), t.ClusterName, v1.GetOptions{})
 		if err != nil {
-			return nil, fmt.Errorf("failed to get the ManagedCluster object for %s: %w", clusterName, err)
+			return nil, fmt.Errorf("failed to get the ManagedCluster object for %s: %w", t.ClusterName, err)
 		}
 
 		if policy.GetKind() == "Policy" {
@@ -162,7 +160,7 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
 			}
 		}
 
-		hubTemplateOpts.ctx.ManagedClusterName = clusterName
+		hubTemplateOpts.ctx.ManagedClusterName = t.ClusterName
 		hubTemplateOpts.ctx.ManagedClusterLabels = mc.GetLabels()
 
 		// If a custom service account is provided, assume the hub kubeconfig is for that service account
@@ -171,9 +169,9 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
 				ClusterScopedAllowList: []templates.ClusterScopedObjectIdentifier{{
 					Group: "cluster.open-cluster-management.io",
 					Kind:  "ManagedCluster",
-					Name:  clusterName,
+					Name:  t.ClusterName,
 				}},
-				LookupNamespace: hubNS,
+				LookupNamespace: t.HubNamespace,
 			}
 		}
 
@@ -187,7 +185,7 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
 			return nil, err
 		}
 
-		err = createSaveResourcesOutput(saveHubResourcesPath, hubResolver)
+		err = createSaveResourcesOutput(t.SaveHubResources, hubResolver)
 		if err != nil {
 			return nil, err
 		}
@@ -201,8 +199,8 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
 	}
 
 	tempCtx := templates.TemplateContext{
-		ObjectNamespace: objNamespace,
-		ObjectName:      objName,
+		ObjectNamespace: t.ObjNamespace,
+		ObjectName:      t.ObjName,
 	}
 
 	switch policy.GetKind() {
@@ -235,7 +233,7 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS,
 		return nil, fmt.Errorf("failed to convert the processed object back to YAML: %w", err)
 	}
 
-	err = createSaveResourcesOutput(saveResourcesPath, resolver)
+	err = createSaveResourcesOutput(t.SaveResources, resolver)
 	if err != nil {
 		return nil, err
 	}

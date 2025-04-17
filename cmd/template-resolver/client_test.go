@@ -67,27 +67,22 @@ func cliTest(testName string) func(t *testing.T) {
 			}
 		}
 
-		kcPath := ""
-		clusterName := ""
-		hubNS := ""
-		saveHubResources := ""
+		var tmplResolver utils.TemplateResolver
 
 		tmpDir := t.TempDir()
 
 		if strings.HasSuffix(testName, "_hub") {
-			kcPath = kubeconfigPath
-			clusterName = "local-cluster"
-			hubNS = "policies"
-			saveHubResources = filepath.Join(tmpDir, "save_hub_resources.yaml")
+			tmplResolver.HubKubeConfigPath = kubeconfigPath
+			tmplResolver.ClusterName = "local-cluster"
+			tmplResolver.HubNamespace = "policies"
+			tmplResolver.SaveHubResources = filepath.Join(tmpDir, "save_hub_resources.yaml")
 		}
 
-		objNamespace := "my-obj-namespace"
-		objName := "my-obj-name"
+		tmplResolver.SaveResources = filepath.Join(tmpDir, "save_resources.yaml")
+		tmplResolver.ObjNamespace = "my-obj-namespace"
+		tmplResolver.ObjName = "my-obj-name"
 
-		saveResources := filepath.Join(tmpDir, "save_resources.yaml")
-
-		resolvedYAML, err := utils.ProcessTemplate(inputBytes, kcPath, clusterName,
-			hubNS, objNamespace, objName, saveResources, saveHubResources)
+		resolvedYAML, err := tmplResolver.ProcessTemplate(inputBytes)
 		if err != nil {
 			if len(errorBytes) == 0 {
 				t.Fatal(err)
@@ -104,10 +99,10 @@ func cliTest(testName string) func(t *testing.T) {
 		// if testName ends with "_hub" as well.
 		// otherwise test only managedCluster resources.
 		if strings.HasSuffix(testName, "_hub") {
-			compareSaveResources(t, testName, saveHubResources, true)
+			compareSaveResources(t, testName, tmplResolver.SaveHubResources, true)
 		}
 
-		compareSaveResources(t, testName, saveResources, false)
+		compareSaveResources(t, testName, tmplResolver.SaveResources, false)
 
 		if !bytes.Equal(expectedBytes, resolvedYAML) {
 			//nolint: forbidigo
