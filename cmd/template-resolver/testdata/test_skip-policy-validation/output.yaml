@@ -1,0 +1,6 @@
+test: |
+  colors:
+    - fuchsia
+    - magenta
+    - cyan
+  greeting: hello

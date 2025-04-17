@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: data-yaml
+  namespace: policies
+data:
+  config.yml: |
+    colors:
+    - fuchsia
+    - magenta
+    - cyan

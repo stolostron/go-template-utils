@@ -17,7 +17,8 @@ type TemplateResolver struct {
 	ObjName           string `yaml:"objName"`
 	SaveResources     string `yaml:"saveResources"`
 	// saveHubResources Output doesn't include "ManagedClusters" resources
-	SaveHubResources string `yaml:"saveHubResources"`
+	SaveHubResources     string `yaml:"saveHubResources"`
+	SkipPolicyValidation bool   `yaml:"skipPolicyValidation"`
 }
 
 func (t *TemplateResolver) GetCmd() *cobra.Command {
@@ -85,6 +86,13 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 		"",
 		"the path to save the output containing resources used in the hub cluster. "+
 			"This output can be used as input resources for the dry-run CLI or for local environment testing.",
+	)
+
+	templateResolverCmd.Flags().BoolVar(
+		&t.SkipPolicyValidation,
+		"skip-policy-validation",
+		false,
+		"Handle the input directly as a Go template, skipping any surrounding policy field validations.",
 	)
 
 	return templateResolverCmd
