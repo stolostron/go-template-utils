@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/stolostron/go-template-utils/v6/pkg/templates"
+	"github.com/stolostron/go-template-utils/v7/pkg/templates"
 )
 
 type hubTemplateCtx struct {
