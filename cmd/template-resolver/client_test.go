@@ -14,7 +14,7 @@ import (
 	"github.com/pmezard/go-difflib/difflib"
 	"gopkg.in/yaml.v3"
 
-	"github.com/stolostron/go-template-utils/v6/cmd/template-resolver/utils"
+	"github.com/stolostron/go-template-utils/v7/cmd/template-resolver/utils"
 )
 
 func TestCLI(t *testing.T) {
