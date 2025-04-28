@@ -95,6 +95,10 @@ func TestGetSprigFunc(t *testing.T) {
 			`{{ list "Foo" "Bar" | join "_" }}`,
 			"Foo_Bar",
 		},
+		"keys": {
+			`{{ keys (dict "key1" "value1" "key2" "values2") }}`,
+			"[key1 key2]",
+		},
 		"list": {
 			`{{ list "Foo" "Bar" }}`,
 			"[Foo Bar]",
@@ -219,6 +223,10 @@ func TestGetSprigFunc(t *testing.T) {
 			`{{ slice (list 1 2 3) 1 3 }}`,
 			"[2 3]",
 		},
+		"sortAlpha": {
+			`{{ sortAlpha (list "api" "test" "example" "com") }}`,
+			"[api com example test]",
+		},
 		"split": {
 			`{{ $a := split "." "api.test.example.com" }}{{ $a._1 }}`,
 			"test",
@@ -226,6 +234,10 @@ func TestGetSprigFunc(t *testing.T) {
 		"splitn": {
 			`{{ $a := splitn "." 3 "api.test.example.com" }}{{ $a._2 }}`,
 			"example.com",
+		},
+		"splitList": {
+			`{{ splitList "." "api.test.example.com" }}`,
+			"[api test example com]",
 		},
 		"sub": {
 			`{{ sub 4 2 }}`,
@@ -286,6 +298,10 @@ func TestGetSprigFunc(t *testing.T) {
 		"upper": {
 			`{{ upper "foo bar" }}`,
 			"FOO BAR",
+		},
+		"values": {
+			`{{ values (dict "key1" "value1" "key2" "value2") }}`,
+			"[value1 value2]",
 		},
 	}
 

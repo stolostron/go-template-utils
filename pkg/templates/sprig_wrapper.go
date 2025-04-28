@@ -37,8 +37,10 @@ var (
 		// STRING LIST
 		"concat",
 		"join",
+		"sortAlpha",
 		"split",
 		"splitn",
+		"splitList",
 
 		// INTEGER MATH
 		"add",
@@ -91,10 +93,12 @@ var (
 		"dig",
 		"get",
 		"hasKey",
+		"keys",
 		"merge",
 		"mustMerge",
 		"set",
 		"unset",
+		"values",
 
 		// TYPE CONVERSION
 		//   "atoi" -- Implemented locally
