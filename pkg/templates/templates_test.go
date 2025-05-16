@@ -737,6 +737,8 @@ func TestResolveTemplateDefaultConfig(t *testing.T) {
 func TestResolveTemplateErrors(t *testing.T) {
 	t.Parallel()
 
+	str := "world"
+
 	testcases := map[string]resolveTestCase{
 		"toLiteral_with_newlines": {
 			inputTmpl:   `param: '{{ "something\n  with\n  new\n lines\n" | toLiteral }}'`,
@@ -754,29 +756,24 @@ func TestResolveTemplateErrors(t *testing.T) {
 			ctx:         123,
 			expectedErr: ErrInvalidContextType,
 		},
-		"invalid_context_nested_int": {
-			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
-			ctx:         struct{ ClusterID int }{12},
-			expectedErr: ErrInvalidContextType,
-		},
-		"invalid_context_map_with_int": {
-			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
-			ctx:         struct{ Foo map[string]int }{Foo: map[string]int{"bar": 12}},
-			expectedErr: ErrInvalidContextType,
-		},
-		"invalid_context_map_of_int": {
-			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
-			ctx:         struct{ Foo map[int]string }{Foo: map[int]string{47: "something"}},
-			expectedErr: ErrInvalidContextType,
-		},
-		"invalid_context_nested_struct": {
-			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
-			ctx:         struct{ Metadata struct{ NestedInt int } }{struct{ NestedInt int }{NestedInt: 3}},
-			expectedErr: ErrInvalidContextType,
-		},
 		"invalid_context_not_struct": {
 			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
 			ctx:         map[string]string{"hello": "world"},
+			expectedErr: ErrInvalidContextType,
+		},
+		"invalid_context_pointer": {
+			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
+			ctx:         struct{ Hello *string }{Hello: &str},
+			expectedErr: ErrInvalidContextType,
+		},
+		"invalid_context_array_of_pointers": {
+			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
+			ctx:         struct{ Hello []*string }{Hello: []*string{&str}},
+			expectedErr: ErrInvalidContextType,
+		},
+		"invalid_context_array_of_maps_to_pointers": {
+			inputTmpl:   `test: '{{ printf "hello %s" "world" }}'`,
+			ctx:         struct{ Hello []map[bool]*string }{Hello: []map[bool]*string{{false: &str}}},
 			expectedErr: ErrInvalidContextType,
 		},
 		"disabled_fromSecret": {
@@ -911,10 +908,35 @@ func TestResolveTemplateWithContext(t *testing.T) {
 			expectedResult: "test: SSBhbSBhIHJlYWxseSBsb25nIHRlbXBsYXRlIGZvciBjbHVzdGVyIGNsdXN0ZXIxIHRoYXQgbmVlZH" +
 				"MgdG8gYmUgb3ZlciA4MCBjaGFyYWN0ZXJzIHRvIHRlc3Qgc29tZXRoaW5n",
 		},
+		"nested_int": {
+			inputTmpl:      `test: '{{ printf "hello %d" .ClusterID }}'`,
+			ctx:            struct{ ClusterID int }{12},
+			expectedResult: "test: hello 12",
+		},
+		"nested_array": {
+			inputTmpl:      `value: '{{ index .Foo 0 }}'`,
+			ctx:            struct{ Foo []string }{Foo: []string{"hello"}},
+			expectedResult: "value: hello",
+		},
+		"nested_map_with_int": {
+			inputTmpl:      `test: '{{ printf "hello %d" .Foo.bar }}'`,
+			ctx:            struct{ Foo map[string]int }{Foo: map[string]int{"bar": 12}},
+			expectedResult: "test: hello 12",
+		},
+		"nested_map_of_int": {
+			inputTmpl:      `test: '{{ printf "hello %s" (index .Foo 47) }}'`,
+			ctx:            struct{ Foo map[int]string }{Foo: map[int]string{47: "something"}},
+			expectedResult: "test: hello something",
+		},
 		"nested_map": {
 			inputTmpl:      `value: '{{ .Foo.greeting }}'`,
 			ctx:            struct{ Foo map[string]string }{Foo: map[string]string{"greeting": "hello"}},
 			expectedResult: "value: hello",
+		},
+		"nested_struct_with_int": {
+			inputTmpl:      `test: '{{ printf "hello %d" .Metadata.NestedInt }}'`,
+			ctx:            struct{ Metadata struct{ NestedInt int } }{struct{ NestedInt int }{NestedInt: 3}},
+			expectedResult: "test: hello 3",
 		},
 		"nested_struct": {
 			inputTmpl: `value: '{{ .Metadata.Labels.hello }} {{ .Metadata.Namespace }}'`,

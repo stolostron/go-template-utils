@@ -50,8 +50,7 @@ var (
 	ErrProtectNotEnabled     = errors.New("the protect template function is not enabled in this mode")
 	ErrNewLinesNotAllowed    = errors.New("new lines are not allowed in the string passed to the toLiteral function")
 	ErrInvalidContextType    = errors.New(
-		"the input context must be a struct with fields (recursively) of type string, map[string]string, " +
-			"map[string]interface{}, or struct",
+		"the input context must be a struct that recurses to kinds bool, int, float, or string",
 	)
 	ErrMissingNamespace = errors.New(
 		"the lookup of a single namespaced resource must have a namespace specified",
@@ -385,10 +384,10 @@ func getValidContext(value interface{}) (interface{}, error) {
 
 	// Require the context to be a struct
 	if reflect.TypeOf(value).Kind() != reflect.Struct {
-		return nil, fmt.Errorf("%w, got %s", ErrInvalidContextType, reflect.TypeOf(value))
+		return nil, fmt.Errorf("%w, but found a parent of kind %s", ErrInvalidContextType, reflect.TypeOf(value))
 	}
 
-	// Require the context to have fields of strings or maps/structs with string/map values/fields.
+	// Require the context to recurse to primitive keys and values through structs, maps, or arrays
 	err := getValidContextHelper(value)
 	if err != nil {
 		return nil, err
@@ -397,29 +396,67 @@ func getValidContext(value interface{}) (interface{}, error) {
 	return value, nil
 }
 
-func getValidContextHelper(value interface{}) error {
+// isPrimitive detects primitive types from the reflect package
+func isPrimitive(kind reflect.Kind) bool {
+	switch kind {
+	case
+		reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64,
+		reflect.String:
+		return true
+
+	default:
+		return false
+	}
+}
+
+func getValidContextHelper(value any) error {
 	f := reflect.TypeOf(value)
 
-	switch f.Kind() {
-	case reflect.String:
+	// Allow primitive types (excludes complex numbers)
+	if isPrimitive(f.Kind()) {
 		return nil
+	}
+
+	// Handle complex types
+	switch f.Kind() {
+	// Allow arrays and recurse into each item
+	case reflect.Slice, reflect.Array:
+		// Iterate over embedded maps and interfaces
+		if f.Elem().Kind() == reflect.Interface || f.Elem().Kind() == reflect.Map {
+			for i := range reflect.ValueOf(value).Len() {
+				err := getValidContextHelper(reflect.ValueOf(value).Index(i).Interface())
+				if err != nil {
+					return err
+				}
+			}
+		} else if !isPrimitive(f.Elem().Kind()) {
+			// Verify map values are primitive
+			return fmt.Errorf("%w, found an array with values of kind %s", ErrInvalidContextType, reflect.TypeOf(value))
+		}
+
+	// Allow structs and recurse into fields
 	case reflect.Struct:
 		for i := range f.NumField() {
-			err := getValidContextHelper(reflect.ValueOf(value).Field(i).Interface())
-			if err != nil {
-				return err
+			// Only handle exported struct fields (causes a panic calling Interface())
+			if f.Field(i).IsExported() {
+				err := getValidContextHelper(reflect.ValueOf(value).Field(i).Interface())
+				if err != nil {
+					return err
+				}
 			}
 		}
 
-		return nil
+	// Allow maps and recurse into keys
 	case reflect.Map:
-		// Only allow string keys in maps
-		if f.Key().Kind() != reflect.String {
-			return ErrInvalidContextType
+		// Only allow primitive keys in maps
+		if !isPrimitive(f.Key().Kind()) {
+			return fmt.Errorf("%w, found a map with keys of kind %s", ErrInvalidContextType, f.Key().Kind())
 		}
 
-		// Check if it's a map of maps/strings. This is to allow things such as the Kubernetes metadata field which has
-		// string (e.g. name) and map[string]string (e.g. labels) values.
+		// Iterate over embedded maps and interfaces
 		if f.Elem().Kind() == reflect.Interface || f.Elem().Kind() == reflect.Map {
 			for _, key := range reflect.ValueOf(value).MapKeys() {
 				err := getValidContextHelper(reflect.ValueOf(value).MapIndex(key).Interface())
@@ -427,19 +464,17 @@ func getValidContextHelper(value interface{}) error {
 					return err
 				}
 			}
-
-			return nil
+		} else if !isPrimitive(f.Elem().Kind()) {
+			// Verify map values are primitive
+			return fmt.Errorf("%w, found a map with values of kind %s", ErrInvalidContextType, reflect.TypeOf(value))
 		}
 
-		// Check if it's map[string]string
-		if f.Elem().Kind() != reflect.String {
-			return ErrInvalidContextType
-		}
-
-		return nil
+	// Disallow all else like pointers and channels
 	default:
-		return ErrInvalidContextType
+		return fmt.Errorf("%w, found value of kind %s", ErrInvalidContextType, reflect.TypeOf(value))
 	}
+
+	return nil
 }
 
 // validateEncryptionConfig validates an EncryptionConfig struct to ensure that if encryption

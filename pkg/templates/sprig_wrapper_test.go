@@ -299,8 +299,9 @@ func TestGetSprigFunc(t *testing.T) {
 			`{{ upper "foo bar" }}`,
 			"FOO BAR",
 		},
+		// Pass to sortAlpha because the order returned isn't guaranteed
 		"values": {
-			`{{ values (dict "key1" "value1" "key2" "value2") }}`,
+			`{{ values (dict "key1" "value1" "key2" "value2") | sortAlpha }}`,
 			"[value1 value2]",
 		},
 	}
