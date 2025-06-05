@@ -103,6 +103,10 @@ func (t *TemplateResolver) getOrList(
 		scopedGVRObj, err = t.dynamicWatcher.GVKToGVR(gvk)
 	} else {
 		scopedGVRObj, err = t.tempCallCache.GVKToGVR(gvk)
+		if errors.Is(err, client.ErrResourceUnwatchable) {
+			// ignoring this error when not using a dynamic watcher
+			err = nil
+		}
 	}
 
 	if err != nil {

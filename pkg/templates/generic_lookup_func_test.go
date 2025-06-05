@@ -3,11 +3,14 @@
 package templates
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/stolostron/kubernetes-dependency-watches/client"
 )
 
 func TestLookup(t *testing.T) {
@@ -498,5 +501,58 @@ func TestHasNodesWithExactRoles(t *testing.T) {
 
 	if !val {
 		t.Fatal("Infra nodes should exist, but returned false")
+	}
+}
+
+func TestLookupOfUnwatchableKind(t *testing.T) {
+	t.Parallel()
+
+	plainResolver, err := NewResolver(k8sConfig, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	val, err := plainResolver.lookup(
+		&ResolveOptions{},
+		&TemplateResult{},
+		"v1",
+		"ComponentStatus",
+		"",
+		"scheduler",
+	)
+	if err != nil {
+		t.Logf("Expected nil error, got: %v", err)
+		t.Fail()
+	}
+
+	if _, ok := val["metadata"]; !ok {
+		t.Logf("Expected metadata in lookup response, got: %v", val)
+		t.Fail()
+	}
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	cachingResolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = cachingResolver.lookup(
+		&ResolveOptions{},
+		&TemplateResult{},
+		"v1",
+		"ComponentStatus",
+		"",
+		"scheduler",
+	)
+	if err == nil {
+		t.Log("Expected error, got nil")
+		t.Fail()
+	}
+
+	if !errors.Is(err, client.ErrResourceUnwatchable) {
+		t.Logf("Expected an Unwatchable error, got: %v", err)
+		t.Fail()
 	}
 }
