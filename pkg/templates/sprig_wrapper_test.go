@@ -95,8 +95,9 @@ func TestGetSprigFunc(t *testing.T) {
 			`{{ list "Foo" "Bar" | join "_" }}`,
 			"Foo_Bar",
 		},
+		// Pass to sortAlpha because the order returned isn't guaranteed
 		"keys": {
-			`{{ keys (dict "key1" "value1" "key2" "values2") }}`,
+			`{{ keys (dict "key1" "value1" "key2" "values2") | sortAlpha }}`,
 			"[key1 key2]",
 		},
 		"list": {
