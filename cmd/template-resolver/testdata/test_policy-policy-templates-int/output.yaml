@@ -1,0 +1,8 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: invalid-spec
+spec:
+  policy-templates:
+    - objectDefinition:
+        int-map: 100

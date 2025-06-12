@@ -84,8 +84,14 @@ func cliTest(testName string) func(t *testing.T) {
 			// If an error file is provided, overwrite the
 			// expected and resolved with the error contents
 			expectedBytes = errorBytes
+
 			errMatch := regexp.MustCompile("template: tmpl:[0-9]+:[0-9]+: .*")
 			resolvedYAML = errMatch.Find([]byte(err.Error()))
+
+			// If nothing is matched, use the entire error
+			if len(resolvedYAML) == 0 {
+				resolvedYAML = []byte(err.Error())
+			}
 		}
 
 		if !bytes.Equal(expectedBytes, resolvedYAML) {
