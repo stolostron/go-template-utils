@@ -1,0 +1,1 @@
+invalid policy-templates entry was provided at index 0: .objectDefinition accessor error: 0 is of the type float64, expected map[string]interface{}
