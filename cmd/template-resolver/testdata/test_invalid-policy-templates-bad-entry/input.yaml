@@ -1,0 +1,7 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: invalid-policy-template-entry
+spec:
+  policy-templates:
+    - whee!!!
