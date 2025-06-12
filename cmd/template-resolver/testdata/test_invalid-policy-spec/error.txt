@@ -1,0 +1,1 @@
+invalid policy-templates array was provided: .spec.policy-templates accessor error: [] is of the type []interface {}, expected map[string]interface{}
