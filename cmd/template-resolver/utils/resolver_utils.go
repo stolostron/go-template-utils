@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
+	k8syaml "sigs.k8s.io/yaml"
 
 	"github.com/stolostron/go-template-utils/v7/pkg/templates"
 )
@@ -77,7 +78,7 @@ func HandleFile(yamlFile string) ([]byte, error) {
 func (t *TemplateResolver) ProcessTemplate(yamlBytes []byte) ([]byte, error) {
 	policy := unstructured.Unstructured{}
 
-	err := yaml.Unmarshal(yamlBytes, &policy.Object)
+	err := k8syaml.Unmarshal(yamlBytes, &policy.Object)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse input to YAML: %w", err)
 	}
@@ -285,20 +286,26 @@ func processPolicyTemplate(
 	resolver *templates.TemplateResolver,
 	tempCtx templates.TemplateContext,
 ) error {
-	policyTemplates, _, err := unstructured.NestedSlice(policy.Object, "spec", "policy-templates")
+	policyTemplates, found, err := unstructured.NestedSlice(policy.Object, "spec", "policy-templates")
 	if err != nil {
 		return fmt.Errorf("invalid policy-templates array was provided: %w", err)
+	} else if !found {
+		return errors.New("invalid policy-templates array was provided: spec.policy-templates keys not found")
 	}
 
 	for i := range policyTemplates {
-		policyTemplate, ok := policyTemplates[i].(map[string]interface{})
+		policyTemplate, ok := policyTemplates[i].(map[string]any)
 		if !ok {
-			return fmt.Errorf("invalid policy-templates entry was provided: %w", err)
+			return fmt.Errorf("invalid policy-templates entry was provided at index %d: "+
+				"could not parse to map[string]interface{}", i)
 		}
 
-		objectDefinition, ok := policyTemplate["objectDefinition"].(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("invalid policy-templates entry was provided: %w", err)
+		objectDefinition, found, err := unstructured.NestedMap(policyTemplate, "objectDefinition")
+		if err != nil {
+			return fmt.Errorf("invalid policy-templates entry was provided at index %d: %w", i, err)
+		} else if !found {
+			return fmt.Errorf("invalid policy-templates entry was provided at index %d: "+
+				"objectDefinition key not found", i)
 		}
 
 		templateObj := unstructured.Unstructured{Object: objectDefinition}
