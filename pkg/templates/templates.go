@@ -414,6 +414,9 @@ func isPrimitive(kind reflect.Kind) bool {
 
 func getValidContextHelper(value any) error {
 	f := reflect.TypeOf(value)
+	if f == nil { // nil interface value.
+		return nil
+	}
 
 	// Allow primitive types (excludes complex numbers)
 	if isPrimitive(f.Kind()) {
