@@ -962,6 +962,16 @@ func TestResolveTemplateWithContext(t *testing.T) {
 			},
 			expectedResult: "value: world spacename",
 		},
+		"nested_empty_interface": {
+			inputTmpl: `value: '{{ .Foo.bar }} {{ .Foo.other }}'`,
+			ctx: struct{ Foo map[string]interface{} }{
+				Foo: map[string]interface{}{
+					"bar":   "hello",
+					"other": nil, // this can occur when YAML has 'null' fields
+				},
+			},
+			expectedResult: "value: hello <no value>",
+		},
 	}
 
 	for testName, test := range testcases {
