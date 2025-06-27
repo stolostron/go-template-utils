@@ -933,6 +933,17 @@ func TestResolveTemplateWithContext(t *testing.T) {
 			ctx:            struct{ Foo map[string]string }{Foo: map[string]string{"greeting": "hello"}},
 			expectedResult: "value: hello",
 		},
+		"nested_map_of_any": {
+			inputTmpl: `value: '{{ keys (index .Foo.mappymap 0) }}'`,
+			ctx: struct{ Foo map[string]any }{Foo: map[string]any{
+				"mappymap": []map[string]any{
+					{
+						"boom": nil,
+					},
+				},
+			}},
+			expectedResult: "value: '[boom]'",
+		},
 		"nested_struct_with_int": {
 			inputTmpl:      `test: '{{ printf "hello %d" .Metadata.NestedInt }}'`,
 			ctx:            struct{ Metadata struct{ NestedInt int } }{struct{ NestedInt int }{NestedInt: 3}},

@@ -413,6 +413,10 @@ func isPrimitive(kind reflect.Kind) bool {
 }
 
 func getValidContextHelper(value any) error {
+	if value == nil {
+		return nil
+	}
+
 	f := reflect.TypeOf(value)
 	if f == nil { // nil interface value.
 		return nil
