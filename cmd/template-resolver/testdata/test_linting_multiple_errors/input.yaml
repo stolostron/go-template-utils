@@ -1,0 +1,28 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: multiple-errors-test  
+spec:
+  policy-templates:
+    - objectDefinition:	
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: multiple-errors-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: {{ fromConfigMap "default" "config" "name" }}
+                data:
+                  trailing: "value with trailing"   
+                  unquoted: {{ fromConfigMap "default" "config" "value" }}
+                  unclosed: '{{ lookup "v1" "Secret" "default" "secret'
+                rules: 
+                  - {{ lookup "v1" "Secret" "default" "my-secret" }}
+                  - wrongClose: '{{ fromConfigMap "default" "config" "value" }hub}'

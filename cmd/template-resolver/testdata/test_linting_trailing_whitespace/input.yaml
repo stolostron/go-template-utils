@@ -1,0 +1,23 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: trailing-whitespace-test  
+spec:
+  policy-templates:
+    - objectDefinition:	
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: trailing-whitespace-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap 
+                metadata:
+                  name: test-configmap
+                data:
+                  key: {{ fromConfigMap "default" "cool-car" "model" }}    

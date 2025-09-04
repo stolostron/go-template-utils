@@ -45,7 +45,7 @@ lint:
 
 .PHONY: test
 test: envtest
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test $(TESTARGS) ./...
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test $(TESTARGS) -coverpkg=$(shell cat go.mod | head -1 | cut -d ' ' -f 2)/... ./...
 
 .PHONY: test-coverage
 test-coverage: TESTARGS = -cover -covermode=atomic -coverprofile=coverage.out

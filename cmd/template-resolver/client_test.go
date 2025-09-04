@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/stolostron/go-template-utils/v7/cmd/template-resolver/utils"
+	"github.com/stolostron/go-template-utils/v7/pkg/templates"
 )
 
 func TestCLI(t *testing.T) {
@@ -98,6 +99,15 @@ func cliTest(testName string) func(t *testing.T) {
 			}
 		}
 
+		// Append error to linting output if it exists
+		var lintingBytes []byte
+
+		if tmplResolver.Lint {
+			if violations := utils.Lint(string(inputBytes)); len(violations) > 0 {
+				lintingBytes = []byte("Found linting issues:\n" + templates.OutputStringViolations(violations) + "\n")
+			}
+		}
+
 		resolvedYAML, err := tmplResolver.ProcessTemplate(inputBytes)
 		if err != nil {
 			if len(errorBytes) == 0 {
@@ -108,13 +118,18 @@ func cliTest(testName string) func(t *testing.T) {
 			// expected and resolved with the error contents
 			expectedBytes = errorBytes
 
-			errMatch := regexp.MustCompile("template: tmpl:[0-9]+:[0-9]+: .*")
+			errMatch := regexp.MustCompile("template: tmpl:([0-9]+:){1,2} .*")
 			resolvedYAML = errMatch.Find([]byte(err.Error()))
 
 			// If nothing is matched, use the entire error
 			if len(resolvedYAML) == 0 {
 				resolvedYAML = []byte(err.Error())
 			}
+		}
+
+		// Append output to linting output if it exists
+		if len(lintingBytes) > 0 {
+			resolvedYAML = append(lintingBytes, resolvedYAML...)
 		}
 
 		// Compare the saved resources. Use hubCluster resources

@@ -1,0 +1,29 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: unquoted-template-values-test
+spec:
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: unquoted-values-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: {{ fromConfigMap "default" "cool-car" "model" }}
+                data:
+                  unquotedKey: {{ fromConfigMap "default" "cool-car" "model" }}
+                  quotedKey: '{{ fromConfigMap "default" "cool-car" "model" }}'
+                rules:
+                  - {{ (lookup "v1" "ConfigMap" "policies" "coolest-car").data.model }}
+                  - '{{ lookup "v1" "ConfigMap" "policies" "coolest-car").data.model }}'
+                  - host: {{ fromConfigMap "default" "cool-car" "model" }}
+                  - port: '{{hub .ManagedClusterName }}'
