@@ -1,0 +1,35 @@
+Found linting issues:
+line 4: trailingWhitespace: trailing whitespace detected:
+	name: trailing-whitespace-test  <<<
+line 7: trailingWhitespace: trailing whitespace detected:
+	- objectDefinition:	<<<
+line 19: trailingWhitespace: trailing whitespace detected:
+	kind: ConfigMap <<<
+line 23: trailingWhitespace: trailing whitespace detected:
+	key: {{ fromConfigMap "default" "cool-car" "model" }}    <<<
+line 23: unquotedTemplateValues: template value for key should be single-quoted:
+	key: {{ fromConfigMap "default" "cool-car" "model" }}
+
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: trailing-whitespace-test
+spec:
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: trailing-whitespace-config
+        spec:
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  key: Shelby Mustang
+                kind: ConfigMap
+                metadata:
+                  name: test-configmap
+          remediationAction: enforce
+          severity: low

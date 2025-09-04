@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/stolostron/go-template-utils/v7/pkg/templates"
 )
 
 // Struct representing the template-resolver command
@@ -19,9 +21,12 @@ type TemplateResolver struct {
 	// saveHubResources Output doesn't include "ManagedClusters" resources
 	SaveHubResources     string `yaml:"saveHubResources"`
 	SkipPolicyValidation bool   `yaml:"skipPolicyValidation"`
+	Lint                 bool   `yaml:"lint"`
 }
 
 func (t *TemplateResolver) GetCmd() *cobra.Command {
+	envVarLint := "TEMPLATE_RESOLVER_LINT"
+
 	// templateResolverCmd represents the template-resolver command
 	templateResolverCmd := &cobra.Command{
 		Use: `template-resolver [flags] [file|-]
@@ -95,6 +100,19 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 		"Handle the input directly as a Go template, skipping any surrounding policy field validations.",
 	)
 
+	templateResolverCmd.Flags().BoolVar(
+		&t.Lint,
+		"lint",
+		false,
+		fmt.Sprintf(
+			"lint the template string for issues (Alternatively, set the environment variable %s=true)", envVarLint),
+	)
+
+	lint := os.Getenv(envVarLint)
+	if lint == "true" {
+		t.Lint = true
+	}
+
 	return templateResolverCmd
 }
 
@@ -130,6 +148,13 @@ func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) e
 	yamlBytes, err := HandleFile(yamlFile)
 	if err != nil {
 		return fmt.Errorf("error handling YAML file input: %w", err)
+	}
+
+	if t.Lint {
+		if violations := Lint(string(yamlBytes)); len(violations) > 0 {
+			cmd.Println("Found linting issues:")
+			cmd.Println(templates.OutputStringViolations(violations) + "\n")
+		}
 	}
 
 	resolvedYAML, err := t.ProcessTemplate(yamlBytes)

@@ -70,6 +70,10 @@ func HandleFile(yamlFile string) ([]byte, error) {
 	return yamlBytes, nil
 }
 
+func Lint(yamlString string) []templates.LinterRuleViolation {
+	return templates.Lint(yamlString)
+}
+
 // ProcessTemplate takes a YAML byte array input, unmarshals it to a Policy, ConfigPolicy,
 // or object-templates-raw, processes the templates, and marshals it back to YAML,
 // returning the resulting byte array. Validation is performed along the way, returning

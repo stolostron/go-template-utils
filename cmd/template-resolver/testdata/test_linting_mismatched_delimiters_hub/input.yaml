@@ -1,0 +1,26 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: mismatched-delimiters-test
+spec:
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: mismatched-delimiters-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: "{{hub .ManagedClusterName }"
+                data:
+                  unclosed: "{{hub .ManagedClusterName }"
+                  wrongClose: '{{ fromConfigMap "default" "config" "value" }hub}'
+                  extraClose: "already closed }} but here's another"
+                  mixed: '{{hub .ManagedClusterName {{ lookup "v1" "Secret" "default" "" }} .Status }}'

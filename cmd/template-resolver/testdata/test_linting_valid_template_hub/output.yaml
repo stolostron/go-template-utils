@@ -1,0 +1,29 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: valid-template-test
+spec:
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: valid-template-config
+        spec:
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  anotherKey: local-cluster
+                  quotedKey: Shelby Mustang
+                kind: ConfigMap
+                metadata:
+                  name: Shelby Mustang
+                rules:
+                  - Subaru Baja
+                  - local-cluster
+                  - host: Shelby Mustang
+                  - port: local-cluster
+          remediationAction: enforce
+          severity: low
