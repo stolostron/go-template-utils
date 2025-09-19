@@ -201,7 +201,7 @@ func ProcessTemplate(yamlBytes []byte, hubKubeConfigPath, clusterName, hubNS str
 		_, err = processOperatorPolicyTemplates(policy.Object, resolver)
 	default:
 		if _, ok := policy.Object["object-templates-raw"]; !ok {
-			return nil, fmt.Errorf("invalid YAML. Supported types: Policy, " +
+			return nil, errors.New("invalid YAML. Supported types: Policy, " +
 				"ConfigurationPolicy, object-templates-raw")
 		}
 
