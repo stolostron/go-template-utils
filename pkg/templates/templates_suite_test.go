@@ -42,7 +42,7 @@ func testMain(m *testing.M) int {
 }
 
 func setUp() {
-	ctx, cancel = context.WithCancel(context.TODO())
+	ctx, cancel = context.WithCancel(t.Context())
 
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{"../../test_data/crds/clusterclaim.yaml"},
