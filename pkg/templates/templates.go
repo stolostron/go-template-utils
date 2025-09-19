@@ -377,7 +377,7 @@ func getValidContext(context interface{}) (ctx interface{}, _ error) {
 		return nil, fmt.Errorf("%w, got %s", ErrInvalidContextType, ctxType)
 	}
 
-	for i := 0; i < ctxType.NumField(); i++ {
+	for i := range ctxType.NumField() {
 		f := ctxType.Field(i)
 
 		switch f.Type.Kind() {

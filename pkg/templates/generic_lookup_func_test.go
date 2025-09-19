@@ -5,10 +5,9 @@ package templates
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
-
-	"golang.org/x/exp/slices"
 )
 
 func TestLookup(t *testing.T) {
