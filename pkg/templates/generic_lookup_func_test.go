@@ -530,7 +530,7 @@ func TestLookupOfUnwatchableKind(t *testing.T) {
 		t.Fail()
 	}
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	defer cancelFunc()
 
 	cachingResolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
