@@ -40,7 +40,7 @@ func TestNewResolver(t *testing.T) {
 func TestNewResolverWithCaching(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	defer cancelFunc()
 
 	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
@@ -112,7 +112,7 @@ func TestNewResolverFailures(t *testing.T) {
 		t.Run("NewResolverWithCaching: "+testName, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancelFunc := context.WithCancel(context.Background())
+			ctx, cancelFunc := context.WithCancel(t.Context())
 			defer cancelFunc()
 
 			_, _, err := NewResolverWithCaching(ctx, k8sConfig, test.config)
@@ -225,7 +225,7 @@ func doResolveTest(t *testing.T, test resolveTestCase) {
 func TestResolveTemplateWithCaching(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	defer cancelFunc()
 
 	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
@@ -362,7 +362,7 @@ func TestStartQueryBatchNoCaching(t *testing.T) {
 func TestResolveTemplateWithCachingManualCleanUp(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	defer cancelFunc()
 
 	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{SkipBatchManagement: true})
@@ -435,7 +435,7 @@ func TestResolveTemplateWithCachingManualCleanUp(t *testing.T) {
 func TestResolveTemplateWithCachingNotAllowedClusterScoped(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	defer cancelFunc()
 
 	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
@@ -479,7 +479,7 @@ func TestResolveTemplateWithCachingNotAllowedClusterScoped(t *testing.T) {
 func TestResolveTemplateWithCachingListQuery(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	defer cancelFunc()
 
 	resolver, _, err := NewResolverWithCaching(ctx, k8sConfig, Config{})
@@ -544,7 +544,7 @@ func (r fakeReconciler) Reconcile(_ context.Context, _ client.ObjectIdentifier) 
 func TestResolveTemplateWithPreexistingWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	defer cancelFunc()
 
 	fr := fakeReconciler{}
