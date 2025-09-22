@@ -42,6 +42,7 @@ func (t *TemplateResolver) protect(options *ResolveOptions, value string) (strin
 	}
 
 	blockSize := block.BlockSize()
+	// #nosec G407 -- Onus to randomize the IV is on the consuming controller.
 	blockMode := cipher.NewCBCEncrypter(block, options.InitializationVector)
 
 	valueBytes := []byte(value)
@@ -85,6 +86,7 @@ func (t *TemplateResolver) decrypt(options *ResolveOptions, value string) (strin
 			continue
 		}
 
+		// #nosec G407 -- Onus to randomize the IV is on the consuming controller.
 		blockMode := cipher.NewCBCDecrypter(block, options.InitializationVector)
 		decryptedValue = make([]byte, len(decodedValue))
 		blockMode.CryptBlocks(decryptedValue, decodedValue)
@@ -178,11 +180,12 @@ func (t *TemplateResolver) processEncryptedStrs(
 	var numWorkers int
 
 	// Determine how many Goroutines to spawn.
-	if options.DecryptionConcurrency <= 1 {
+	switch {
+	case options.DecryptionConcurrency <= 1:
 		numWorkers = 1
-	} else if len(submatches) > int(options.DecryptionConcurrency) {
+	case len(submatches) > int(options.DecryptionConcurrency):
 		numWorkers = int(options.DecryptionConcurrency)
-	} else {
+	default:
 		numWorkers = len(submatches)
 	}
 
@@ -196,7 +199,7 @@ func (t *TemplateResolver) processEncryptedStrs(
 	defer cancel()
 
 	// Start up all the Goroutines.
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		go t.decryptWrapper(ctx, options, submatchesChan, resultsChan)
 	}
 

@@ -24,6 +24,7 @@ run:
 linters:
   enable-all: true
   disable:
+    - mnd  # Disabled as tech debt: Magic number detection
     - bodyclose
     - cyclop
     - depguard
@@ -192,6 +193,7 @@ issues:
     - return statements should not be cuddled if block has more than two lines
     - declarations should never be cuddled
     - don't use leading k in Go names
+    - "require-error: for error assertions use require"
 
   exclude-rules:
     # Allow dot imports in the tests.
