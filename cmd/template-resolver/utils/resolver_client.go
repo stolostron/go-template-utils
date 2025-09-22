@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -97,7 +98,7 @@ func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) e
 		}
 
 		if (stdinInfo.Mode() & os.ModeCharDevice) != 0 {
-			return fmt.Errorf("failed to read from stdin: input is not a pipe")
+			return errors.New("failed to read from stdin: input is not a pipe")
 		}
 	}
 
@@ -108,7 +109,7 @@ func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) e
 
 	// Validate flag args
 	if t.hubKubeConfigPath != "" && t.clusterName == "" {
-		return fmt.Errorf(
+		return errors.New(
 			"when a hub kubeconfig is provided, you must provide a managed cluster name for hub templates to resolve " +
 				"using the cluster-name argument",
 		)

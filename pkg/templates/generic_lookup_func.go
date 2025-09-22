@@ -339,7 +339,7 @@ func (t *TemplateResolver) getNodesWithExactRoles(
 
 	for _, n := range name {
 		if strings.TrimSpace(n) != "" {
-			searchRoles = append(searchRoles, fmt.Sprintf("node-role.kubernetes.io/%s", n))
+			searchRoles = append(searchRoles, "node-role.kubernetes.io/"+n)
 		}
 	}
 

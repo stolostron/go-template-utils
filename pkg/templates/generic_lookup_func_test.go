@@ -57,7 +57,7 @@ func TestLookup(t *testing.T) {
 	for _, test := range testcases {
 		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		templateResult := &TemplateResult{}
@@ -73,7 +73,7 @@ func TestLookup(t *testing.T) {
 
 		if err != nil {
 			if test.expectedErr == nil {
-				t.Fatalf(err.Error())
+				t.Fatal(err)
 			}
 
 			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
@@ -215,7 +215,7 @@ func TestLookupWithLabels(t *testing.T) {
 	for _, test := range testcases {
 		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		// prevent linter critic for unslicing.  this is required to duplicate passing multiple args as a user would
@@ -232,7 +232,7 @@ func TestLookupWithLabels(t *testing.T) {
 
 		if err != nil {
 			if test.expectedErr == nil {
-				t.Fatalf(err.Error())
+				t.Fatal(err)
 			}
 
 			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
@@ -264,6 +264,7 @@ func TestLookupWithLabels(t *testing.T) {
 			for _, lstObj := range val["items"].([]interface{}) {
 				refObject := lstObj.(map[string]interface{})
 				refObjMetadata := refObject["metadata"].(map[string]interface{})
+
 				if refObject["apiVersion"] != test.inputAPIVersion || refObject["kind"] != test.inputKind ||
 					refObjMetadata["namespace"] != test.inputNs {
 					t.Fatalf(
@@ -360,7 +361,7 @@ func TestLookupClusterScoped(t *testing.T) {
 	for _, test := range testcases {
 		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		templateResult := &TemplateResult{}
@@ -379,7 +380,7 @@ func TestLookupClusterScoped(t *testing.T) {
 
 		if err != nil {
 			if test.expectedErr == nil {
-				t.Fatalf(err.Error())
+				t.Fatal(err)
 			}
 
 			if !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
@@ -435,7 +436,7 @@ func TestGetNodesWithExactRoles(t *testing.T) {
 	for _, test := range testcases {
 		resolver, err := NewResolver(k8sConfig, Config{})
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		templateResult := &TemplateResult{}
@@ -449,7 +450,7 @@ func TestGetNodesWithExactRoles(t *testing.T) {
 			test.roleNames...,
 		)
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 
 		if len(val["items"].([]interface{})) == 0 && test.expectedExists {
@@ -458,6 +459,7 @@ func TestGetNodesWithExactRoles(t *testing.T) {
 			for _, lstObj := range val["items"].([]interface{}) {
 				refObject := lstObj.(map[string]interface{})
 				refObjMetadata := refObject["metadata"].(map[string]interface{})
+
 				if !slices.Contains(test.expectedObjNames, refObjMetadata["name"].(string)) {
 					t.Fatalf(
 						"Received: %s"+
@@ -478,7 +480,7 @@ func TestHasNodesWithExactRoles(t *testing.T) {
 
 	resolver, err := NewResolver(k8sConfig, Config{})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	testRole := []string{"infra"}
@@ -491,7 +493,7 @@ func TestHasNodesWithExactRoles(t *testing.T) {
 		testRole...,
 	)
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	if !val {
