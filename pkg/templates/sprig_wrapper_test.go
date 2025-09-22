@@ -257,9 +257,6 @@ func TestGetSprigFunc(t *testing.T) {
 	}
 
 	for funcName, test := range tests {
-		funcName := funcName
-		test := test
-
 		t.Run(funcName, func(t *testing.T) {
 			t.Parallel()
 

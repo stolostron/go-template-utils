@@ -18,8 +18,6 @@ import (
 
 var (
 	testEnv            *envtest.Environment
-	ctx                context.Context
-	cancel             context.CancelFunc
 	errKubectl         = errors.New("kubectl exited with error")
 	kubeconfigPath     string
 	savedKubeconfigEnv string
@@ -29,12 +27,18 @@ var (
 var testfiles embed.FS
 
 func TestMain(m *testing.M) {
-	os.Exit(testMain(m))
+	_, cancel := context.WithCancel(context.TODO())
+
+	exitCode := testMain(m) // Run tests and capture the exit code
+
+	// Explicitly call tearDown before exiting
+	tearDown()
+	cancel()
+
+	os.Exit(exitCode) // Exit with the captured status code
 }
 
 func testMain(m *testing.M) int {
-	defer tearDown()
-
 	setUp()
 
 	return m.Run()
@@ -42,8 +46,6 @@ func testMain(m *testing.M) int {
 
 func setUp() {
 	savedKubeconfigEnv = os.Getenv("KUBECONFIG")
-
-	ctx, cancel = context.WithCancel(context.TODO())
 
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{"../../testdata/crds.yaml"},
@@ -144,8 +146,6 @@ func tearDown() {
 		//nolint: forbidigo
 		fmt.Printf("Could not remove temporary kubeconfig at %v; error: %v\n", kubeconfigPath, err)
 	}
-
-	cancel()
 
 	err := testEnv.Stop()
 	if err != nil {
