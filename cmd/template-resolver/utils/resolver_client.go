@@ -45,43 +45,43 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 		&t.HubKubeConfigPath,
 		"hub-kubeconfig",
 		"",
-		"the input kubeconfig to also resolve hub templates",
+		"The input kubeconfig to also resolve hub templates.",
 	)
 
 	templateResolverCmd.Flags().StringVar(
 		&t.ClusterName,
 		"cluster-name",
 		"",
-		"the cluster name to use for the .ManagedClusterName template variable when resolving hub cluster templates",
+		"The cluster name to use for the .ManagedClusterName template variable when resolving hub cluster templates.",
 	)
 
 	templateResolverCmd.Flags().StringVar(
 		&t.HubNamespace,
 		"hub-namespace",
 		"",
-		"the namespace on the hub to restrict namespaced lookups to when resolving hub templates",
+		"The namespace on the hub to restrict namespaced lookups to when resolving hub templates.",
 	)
 
 	templateResolverCmd.Flags().StringVar(
 		&t.ObjNamespace,
 		"object-namespace",
 		"",
-		"the object namespace to use for the .ObjectNamespace template variable when policy uses namespaceSelector",
+		"The object namespace to use for the .ObjectNamespace template variable when policy uses namespaceSelector.",
 	)
 
 	templateResolverCmd.Flags().StringVar(
 		&t.ObjName,
 		"object-name",
 		"",
-		"the object namespace to use for the .ObjectName template variable "+
-			"when policy uses namespaceSelector or objectSelector",
+		"The object namespace to use for the .ObjectName template variable "+
+			"when policy uses namespaceSelector or objectSelector.",
 	)
 
 	templateResolverCmd.Flags().StringVar(
 		&t.SaveResources,
 		"save-resources",
 		"",
-		"the path to save the output containing resources used. "+
+		"The path to save the output containing resources used. "+
 			"This output can be used as input resources for the dry-run CLI or for local environment testing.",
 	)
 
@@ -89,7 +89,7 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 		&t.SaveHubResources,
 		"save-hub-resources",
 		"",
-		"the path to save the output containing resources used in the hub cluster. "+
+		"The path to save the output containing resources used in the hub cluster. "+
 			"This output can be used as input resources for the dry-run CLI or for local environment testing.",
 	)
 
@@ -105,7 +105,8 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 		"lint",
 		false,
 		fmt.Sprintf(
-			"lint the template string for issues (Alternatively, set the environment variable %s=true)", envVarLint),
+			"(Tech Preview) Lint the template string for issues (Alternatively, set the environment variable %s=true).",
+			envVarLint),
 	)
 
 	lint := os.Getenv(envVarLint)
