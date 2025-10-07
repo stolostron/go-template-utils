@@ -25,8 +25,6 @@ type TemplateResolver struct {
 }
 
 func (t *TemplateResolver) GetCmd() *cobra.Command {
-	envVarLint := "TEMPLATE_RESOLVER_LINT"
-
 	// templateResolverCmd represents the template-resolver command
 	templateResolverCmd := &cobra.Command{
 		Use: `template-resolver [flags] [file|-]
@@ -100,19 +98,17 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 		"Handle the input directly as a Go template, skipping any surrounding policy field validations.",
 	)
 
+	envVarLint := "TEMPLATE_RESOLVER_LINT"
+	lint := os.Getenv(envVarLint) == "true"
+
 	templateResolverCmd.Flags().BoolVar(
 		&t.Lint,
 		"lint",
-		false,
+		lint,
 		fmt.Sprintf(
 			"(Tech Preview) Lint the template string for issues (Alternatively, set the environment variable %s=true).",
 			envVarLint),
 	)
-
-	lint := os.Getenv(envVarLint)
-	if lint == "true" {
-		t.Lint = true
-	}
 
 	return templateResolverCmd
 }
