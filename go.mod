@@ -9,9 +9,9 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/stolostron/kubernetes-dependency-watches v0.10.2
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.31.9
-	k8s.io/apimachinery v0.31.9
-	k8s.io/client-go v0.31.9
+	k8s.io/api v0.31.13
+	k8s.io/apimachinery v0.31.13
+	k8s.io/client-go v0.31.13
 	k8s.io/klog v1.0.0
 	sigs.k8s.io/controller-runtime v0.19.7
 	sigs.k8s.io/yaml v1.4.0
@@ -59,7 +59,7 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	k8s.io/apiextensions-apiserver v0.31.9 // indirect
+	k8s.io/apiextensions-apiserver v0.31.13 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240521193020-835d969ad83a // indirect
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8 // indirect
