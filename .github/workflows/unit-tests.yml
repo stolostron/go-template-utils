@@ -30,12 +30,12 @@ jobs:
           make gosec-scan
 
       - name: Store the GitHub triggering event for the sonarcloud workflow
+        env:
+          EVENT_JSON: ${{ toJSON(github.event) }}
         if: |
           github.repository_owner == 'stolostron'
         run: |
-          cat <<EOF > event.json
-          ${{ toJSON(github.event) }}
-          EOF
+          printf '%s' "${EVENT_JSON}" > event.json
 
       - name: Upload artifacts for the sonarcloud workflow
         if: |
