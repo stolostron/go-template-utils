@@ -30,10 +30,26 @@ func TestFromClusterClaimNotFound(t *testing.T) {
 
 	expectedMsg := `clusterclaims.cluster.open-cluster-management.io "something-nonexistent" not found`
 	if err == nil || err.Error() != expectedMsg {
-		t.Fatalf("Expected an error for the missing claim name but got %v", err)
+		t.Fatalf("Expected an error for the missing claim but got %v", err)
 	}
 
 	if rv != "" {
 		t.Fatalf("Expected no return value due to the error but got %v", rv)
+	}
+}
+
+func TestLookupClusterClaimNotFound(t *testing.T) {
+	resolver, err := NewResolver(k8sConfig, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rv, err := resolver.lookupClusterClaim(&ResolveOptions{}, "something-nonexistent")
+	if err != nil {
+		t.Fatalf("Expected no error for the missing claim, but got %v", err)
+	}
+
+	if rv != "" {
+		t.Fatalf("Expected empty return value but got %v", rv)
 	}
 }

@@ -613,6 +613,7 @@ func (t *TemplateResolver) ResolveTemplate(
 		"fromSecret":             t.fromSecretHelper(options, &resolvedResult),
 		"fromConfigMap":          t.fromConfigMapHelper(options),
 		"fromClusterClaim":       t.fromClusterClaimHelper(options),
+		"lookupClusterClaim":     t.lookupClusterClaimHelper(options),
 		"getNodesWithExactRoles": t.getNodesWithExactRolesHelper(options, &resolvedResult),
 		"hasNodesWithExactRoles": t.hasNodesWithExactRolesHelper(options),
 		"lookup":                 t.lookupHelper(options, &resolvedResult),
