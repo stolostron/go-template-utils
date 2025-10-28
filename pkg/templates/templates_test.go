@@ -677,6 +677,14 @@ func TestResolveTemplateDefaultConfig(t *testing.T) {
 			inputTmpl:      `value: '{{ fromClusterClaim "env" }}'`,
 			expectedResult: "value: dev",
 		},
+		"lookupClusterClaim": {
+			inputTmpl:      `value: '{{ lookupClusterClaim "env" }}'`,
+			expectedResult: "value: dev",
+		},
+		"lookupClusterClaim_NonExist": {
+			inputTmpl:      `value: '{{ lookupClusterClaim "nonexist" }}'`,
+			expectedResult: `value: ""`,
+		},
 		"lookup_duplicate_list_uses_resolve_cache": {
 			inputTmpl: `data: '{{ (index (lookup "v1" "ConfigMap" "testns" "" "env=a").items 0).data.cmkey1 }}` +
 				`{{ (index (lookup "v1" "ConfigMap" "testns" "" "env=a").items 0).data.cmkey1 }}'`,

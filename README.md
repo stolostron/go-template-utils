@@ -42,12 +42,13 @@ Function | Description | Example
 `base64enc` | Decodes the input Base64 string to its decoded form. |`{{ "VGVtcGxhdGVzIHJvY2shCg==" \| base64dec }}`
 `base64enc` | Encodes an input string in the Base64 format. | `{{ "Templating rocks!" \| base64enc }}`
 `indent` | Indents the input string by the specified amount. | `{{ "Templating\nrocks!" \| indent 4 }}`
-`fromClusterClaim` | Returns the value of a specific `ClusterClaim`. | `{{ fromClusterClaim "name" }}`
-`fromConfigMap` | Returns the value of a key inside a `ConfigMap`. | `{{ fromConfigMap "namespace" "config-map-name" "key" }}`
+`fromClusterClaim` | Returns the value of a specific `ClusterClaim`. Errors if the `ClusterClaim` is not found. | `{{ fromClusterClaim "name" }}`
+`lookupClusterClaim` | Returns the value of a specific `ClusterClaim`. Returns an empty string if the `ClusterClaim` is not found. | `{{ lookupClusterClaim "name" }}`
+`fromConfigMap` | Returns the value of a key inside a `ConfigMap`. Errors if the `ConfigMap` is not found. | `{{ fromConfigMap "namespace" "config-map-name" "key" }}`
 `copyConfigMapData` | Returns the `data` contents of the specified `ConfigMap` | `{{ copyConfigMapData "namespace" "config-map-name" }}`
-`fromSecret` | Returns the value of a key inside a `Secret`. If the `EncryptionMode` is set to `EncryptionEnabled`, this will return an encrypted value. | `{{ fromSecret "namespace" "secret-name" "key" }}`
+`fromSecret` | Returns the value of a key inside a `Secret`. If the `EncryptionMode` is set to `EncryptionEnabled`, this will return an encrypted value. Errors if the `Secret` is not found. | `{{ fromSecret "namespace" "secret-name" "key" }}`
 `copySecretData` | Returns the `data` contents of the specified `Secret`. If the `EncryptionMode` is set to `EncryptionEnabled`, this will return an encrypted value. | `{{ copySecretData "namespace" "secret-name" }}`
-`lookup` | Generic lookup function for any Kubernetes object. | `{{ (lookup "v1" "Secret" "namespace" "name").data.key }}`
+`lookup` | Generic lookup function for any Kubernetes object. Returns an empty string if the resource is not found. | `{{ (lookup "v1" "Secret" "namespace" "name").data.key }}`
 `protect` | Encrypts any string using AES-CBC. | `{{ "super-secret" \| protect }}`
 `toBool` | Parses an input boolean string converts it to a boolean but also removes any quotes around the map value. | `key: "{{ "true" \| toBool }}"` => `key: true`
 `toInt` | Parses an input string and returns an integer but also removes anyquotes around the map value. |  `key: "{{ "6" \| toInt }}"` => `key: 6`
