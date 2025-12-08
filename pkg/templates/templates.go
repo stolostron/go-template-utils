@@ -57,10 +57,30 @@ var (
 	)
 	ErrRestrictedNamespace      = errors.New("the namespace argument is restricted")
 	ErrInvalidInput             = errors.New("the input is invalid")
+	ErrDenylistedFunctionUsed   = errors.New("use of denylisted template function")
 	ErrCacheDisabled            = client.ErrCacheDisabled
 	ErrNoCacheEntry             = client.ErrNoCacheEntry
 	ErrContextTransformerFailed = errors.New("the context transformer failed")
 )
+
+// sensitiveSprigFunctions lists Sprig helper functions that are considered high
+// risk or non-deterministic in this environment. These are always denylisted.
+var sensitiveSprigFunctions = []string{
+	"env",
+	"expandenv",
+}
+
+// isSensitiveSprigFunction returns true if the given function name is
+// considered high risk and should always be denylisted.
+func isSensitiveSprigFunction(name string) bool {
+	for _, fn := range sensitiveSprigFunctions {
+		if fn == name {
+			return true
+		}
+	}
+
+	return false
+}
 
 // Config is a struct containing configuration for the API.
 //
@@ -105,6 +125,10 @@ type Config struct {
 //
 // - CustomFunctions is an optional map of custom functions available during template resolution.
 //
+//   - DenylistFunctions is an optional list of template function names that are denylisted for this
+//     resolution call. Any attempt to invoke one of these functions in a template will result in a
+//     resolution error.
+//
 // - EncryptionConfig is the configuration for template encryption/decryption functionality.
 //
 // - InputIsYAML can be set to true to indicate that the input to the template is already in YAML format and thus does
@@ -122,9 +146,10 @@ type ResolveOptions struct {
 	ClusterScopedAllowList []ClusterScopedObjectIdentifier
 	CustomFunctions        template.FuncMap
 	EncryptionConfig
-	InputIsYAML     bool
-	LookupNamespace string
-	Watcher         *client.ObjectIdentifier
+	DenylistFunctions []string
+	InputIsYAML       bool
+	LookupNamespace   string
+	Watcher           *client.ObjectIdentifier
 }
 
 type TemplateContext struct {
@@ -580,6 +605,13 @@ func (t *TemplateResolver) ResolveTemplate(
 		options = &ResolveOptions{}
 	}
 
+	// Always denylist sensitive functions that can expose host information.
+	if options.DenylistFunctions == nil {
+		options.DenylistFunctions = []string{}
+	}
+
+	options.DenylistFunctions = append(options.DenylistFunctions, sensitiveSprigFunctions...)
+
 	var resolvedResult TemplateResult
 
 	err := validateEncryptionConfig(options.EncryptionConfig)
@@ -639,9 +671,15 @@ func (t *TemplateResolver) ResolveTemplate(
 		"toYaml":                 toYAML,   // Link lowercase invocation to YAML parser
 	}
 
-	// Add all the functions from sprig we will support
-	for _, fname := range exportedSprigFunctions {
-		funcMap[fname] = getSprigFunc(fname)
+	// Add all the functions from Sprig we will support. If a function name is already
+	// present in the funcMap (for example, when we override Sprig behavior locally),
+	// keep the existing implementation.
+	for fname, f := range sprigFuncMap {
+		if _, exists := funcMap[fname]; exists {
+			continue
+		}
+
+		funcMap[fname] = f
 	}
 
 	if options.EncryptionEnabled {
@@ -659,6 +697,29 @@ func (t *TemplateResolver) ResolveTemplate(
 
 	for customFuncName, customFunc := range options.CustomFunctions {
 		funcMap[customFuncName] = customFunc
+	}
+
+	// Wrap any denylisted functions so that using them results in a clear error at
+	// template execution time instead of an undefined function error.
+	if len(options.DenylistFunctions) != 0 {
+		for _, funcName := range options.DenylistFunctions {
+			name := funcName
+
+			funcMap[name] = func(args ...interface{}) (interface{}, error) {
+				// Mark args as used to satisfy linters, even though we ignore them.
+				_ = args
+
+				if isSensitiveSprigFunction(name) {
+					return nil, fmt.Errorf(
+						"%w: function '%s' is considered a security risk",
+						ErrDenylistedFunctionUsed,
+						name,
+					)
+				}
+
+				return nil, fmt.Errorf("%w: function '%s' is not allowed", ErrDenylistedFunctionUsed, name)
+			}
+		}
 	}
 
 	// create template processor and Initialize function map

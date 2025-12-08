@@ -30,8 +30,14 @@ long as the input to
 can be marshaled to YAML, any of the
 [text/template](https://pkg.go.dev/text/template) package features can be used.
 
-A subset of [Sprig](https://masterminds.github.io/sprig/) functions is imported 
-into the resolver, listed in [`pkg/templates/sprig_wrapper.go`](pkg/templates/sprig_wrapper.go#L14).
+Most [Sprig](https://masterminds.github.io/sprig/) functions are imported into
+the resolver (see
+[`pkg/templates/sprig_wrapper.go`](pkg/templates/sprig_wrapper.go)), with the
+exact set discoverable at runtime via
+[`templates.AvailableSprigFunctions`](https://pkg.go.dev/github.com/stolostron/go-template-utils/pkg/templates#AvailableSprigFunctions).
+For security reasons, functions that can read host environment variables (such
+as `env` and `expandenv`) are always denylisted and will fail with an error when
+used in templates.
 
 Additionally, the following custom functions are supported:
 
