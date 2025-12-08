@@ -170,6 +170,66 @@ func TestValidateEncryptionFailures(t *testing.T) {
 	}
 }
 
+func TestDenylistFunctionUsage(t *testing.T) {
+	t.Parallel()
+
+	tmplStr := []byte(`value: '{{ now }}'`)
+
+	resolver, err := NewResolver(k8sConfig, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = resolver.ResolveTemplate(
+		tmplStr,
+		nil,
+		&ResolveOptions{
+			DenylistFunctions: []string{"now"},
+		},
+	)
+
+	if err == nil {
+		t.Fatal("expected an error when using a denylisted function, but got none")
+	}
+
+	if !errors.Is(err, ErrDenylistedFunctionUsed) {
+		t.Fatalf("expected ErrDenylistedFunctionUsed, but got: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "'now' is not allowed") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
+func TestDenylistEnvFunctionsMessage(t *testing.T) {
+	t.Parallel()
+
+	tmplStr := []byte(`value: '{{ env "FOO" }}'`)
+
+	resolver, err := NewResolver(k8sConfig, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = resolver.ResolveTemplate(
+		tmplStr,
+		nil,
+		&ResolveOptions{},
+	)
+
+	if err == nil {
+		t.Fatal("expected an error when using denylisted env function, but got none")
+	}
+
+	if !errors.Is(err, ErrDenylistedFunctionUsed) {
+		t.Fatalf("expected ErrDenylistedFunctionUsed, but got: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "function 'env' is considered a security risk") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
 type resolveTestCase struct {
 	inputTmpl      string
 	config         Config
