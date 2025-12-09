@@ -702,13 +702,8 @@ func (t *TemplateResolver) ResolveTemplate(
 	// Wrap any denylisted functions so that using them results in a clear error at
 	// template execution time instead of an undefined function error.
 	if len(options.DenylistFunctions) != 0 {
-		for _, funcName := range options.DenylistFunctions {
-			name := funcName
-
-			funcMap[name] = func(args ...interface{}) (interface{}, error) {
-				// Mark args as used to satisfy linters, even though we ignore them.
-				_ = args
-
+		for _, name := range options.DenylistFunctions {
+			funcMap[name] = func(_ ...interface{}) (interface{}, error) {
 				if isSensitiveSprigFunction(name) {
 					return nil, fmt.Errorf(
 						"%w: function '%s' is considered a security risk",
@@ -797,17 +792,9 @@ func (t *TemplateResolver) ResolveTemplate(
 			}()
 		}
 
-		for i, contextTransformer := range options.ContextTransformers {
-			var err error
-
-			queryObj := cachingQueryAPI{dynamicWatcher: t.dynamicWatcher, watcher: *options.Watcher}
-
-			ctx, err = contextTransformer(&queryObj, context)
-			if err != nil {
-				return resolvedResult, fmt.Errorf(
-					"%w at options.ContextTransformers[%d]: %w", ErrContextTransformerFailed, i, err,
-				)
-			}
+		ctx, err = t.applyContextTransformers(context, options)
+		if err != nil {
+			return resolvedResult, err
 		}
 	}
 
@@ -1043,6 +1030,30 @@ func (t *TemplateResolver) appendUsedResources(input unstructured.Unstructured) 
 
 func (t *TemplateResolver) GetUsedResources() []unstructured.Unstructured {
 	return t.usedResources
+}
+
+// applyContextTransformers runs the configured ContextTransformers in order and
+// returns the final transformed context. This is only called when a
+// DynamicWatcher is configured.
+func (t *TemplateResolver) applyContextTransformers(
+	origContext interface{},
+	options *ResolveOptions,
+) (interface{}, error) {
+	ctx := origContext
+	var err error
+
+	for i, contextTransformer := range options.ContextTransformers {
+		queryObj := cachingQueryAPI{dynamicWatcher: t.dynamicWatcher, watcher: *options.Watcher}
+
+		ctx, err = contextTransformer(&queryObj, ctx)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"%w at options.ContextTransformers[%d]: %w", ErrContextTransformerFailed, i, err,
+			)
+		}
+	}
+
+	return ctx, nil
 }
 
 // This is so that the user gets a nicer error in the event some valid scenario slips through the
