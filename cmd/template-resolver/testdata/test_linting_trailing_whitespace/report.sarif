@@ -103,27 +103,6 @@
         {
           "level": "warning",
           "message": {
-            "text": "Trailing whitespace detected."
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "cmd/template-resolver/testdata/test_linting_trailing_whitespace/input.yaml",
-                  "index": 0
-                },
-                "region": {
-                  "startLine": 23
-                }
-              }
-            }
-          ],
-          "ruleId": "GTUL001",
-          "ruleIndex": 0
-        },
-        {
-          "level": "warning",
-          "message": {
             "text": "Templates should be single-quoted."
           },
           "locations": [
@@ -142,6 +121,27 @@
           ],
           "ruleId": "GTUL003",
           "ruleIndex": 1
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Trailing whitespace detected."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_trailing_whitespace/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 23
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL001",
+          "ruleIndex": 0
         }
       ]
     }
