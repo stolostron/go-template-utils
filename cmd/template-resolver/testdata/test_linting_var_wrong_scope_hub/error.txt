@@ -1,0 +1,11 @@
+Found linting issues:
+line 24: unusedVariables: variable '$managed_var' is defined but not used within scope:
+	something: '{{ $managed_var := "value1" }}'
+line 34: unusedVariables: variable '$hub_var' is defined but not used within scope:
+	something: '{{hub $hub_var := "value1" hub}}'
+line 61: unusedVariables: variable '$managedVar' is defined but not used within scope:
+	managed-var: '{{ $managedVar := "managed-value" }}something'
+line 62: unusedVariables: variable '$hubVar' is defined but not used within scope:
+	hub-var: '{{hub $hubVar := "hub-value" hub}}something'
+
+template: tmpl:18: undefined variable "$managed_var"

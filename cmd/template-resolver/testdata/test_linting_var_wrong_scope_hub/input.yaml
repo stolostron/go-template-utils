@@ -1,0 +1,71 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: wrong-scope-test
+spec:
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: wrong-scope-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            # Test 1: Variable declared in managed scope, referenced in hub scope
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-managed-to-hub
+                data:
+                  something: '{{ $managed_var := "value1" }}'
+                  anotherThing: "{{hub printf $managed_var hub}}"
+            # Test 2: Variable declared in hub scope, referenced in managed scope
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-hub-to-managed
+                data:
+                  something: '{{hub $hub_var := "value1" hub}}'
+                  anotherThing: '{{ printf $hub_var }}'
+          # Test 3: Variable declared in hub scope in another object-template, referenced in hub scope
+            - complianceType: musthave
+              objectDefinition:
+                kind: ConfigMap
+                apiVersion: v1
+                metadata:
+                  name: "another-map"
+                  labels:
+                    something: '{{hub $hub_var hub}}'
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: ConfigurationPolicy
+metadata:
+  name: cross-objdef-invalid-test
+spec:
+  remediationAction: enforce
+  severity: low
+  object-templates:
+    - complianceType: musthave
+      objectDefinition:
+        kind: ConfigMap
+        apiVersion: v1
+        metadata:
+          name: first-map
+          labels:
+            managed-var: '{{ $managedVar := "managed-value" }}something'
+            hub-var: '{{hub $hubVar := "hub-value" hub}}something'
+    - complianceType: musthave
+      objectDefinition:
+        kind: ConfigMap
+        apiVersion: v1
+        metadata:
+          name: second-map
+          labels:
+            undef-hub-value: '{{hub $hubVar hub}}'
+            undef-managed-value: '{{ $managedVar }}'

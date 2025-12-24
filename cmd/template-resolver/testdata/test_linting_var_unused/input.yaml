@@ -1,0 +1,200 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: unused-variables-test
+spec:
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: unused-variables-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            # Test 1: Single unused variable in managed scope
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-unused-single
+                data:
+                  something: '{{ $unused_managed := "value1" }}'
+                  anotherThing: 'value2'
+            # Test 2: Two unused variables in same line
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-two-unused
+                data:
+                  something: '{{ $unused_a := "val1" }}{{ $unused_b := "val2" }}something'
+            # Test 3: Multi-variable range - both used (no error expected)
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-range-both-used
+                data:
+                  something: '{{ range $i,$node := (list "a" "b" "c") }}{{ $i }}={{ $node }} {{ end }}'
+            # Test 4: Multi-variable range - first variable unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-range-first-unused
+                data:
+                  something: '{{ range $unused_i,$ns := (list "x" "y" "z") }}{{ $ns }} {{ end }}'
+            # Test 5: Multi-variable range - second variable unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-range-second-unused
+                data:
+                  something: '{{ range $idx,$unused_val := (list "p" "q" "r") }}{{ $idx }} {{ end }}'
+            # Test 6: Multi-variable range - both variables unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-range-both-unused
+                data:
+                  something: '{{ range $unused_idx,$unused_item := (list "m" "n") }}something {{ end }}'
+            # Test 7: Single variable range - used (no error expected)
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-range-single-used
+                data:
+                  something: '{{ range $zone := (list "zone1" "zone2" "zone3") }}{{ $zone }} {{ end }}'
+            # Test 8: Blank identifier - should NOT flag $_ (intentionally unused)
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-blank-identifier
+                data:
+                  something: '{{ range $_, $item := (list "a" "b" "c") }}{{ $item }} {{ end }}'
+            # Test 9: Variable assigned and used immediately (no error expected)
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-assign-and-use
+                data:
+                  something: '{{ $val := "myvalue" }}{{ $val }}'
+            # Test 10: Whitespace variations - no spaces (both used, no error expected)
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-no-spaces
+                data:
+                  something: '{{ range $i,$v:= (list "1" "2") }}{{ $i }}={{ $v }} {{ end }}'
+            # Test 11: Whitespace variations - space before comma (both used, no error expected)
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-space-before-comma
+                data:
+                  something: '{{ range $i , $v := (list "1" "2") }}{{ $i }}={{ $v }} {{ end }}'
+            # Test 12: Variable only referenced in comment - should be flagged as unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-comment-usage
+                data:
+                  something: '{{ $commented := "value" }}{{- /* This comment mentions $commented but doesnt use it */ -}}actual-value'
+            # Test 13: Variable with $ in string literal - should NOT cause false positive
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-string-literal
+                data:
+                  something: '{{ $code := "let $x := getValue()" }}{{ $code }}'
+            # Test 14: Variable redefinition - first definition unused, second used
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-redefine-unused-first
+                data:
+                  something: '{{ $foo := "first" }}{{ $foo := "second" }}{{ $foo }}'
+            # Test 15: Variable redefinition - first used, second unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-redefine-unused-second
+                data:
+                  something: '{{ $bar := "first" }}{{ $bar }}{{ $bar := "second" }}'
+            # Test 16: Variable redefinition - both definitions unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-redefine-both-unused
+                data:
+                  something: '{{ $baz := "first" }}{{ $baz := "second" }}something'
+            # Test 17: Variable redefinition - both definitions used (no error expected)
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-redefine-both-used
+                data:
+                  something: '{{ $qux := "first" }}{{ $qux }}{{ $qux := "second" }}{{ $qux }}'
+            # Test 18: Multiple redefinitions - first and last used, middle unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-multiple-redefines
+                data:
+                  something: '{{ $multi := "v1" }}{{ $multi }}{{ $multi := "v2" }}{{ $multi := "v3" }}{{ $multi }}'
+            # Test 19: Multi-line template with variable defined on one line and used on another
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-multiline-with-braces
+                data:
+                  config: '{{ $carModel := (fromConfigMap "default" "cool-car"
+                    "model") }}{{ if eq "Shelby Mustang" $carModel }}{"model":"{{ $carModel }}"
+                    }{{ else }}{{ "{}" | toLiteral }}{{ end }}'
+            # Test 20: Variable defined in one YAML field and used in another (same object defintion)
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-cross-field-usage
+                  labels:
+                    first: '{{ $shared := "myvalue" }}{{ $shared }}'
+                    second: '{{ $shared }}'
+                    third: '{{ $shared }}'
