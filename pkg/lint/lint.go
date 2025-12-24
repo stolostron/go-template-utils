@@ -19,6 +19,7 @@ var linterRules = []LinterRule{
 	TrailingWhitespace,
 	MismatchedDelimiters,
 	UnquotedTemplateValues,
+	UnusedVariables,
 	InvalidVarSyntax,
 	MismatchedQuotes,
 }
