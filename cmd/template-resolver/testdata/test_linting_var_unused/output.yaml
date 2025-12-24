@@ -1,0 +1,207 @@
+Found linting issues:
+line 24: unusedVariables: variable '$unused_managed' is defined but not used within scope:
+	something: '{{ $unused_managed := "value1" }}'
+line 34: unusedVariables: variable '$unused_a' is defined but not used within scope:
+	something: '{{ $unused_a := "val1" }}{{ $unused_b := "val2" }}something'
+line 34: unusedVariables: variable '$unused_b' is defined but not used within scope:
+	something: '{{ $unused_a := "val1" }}{{ $unused_b := "val2" }}something'
+line 52: unusedVariables: variable '$unused_i' is defined but not used within scope:
+	something: '{{ range $unused_i,$ns := (list "x" "y" "z") }}{{ $ns }} {{ end }}'
+line 61: unusedVariables: variable '$unused_val' is defined but not used within scope:
+	something: '{{ range $idx,$unused_val := (list "p" "q" "r") }}{{ $idx }} {{ end }}'
+line 70: unusedVariables: variable '$unused_idx' is defined but not used within scope:
+	something: '{{ range $unused_idx,$unused_item := (list "m" "n") }}something {{ end }}'
+line 70: unusedVariables: variable '$unused_item' is defined but not used within scope:
+	something: '{{ range $unused_idx,$unused_item := (list "m" "n") }}something {{ end }}'
+line 124: unusedVariables: variable '$commented' is defined but not used within scope:
+	something: '{{ $commented := "value" }}{{- /* This comment mentions $commented but doesnt use it */ -}}actual-value'
+line 142: unusedVariables: variable '$foo' is defined but not used within scope:
+	something: '{{ $foo := "first" }}{{ $foo := "second" }}{{ $foo }}'
+line 151: unusedVariables: variable '$bar' is defined but not used within scope:
+	something: '{{ $bar := "first" }}{{ $bar }}{{ $bar := "second" }}'
+line 160: unusedVariables: variable '$baz' is defined but not used within scope:
+	something: '{{ $baz := "first" }}{{ $baz := "second" }}something'
+line 160: unusedVariables: variable '$baz' is defined but not used within scope:
+	something: '{{ $baz := "first" }}{{ $baz := "second" }}something'
+line 178: unusedVariables: variable '$multi' is defined but not used within scope:
+	something: '{{ $multi := "v1" }}{{ $multi }}{{ $multi := "v2" }}{{ $multi := "v3" }}{{ $multi }}'
+
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: unused-variables-test
+spec:
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: unused-variables-config
+        spec:
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  anotherThing: value2
+                  something: ""
+                kind: ConfigMap
+                metadata:
+                  name: test-unused-single
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: something
+                kind: ConfigMap
+                metadata:
+                  name: test-two-unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: '0=a 1=b 2=c '
+                kind: ConfigMap
+                metadata:
+                  name: test-range-both-used
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: 'x y z '
+                kind: ConfigMap
+                metadata:
+                  name: test-range-first-unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: '0 1 2 '
+                kind: ConfigMap
+                metadata:
+                  name: test-range-second-unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: 'something something '
+                kind: ConfigMap
+                metadata:
+                  name: test-range-both-unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: 'zone1 zone2 zone3 '
+                kind: ConfigMap
+                metadata:
+                  name: test-range-single-used
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: 'a b c '
+                kind: ConfigMap
+                metadata:
+                  name: test-blank-identifier
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: myvalue
+                kind: ConfigMap
+                metadata:
+                  name: test-assign-and-use
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: '0=1 1=2 '
+                kind: ConfigMap
+                metadata:
+                  name: test-no-spaces
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: '0=1 1=2 '
+                kind: ConfigMap
+                metadata:
+                  name: test-space-before-comma
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: actual-value
+                kind: ConfigMap
+                metadata:
+                  name: test-comment-usage
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: let $x := getValue()
+                kind: ConfigMap
+                metadata:
+                  name: test-string-literal
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: second
+                kind: ConfigMap
+                metadata:
+                  name: test-redefine-unused-first
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: first
+                kind: ConfigMap
+                metadata:
+                  name: test-redefine-unused-second
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: something
+                kind: ConfigMap
+                metadata:
+                  name: test-redefine-both-unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: firstsecond
+                kind: ConfigMap
+                metadata:
+                  name: test-redefine-both-used
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: v1v3
+                kind: ConfigMap
+                metadata:
+                  name: test-multiple-redefines
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  config:
+                    model: Shelby Mustang
+                kind: ConfigMap
+                metadata:
+                  name: test-multiline-with-braces
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  labels:
+                    first: myvalue
+                    second: myvalue
+                    third: myvalue
+                  name: test-cross-field-usage
+          remediationAction: enforce
+          severity: low

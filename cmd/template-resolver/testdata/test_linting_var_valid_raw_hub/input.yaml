@@ -1,0 +1,28 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: ConfigurationPolicy
+metadata:
+  name: cross-objdef-invalid-test
+spec:
+  remediationAction: enforce
+  severity: low
+  object-templates-raw: |
+    - complianceType: musthave
+      objectDefinition:
+        kind: ConfigMap
+        apiVersion: v1
+        metadata:
+          name: first-map
+          labels:
+            # Define variables but don't use them in this objectDefinition
+            managed-var: '{{ $managedVar := "managed-value" }}something'
+            hub-var: '{{hub $hubVar := "hub-value" hub}}something'
+    - complianceType: musthave
+      objectDefinition:
+        kind: ConfigMap
+        apiVersion: v1
+        metadata:
+          name: second-map
+          labels:
+            # These variables are reachable here in object-templates-raw
+            hub-value: '{{hub $hubVar hub}}'
+            managed-value: '{{ $managedVar }}'
