@@ -19,6 +19,7 @@ var linterRules = []LinterRule{
 	TrailingWhitespace,
 	MismatchedDelimiters,
 	UnquotedTemplateValues,
+	UnusedVariables,
 }
 
 // LinterRuleViolation represents a single violation of a linting rule.
