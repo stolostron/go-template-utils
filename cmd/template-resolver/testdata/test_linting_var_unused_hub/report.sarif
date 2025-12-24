@@ -1,0 +1,410 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "go-template-utils-linter",
+          "informationUri": "https://github.com/stolostron/go-template-utils",
+          "rules": [
+            {
+              "id": "GTUL004",
+              "name": "unusedVariables",
+              "shortDescription": {
+                "text": "Unused variables should be removed or used in the template."
+              },
+              "fullDescription": {
+                "text": "Unused variables should be removed or used in the template. The variable definition may be unused within the variable's scope or overwritten before use.",
+                "markdown": "Unused variables should be removed or used in the template. The variable definition may be unused within the variable's scope or overwritten before use."
+              }
+            }
+          ]
+        }
+      },
+      "artifacts": [
+        {
+          "location": {
+            "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml"
+          }
+        }
+      ],
+      "results": [
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 24,
+                  "startColumn": 4
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 34,
+                  "startColumn": 7
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 53,
+                  "startColumn": 4
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 54,
+                  "startColumn": 7
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 72,
+                  "startColumn": 4
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 82,
+                  "startColumn": 4
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 82,
+                  "startColumn": 4
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 91,
+                  "startColumn": 10
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 100,
+                  "startColumn": 15
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 109,
+                  "startColumn": 10
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 109,
+                  "startColumn": 22
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 118,
+                  "startColumn": 4
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 127,
+                  "startColumn": 4
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 136,
+                  "startColumn": 4
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 145,
+                  "startColumn": 4
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 145,
+                  "startColumn": 4
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Variable is defined but not used within scope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_var_unused_hub/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 154,
+                  "startColumn": 4
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL004",
+          "ruleIndex": 0
+        }
+      ]
+    }
+  ]
+}
