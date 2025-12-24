@@ -1,0 +1,143 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: unused-variables-test
+spec:
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: should-find-unused-variables
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            # Test 1: Variable declared in managed scope, referenced in hub scope
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-managed-to-hub
+                data:
+                  something: '{{ $managed_var := "value1" }}'
+                  anotherThing: '{{hub printf $managed_var hub}}'
+            # Test 2: Variable declared in hub scope, referenced in managed scope
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-hub-to-managed
+                data:
+                  something: '{{hub $hub_var := "value1" hub}}'
+                  anotherThing: '{{ printf $hub_var }}'
+            # Test 3: Variable declared in one objectDefinition, referenced in another objectDefinition
+            - complianceType: musthave
+              objectDefinition:
+                kind: ConfigMap
+                apiVersion: v1
+                metadata:
+                  name: first-map
+                  labels:
+                    managed-var: '{{ $managedVar := "managed-value" }}something'
+            - complianceType: musthave
+              objectDefinition:
+                kind: ConfigMap
+                apiVersion: v1
+                metadata:
+                  name: second-map
+                  labels:
+                    undef-managed-value: '{{ $managedVar }}'
+            # Test 4: Single unused variable $unused_managed in managed scope
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-unused-single
+                data:
+                  something: '{{ $unused_managed := "value1" }}'
+                  anotherThing: 'value2'
+            # Test 6: Two unused variables in same line
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-two-unused
+                data:
+                  something: '{{ $unused_a := "val1" }}{{ $unused_b := "val2" }}something'
+            # Test 7: Multi-variable range - first variable unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-range-first-unused
+                data:
+                  something: '{{ range $unused_i,$ns := (list "x" "y" "z") }}{{ $ns }} {{ end }}'
+            # Test 8: Multi-variable range - second variable unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-range-second-unused
+                data:
+                  something: '{{ range $idx,$unused_val := (list "p" "q" "r") }}{{ $idx }} {{ end }}'
+            # Test 9: Multi-variable range - both variables unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-range-both-unused
+                data:
+                  something: '{{ range $unused_idx,$unused_item := (list "m" "n") }}something {{ end }}'
+            # Test 10: Variable only referenced in comment - should be flagged as unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-comment-usage
+                data:
+                  something: '{{ $commented := "value" }}{{- /* This comment mentions $commented but doesnt use it */ -}}actual-value'
+            # Test 11: Variable redefinition - first definition unused, second used
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-redefine-unused-first
+                data:
+                  something: '{{ $foo := "first" }}{{ $foo := "second" }}{{ $foo }}'
+            # Test 12: Variable redefinition - first used, second unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-redefine-unused-second
+                data:
+                  something: '{{ $bar := "first" }}{{ $bar }}{{ $bar := "second" }}'
+            # Test 13: Variable redefinition - both definitions unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-redefine-both-unused
+                data:
+                  something: '{{ $baz := "first" }}{{ $baz := "second" }}something'
+            # Test 14: Multiple redefinitions - first and last used, middle unused
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-multiple-redefines
+                data:
+                  something: '{{ $multi := "v1" }}{{ $multi }}{{ $multi := "v2" }}{{ $multi := "v3" }}{{ $multi }}'

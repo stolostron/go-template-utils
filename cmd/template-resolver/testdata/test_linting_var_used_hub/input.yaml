@@ -1,0 +1,162 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: used-variables-test
+spec:
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: should-not-find-unused-variables
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            # Test 1: Multi-variable range
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-range-both-used
+                  namespace: default
+                data:
+                  something: '{{ range $i,$node := (list "a" "b" "c") }}{{ $i }}={{ $node }} {{ end }}'
+            # Test 2: Single variable range
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-range-single-used
+                  namespace: default
+                data:
+                  something: '{{ range $zone := (list "zone1" "zone2" "zone3") }}{{ $zone }} {{ end }}'
+            # Test 3: Blank identifier - should NOT flag $_ (intentionally unused)
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-blank-identifier
+                  namespace: default
+                data:
+                  something: '{{ range $_, $item := (list "a" "b" "c") }}{{ $item }} {{ end }}'
+            # Test 4: Variable assigned and used immediately
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-assign-and-use
+                  namespace: default
+                data:
+                  something: '{{ $val := "myvalue" }}{{ $val }}'
+            # Test 5: Whitespace variations - no spaces
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-no-spaces
+                  namespace: default
+                data:
+                  something: '{{ range $i,$v:= (list "1" "2") }}{{ $i }}={{ $v }} {{ end }}'
+            # Test 6: Whitespace variations - space before comma
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-space-before-comma
+                  namespace: default
+                data:
+                  something: '{{ range $i , $v := (list "1" "2") }}{{ $i }}={{ $v }} {{ end }}'
+            # Test 7: Variable with $ in string literal
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-string-literal
+                  namespace: default
+                data:
+                  something: '{{ $code := "let $x := getValue()" }}{{ $code }}'
+            # Test 8: Variable redefinition - both definitions used
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-redefine-both-used
+                  namespace: default
+                data:
+                  something: '{{ $qux := "first" }}{{ $qux }}{{ $qux := "second" }}{{ $qux }}'
+            # Test 9: Multi-line template with variable defined on one line and used on another
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-multiline-with-braces
+                  namespace: default
+                data:
+                  config: '{{ $carModel := (fromConfigMap "default" "cool-car"
+                    "model") }}{{ if eq "Shelby Mustang" $carModel }}{"model":"{{ $carModel }}"
+                    }{{ else }}{{ "{}" | toLiteral }}{{ end }}'
+            # Test 10: Variable defined in one YAML field and used in another
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-cross-field-usage
+                  namespace: default
+                  labels:
+                    first: '{{ $shared := "myvalue" }}{{ $shared }}'
+                    second: '{{ $shared }}'
+                    third: '{{ $shared }}'
+            # Test 11: Variable defined and used with nested field access
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-nested-field-used
+                  namespace: default
+                data:
+                  something: '{{ $carModel := (lookup "v1" "ConfigMap" "default" "cool-car") }}{{ $carModel.data.model }}'
+            # Test 12: Multi-line template with more lines
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: test-multiline-with-more-lines
+                  namespace: default
+                data:
+                  config: '
+                    {{ $carModel := (fromConfigMap "default" "cool-car" "model") -}}
+                    {{- if eq "Shelby Mustang" $carModel -}}
+                      {"model":"{{ $carModel }}"}
+                    {{- else -}}
+                      {{ "{}" | toLiteral }}
+                    {{- end }}'
+            # Test 13: Variable declared in hub scope in another object-template, referenced in hub scope
+            - complianceType: musthave
+              objectDefinition:
+                kind: ConfigMap
+                apiVersion: v1
+                metadata:
+                  name: first-map
+                  labels:
+                    hub-var: '{{hub $hubVar := "hub-value" hub}}something'
+            - complianceType: musthave
+              objectDefinition:
+                kind: ConfigMap
+                apiVersion: v1
+                metadata:
+                  name: second-map
+                  labels:
+                    good-hub-value: '{{hub $hubVar hub}}'
