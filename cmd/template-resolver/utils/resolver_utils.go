@@ -15,6 +15,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
 	k8syaml "sigs.k8s.io/yaml"
@@ -69,6 +70,35 @@ func HandleFile(yamlFile string) ([]byte, error) {
 	}
 
 	return yamlBytes, nil
+}
+
+// decode local resources to use them during the template resolver instead of fetching resources from remote clusters.
+func decodeLocalResources(localResourcesPath string) ([]unstructured.Unstructured, error){
+	localResources := make([]unstructured.Unstructured, 0)
+	if localResourcesPath == "" {
+		return localResources, nil
+	}
+
+	yamlBytes, err := HandleFile(localResourcesPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed when processing local resource file: %w", err)
+	}
+
+	dec := yamlutil.NewYAMLOrJSONDecoder(bytes.NewReader(yamlBytes), 4096)
+	
+	for {
+		obj := unstructured.Unstructured{}
+		err := dec.Decode(&obj)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode the local resources: %w", err)
+		}
+		localResources = append(localResources, obj)
+	}
+
+	return localResources, nil
 }
 
 func Lint(yamlString string) []lint.LinterRuleViolation {
@@ -199,7 +229,12 @@ func (t *TemplateResolver) ProcessTemplate(yamlBytes []byte) ([]byte, error) {
 		policy.Object = hubResolvedObject
 	}
 
-	resolver, err := templates.NewResolver(kubeConfig, templates.Config{})
+	localResources, err := decodeLocalResources(t.LocalResources)
+	if err != nil {
+		return nil, err
+	}
+
+	resolver, err := templates.NewResolverWithLocalResources(kubeConfig, templates.Config{}, localResources)
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate the template resolver: %w", err)
 	}
@@ -271,8 +306,12 @@ func createSaveResourcesOutput(path string, resolver *templates.TemplateResolver
 
 		for _, r := range usedResources {
 			fmt.Fprintln(f, "---")
-
-			out, err := yaml.Marshal(r.Object)
+			if r.IsRemote {
+				fmt.Fprintln(f, "# Resource was remotely fetched")
+			} else {
+				fmt.Fprintln(f, "# Resource was locally fetched")
+			}
+			out, err := yaml.Marshal(r.Resource.Object)
 			if err != nil {
 				return err
 			}

@@ -73,6 +73,33 @@ func (t *TemplateResolver) getOrList(
 	if err != nil {
 		return nil, err
 	}
+	
+	// Search through all local resources to see if there is a match before
+	// attempting to fetch the resource from the remote clusters
+	if len(t.localResources) > 0 {
+		localResults := unstructured.UnstructuredList{}
+		// Fetch it as List
+		if name == "" {
+			for _, obj := range t.localResources {
+				if obj.GetAPIVersion() == apiVersion && obj.GetKind() == kind && obj.GetNamespace() == namespace {
+					t.appendUsedResources(obj, false)
+					localResults.Items = append(localResults.Items, obj)
+				}
+			}
+			if len(localResults.Items) > 0 {
+				return localResults.UnstructuredContent(), nil
+			}
+		// Else as a Get
+		} else {
+			for _, obj := range t.localResources {
+				if obj.GetAPIVersion() == apiVersion && obj.GetKind() == kind && obj.GetNamespace() == namespace && obj.GetName() == name {
+					t.appendUsedResources(obj, false)
+					return obj.UnstructuredContent(), nil
+				}
+			}
+		}
+	}
+
 
 	gv, err := schema.ParseGroupVersion(apiVersion)
 	if err != nil {
@@ -222,7 +249,7 @@ func (t *TemplateResolver) getOrList(
 
 		// Cache a not found result
 		for _, i := range resultUnstructuredList.Items {
-			t.appendUsedResources(i)
+			t.appendUsedResources(i, true)
 		}
 
 		return resultUnstructuredList.UnstructuredContent(), nil
@@ -243,7 +270,7 @@ func (t *TemplateResolver) getOrList(
 	}
 
 	// Cache a not found result
-	t.appendUsedResources(*resultUnstructured)
+	t.appendUsedResources(*resultUnstructured, true)
 
 	if templateResult != nil && kind == "Secret" {
 		templateResult.HasSensitiveData = true

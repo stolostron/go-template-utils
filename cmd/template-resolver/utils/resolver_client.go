@@ -20,6 +20,7 @@ type TemplateResolver struct {
 	SaveResources     string `yaml:"saveResources"`
 	// saveHubResources Output doesn't include "ManagedClusters" resources
 	SaveHubResources     string `yaml:"saveHubResources"`
+	LocalResources       string `yaml:"localResources"`
 	SkipPolicyValidation bool   `yaml:"skipPolicyValidation"`
 	Lint                 bool   `yaml:"lint"`
 	SarifOutput          string `yaml:"sarif"`
@@ -45,6 +46,13 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 		"hub-kubeconfig",
 		"",
 		"The input kubeconfig to also resolve hub templates.",
+	)
+
+	templateResolverCmd.Flags().StringVar(
+		&t.LocalResources,
+		"local-resources",
+		"",
+		"The path to a local resource YAML manifest used to resolve the managed cluster template.",
 	)
 
 	templateResolverCmd.Flags().StringVar(
