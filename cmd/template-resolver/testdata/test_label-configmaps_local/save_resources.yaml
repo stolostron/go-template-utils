@@ -1,0 +1,27 @@
+---
+# Resource was locally fetched
+apiVersion: v1
+data:
+    model: Shelby Mustang
+kind: ConfigMap
+metadata:
+    name: cool-car
+    namespace: default
+---
+# Resource was locally fetched
+apiVersion: v1
+data:
+    model: Pinto
+kind: ConfigMap
+metadata:
+    name: not-cool-car
+    namespace: default
+---
+# Resource was locally fetched
+apiVersion: v1
+data:
+    namespace: foobar
+kind: ConfigMap
+metadata:
+    name: operator-config
+    namespace: default

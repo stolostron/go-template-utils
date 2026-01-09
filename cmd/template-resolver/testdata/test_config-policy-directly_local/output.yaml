@@ -1,0 +1,17 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: ConfigurationPolicy
+metadata:
+  name: label-configmaps
+spec:
+  object-templates:
+    - complianceType: musthave
+      objectDefinition:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          labels:
+            ford.com/model: Prius
+          name: cool-car
+          namespace: default
+  remediationAction: enforce
+  severity: low

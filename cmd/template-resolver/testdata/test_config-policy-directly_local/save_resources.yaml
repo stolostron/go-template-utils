@@ -1,0 +1,9 @@
+---
+# Resource was locally fetched
+apiVersion: v1
+data:
+    model: Prius
+kind: ConfigMap
+metadata:
+    name: cool-car
+    namespace: default
