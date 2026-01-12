@@ -1,0 +1,21 @@
+apiVersion: policy.open-cluster-management.io/v1beta1
+kind: ConfigurationPolicy
+metadata:
+  name: some-config
+spec:
+  remediationAction: enforce
+  severity: low
+  object-templates-raw: |
+    - complianceType: musthave
+      objectDefinition:
+        kind: ConfigMap
+        apiVersion: v1
+        metadata:
+          name: car-config
+        data:
+          {{- $carModel := (lookup "v1" "ConfigMap" "default" "cool-car") }}
+          {{- if eq $carModel.data.model "Shelby Mustang" }}
+          model: '{{ $carModel.data.$model.color }}'
+          {{- else }}
+          model: '{{ $carModel.data.$model }}'
+          {{- end }}
