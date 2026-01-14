@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/stolostron/go-template-utils/v7/pkg/templates"
+	"github.com/stolostron/go-template-utils/v7/pkg/lint"
 )
 
 // Struct representing the template-resolver command
@@ -150,7 +150,7 @@ func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) e
 	if t.Lint {
 		if violations := Lint(string(yamlBytes)); len(violations) > 0 {
 			cmd.Println("Found linting issues:")
-			cmd.Println(templates.OutputStringViolations(violations) + "\n")
+			cmd.Println(lint.OutputStringViolations(violations) + "\n")
 		}
 	}
 

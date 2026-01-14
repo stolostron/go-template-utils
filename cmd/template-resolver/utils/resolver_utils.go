@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	k8syaml "sigs.k8s.io/yaml"
 
+	"github.com/stolostron/go-template-utils/v7/pkg/lint"
 	"github.com/stolostron/go-template-utils/v7/pkg/templates"
 )
 
@@ -70,8 +71,8 @@ func HandleFile(yamlFile string) ([]byte, error) {
 	return yamlBytes, nil
 }
 
-func Lint(yamlString string) []templates.LinterRuleViolation {
-	return templates.Lint(yamlString)
+func Lint(yamlString string) []lint.LinterRuleViolation {
+	return lint.Lint(yamlString)
 }
 
 // ProcessTemplate takes a YAML byte array input, unmarshals it to a Policy, ConfigPolicy,
