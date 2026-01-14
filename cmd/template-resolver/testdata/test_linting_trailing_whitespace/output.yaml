@@ -1,13 +1,13 @@
 Found linting issues:
-line 4: trailingWhitespace: trailing whitespace detected:
+line 4: Trailing Whitespace: trailing whitespace detected:
 	name: trailing-whitespace-test  <<<
-line 7: trailingWhitespace: trailing whitespace detected:
+line 7: Trailing Whitespace: trailing whitespace detected:
 	- objectDefinition:	<<<
-line 19: trailingWhitespace: trailing whitespace detected:
+line 19: Trailing Whitespace: trailing whitespace detected:
 	kind: ConfigMap <<<
-line 23: trailingWhitespace: trailing whitespace detected:
+line 23: Trailing Whitespace: trailing whitespace detected:
 	key: {{ fromConfigMap "default" "cool-car" "model" }}    <<<
-line 23: unquotedTemplateValues: template value for key should be single-quoted:
+line 23: Unquoted Template Values: template value for key should be single-quoted:
 	key: {{ fromConfigMap "default" "cool-car" "model" }}
 
 apiVersion: policy.open-cluster-management.io/v1
