@@ -15,7 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/stolostron/go-template-utils/v7/cmd/template-resolver/utils"
-	"github.com/stolostron/go-template-utils/v7/pkg/templates"
+	"github.com/stolostron/go-template-utils/v7/pkg/lint"
 )
 
 func TestCLI(t *testing.T) {
@@ -104,7 +104,7 @@ func cliTest(testName string) func(t *testing.T) {
 
 		if tmplResolver.Lint {
 			if violations := utils.Lint(string(inputBytes)); len(violations) > 0 {
-				lintingBytes = []byte("Found linting issues:\n" + templates.OutputStringViolations(violations) + "\n")
+				lintingBytes = []byte("Found linting issues:\n" + lint.OutputStringViolations(violations) + "\n")
 			}
 		}
 
@@ -141,29 +141,39 @@ func cliTest(testName string) func(t *testing.T) {
 
 		compareSaveResources(t, testName, tmplResolver.SaveResources, false)
 
-		if !bytes.Equal(expectedBytes, resolvedYAML) {
-			//nolint: forbidigo
-			if testing.Verbose() {
-				fmt.Println("\nWanted:\n" + string(expectedBytes))
-				fmt.Println("\nGot:\n" + string(resolvedYAML))
-			}
-
-			unifiedDiff := difflib.UnifiedDiff{
-				A:        difflib.SplitLines(string(expectedBytes)),
-				FromFile: "expected",
-				B:        difflib.SplitLines(string(resolvedYAML)),
-				ToFile:   "resolved",
-				Context:  5,
-			}
-
-			diff, err := difflib.GetUnifiedDiffString(unifiedDiff)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			t.Fatalf("Mismatch in resolved output; diff:\n%v", diff)
-		}
+		// Compare main output (YAML or error)
+		compareBytes(t, expectedBytes, resolvedYAML, "expected", "resolved")
 	}
+}
+
+// compareBytes compares two byte slices and shows a unified diff if they don't match.
+func compareBytes(t *testing.T, expected, actual []byte, expectedLabel, actualLabel string) {
+	t.Helper()
+
+	if bytes.Equal(expected, actual) {
+		return
+	}
+
+	//nolint: forbidigo
+	if testing.Verbose() {
+		fmt.Printf("\n%s:\n%s\n", expectedLabel, string(expected))
+		fmt.Printf("\n%s:\n%s\n", actualLabel, string(actual))
+	}
+
+	unifiedDiff := difflib.UnifiedDiff{
+		A:        difflib.SplitLines(string(expected)),
+		FromFile: expectedLabel,
+		B:        difflib.SplitLines(string(actual)),
+		ToFile:   actualLabel,
+		Context:  5,
+	}
+
+	diff, err := difflib.GetUnifiedDiffString(unifiedDiff)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Fatalf("Mismatch in output; diff:\n%v", diff)
 }
 
 func compareSaveResources(t *testing.T, testName, saveResources string, isHub bool) {
