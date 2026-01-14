@@ -73,7 +73,7 @@ func (t *TemplateResolver) getOrList(
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Search through all local resources to see if there is a match before
 	// attempting to fetch the resource from the remote clusters
 	if len(t.localResources) > 0 {
@@ -86,20 +86,21 @@ func (t *TemplateResolver) getOrList(
 					localResults.Items = append(localResults.Items, obj)
 				}
 			}
+
 			if len(localResults.Items) > 0 {
 				return localResults.UnstructuredContent(), nil
 			}
-		// Else as a Get
 		} else {
 			for _, obj := range t.localResources {
-				if obj.GetAPIVersion() == apiVersion && obj.GetKind() == kind && obj.GetNamespace() == namespace && obj.GetName() == name {
+				if obj.GetAPIVersion() == apiVersion && obj.GetKind() == kind &&
+					obj.GetNamespace() == namespace && obj.GetName() == name {
 					t.appendUsedResources(obj, false)
+
 					return obj.UnstructuredContent(), nil
 				}
 			}
 		}
 	}
-
 
 	gv, err := schema.ParseGroupVersion(apiVersion)
 	if err != nil {

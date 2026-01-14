@@ -225,7 +225,8 @@ type TemplateResult struct {
 	HasSensitiveData bool
 }
 
-// NewResolver creates a new (non-caching) TemplateResolver instance without using localResources, which is the API for processing templates.
+// NewResolver creates a new (non-caching) TemplateResolver instance without using localResources,
+// which is the API for processing templates.
 //
 // - kubeConfig is the rest.Config instance used to create Kubernetes clients for template processing.
 //
@@ -247,7 +248,9 @@ func NewResolver(kubeConfig *rest.Config, config Config) (*TemplateResolver, err
 // NewResolverWithLocalResources creates a new (non-caching) TemplateResolver instance with local resources
 // Very similar to NewResolver with simply the addition of local resources
 // This is mainly used for the template-resolver cli
-func NewResolverWithLocalResources(kubeConfig *rest.Config, config Config, localResources []unstructured.Unstructured) (*TemplateResolver, error) {
+func NewResolverWithLocalResources(kubeConfig *rest.Config, config Config,
+	localResources []unstructured.Unstructured,
+) (*TemplateResolver, error) {
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(kubeConfig)
 	if err != nil {
 		return nil, err
@@ -1051,6 +1054,7 @@ func (t *TemplateResolver) appendUsedResources(input unstructured.Unstructured, 
 			return // Resource already exists, no need to append
 		}
 	}
+
 	t.usedResources = append(t.usedResources, UsedResource{Resource: input, IsRemote: isRemote})
 }
 

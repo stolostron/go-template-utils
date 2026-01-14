@@ -86,7 +86,7 @@ func cliTest(testName string) func(t *testing.T) {
 			tmplResolver.HubNamespace = "policies"
 			tmplResolver.SaveHubResources = filepath.Join(tmpDir, "save_hub_resources.yaml")
 		}
-		
+
 		if strings.HasSuffix(testName, "_local") {
 			tmplResolver.LocalResources = filePrefix + "local_resources.yaml"
 		}
@@ -197,8 +197,6 @@ func compareBytes(t *testing.T, expected, actual []byte, expectedLabel, actualLa
 
 	t.Fatalf("Mismatch in output; diff:\n%v", diff)
 }
-
-
 
 func compareSaveResources(t *testing.T, testName, saveResources string, isHub bool) {
 	t.Helper()
