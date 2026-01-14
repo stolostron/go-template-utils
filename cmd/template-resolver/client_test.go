@@ -103,9 +103,27 @@ func cliTest(testName string) func(t *testing.T) {
 		var lintingBytes []byte
 
 		if tmplResolver.Lint {
-			if violations := utils.Lint(string(inputBytes)); len(violations) > 0 {
+			violations := utils.Lint(string(inputBytes))
+
+			if len(violations) > 0 {
 				lintingBytes = []byte("Found linting issues:\n" + lint.OutputStringViolations(violations) + "\n")
 			}
+
+			var sarifOut bytes.Buffer
+
+			err = lint.OutputSARIF(violations, "cmd/template-resolver/"+filePrefix+"input.yaml", &sarifOut)
+			if err != nil {
+				t.Fatal("Failed to make SARIF report: ", err)
+			}
+
+			expectedSarif, readErr := readFile(filePrefix + "report.sarif")
+			if readErr != nil {
+				if !os.IsNotExist(readErr) {
+					t.Fatal("Failed to read error file:", readErr)
+				}
+			}
+
+			compareBytes(t, expectedSarif, sarifOut.Bytes(), "expected", "actual")
 		}
 
 		resolvedYAML, err := tmplResolver.ProcessTemplate(inputBytes)

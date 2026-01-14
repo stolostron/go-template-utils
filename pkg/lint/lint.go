@@ -1,9 +1,13 @@
 package lint
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
+
+	"github.com/stolostron/go-template-utils/v7/pkg/lint/sarif"
 )
 
 // LinterRuleViolation represents a single violation of a linting rule.
@@ -63,11 +67,13 @@ func getRuleMetadata(ruleID string) *RuleMetadata {
 
 func OutputStringViolations(violations []LinterRuleViolation) string {
 	var output strings.Builder
+
 	for _, violation := range violations {
 		ruleMD := getRuleMetadata(violation.RuleID)
 		if ruleMD == nil {
 			output.WriteString(fmt.Sprintf("line %d: unknown rule: %s: %s:\n\t%s\n",
 				violation.LineNumber, violation.RuleID, violation.Message, violation.FormattedLine))
+
 			continue
 		}
 
@@ -76,6 +82,65 @@ func OutputStringViolations(violations []LinterRuleViolation) string {
 	}
 
 	return output.String()
+}
+
+// OutputSARIF writes a SARIF report to the output, given a list of linter violations.
+// The inputFile parameter specifies the file path/URI that was linted.
+func OutputSARIF(violations []LinterRuleViolation, inputFile string, output io.Writer) error {
+	// We will only put the rules that were actually violated in the SARIF report.
+	usedRuleIDs := make(map[string]bool)
+	usedRuleIDsList := make([]string, 0, len(usedRuleIDs))
+
+	for _, violation := range violations {
+		if !usedRuleIDs[violation.RuleID] {
+			usedRuleIDsList = append(usedRuleIDsList, violation.RuleID)
+
+			usedRuleIDs[violation.RuleID] = true
+		}
+	}
+
+	sort.Strings(usedRuleIDsList)
+
+	// Create a map of ruleID to rule index, and prepare those rules for the report
+	ruleIndexMap := make(map[string]int)
+	rules := make([]sarif.Rule, 0, len(usedRuleIDsList))
+
+	for i, ruleID := range usedRuleIDsList {
+		if metadata := getRuleMetadata(ruleID); metadata != nil {
+			rules = append(rules, sarif.NewRule(metadata.ID, metadata.Name, metadata.Description))
+
+			ruleIndexMap[ruleID] = i
+		} else {
+			return fmt.Errorf("unknown rule ID: %v", ruleID)
+		}
+	}
+
+	// Process each violation: build the results with proper indices
+	results := make([]sarif.Result, 0, len(violations))
+
+	for _, violation := range violations {
+		metadata := getRuleMetadata(violation.RuleID)
+		if metadata == nil {
+			return fmt.Errorf("unknown rule ID: %v", violation.RuleID)
+		}
+
+		loc := sarif.NewLocation(inputFile, 0, violation.LineNumber, violation.Column)
+		res := sarif.NewResult(metadata.Severity, violation.Message, violation.RuleID,
+			ruleIndexMap[violation.RuleID], loc)
+
+		results = append(results, res)
+	}
+
+	run := sarif.NewRun("go-template-utils-linter", "https://github.com/stolostron/go-template-utils").
+		WithRules(rules...).
+		WithArtifacts(sarif.NewArtifact(inputFile)).
+		WithResults(results...)
+
+	enc := json.NewEncoder(output)
+
+	enc.SetIndent("", "  ")
+
+	return enc.Encode(sarif.NewReport(run))
 }
 
 // lint checks the template string for linting errors.

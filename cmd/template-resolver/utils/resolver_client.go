@@ -22,6 +22,7 @@ type TemplateResolver struct {
 	SaveHubResources     string `yaml:"saveHubResources"`
 	SkipPolicyValidation bool   `yaml:"skipPolicyValidation"`
 	Lint                 bool   `yaml:"lint"`
+	SarifOutput          string `yaml:"sarif"`
 }
 
 func (t *TemplateResolver) GetCmd() *cobra.Command {
@@ -110,6 +111,13 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 			envVarLint),
 	)
 
+	templateResolverCmd.Flags().StringVar(
+		&t.SarifOutput,
+		"sarif",
+		"",
+		"(Tech Preview) Location to save a SARIF report of the lint results. Requires --lint to be true.",
+	)
+
 	return templateResolverCmd
 }
 
@@ -148,9 +156,27 @@ func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) e
 	}
 
 	if t.Lint {
-		if violations := Lint(string(yamlBytes)); len(violations) > 0 {
+		violations := Lint(string(yamlBytes))
+		if len(violations) > 0 {
 			cmd.Println("Found linting issues:")
 			cmd.Println(lint.OutputStringViolations(violations) + "\n")
+		}
+
+		if t.SarifOutput != "" {
+			// Determine input file path for SARIF report
+			inputFile := yamlFile
+			if inputFile == "" || inputFile == "-" {
+				inputFile = "<stdin>"
+			}
+
+			file, err := os.Create(t.SarifOutput)
+			if err != nil {
+				return fmt.Errorf("failed to open output SARIF report file: %w", err)
+			}
+
+			if err := lint.OutputSARIF(violations, inputFile, file); err != nil {
+				return fmt.Errorf("failed to write SARIF report: %w", err)
+			}
 		}
 	}
 

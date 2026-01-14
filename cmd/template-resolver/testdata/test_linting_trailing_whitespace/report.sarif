@@ -1,0 +1,145 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "go-template-utils-linter",
+          "informationUri": "https://github.com/stolostron/go-template-utils",
+          "rules": [
+            {
+              "id": "GTUL001",
+              "name": "Trailing Whitespace",
+              "shortDescription": {
+                "text": "Detects lines with trailing whitespace (spaces or tabs)"
+              }
+            },
+            {
+              "id": "GTUL003",
+              "name": "Unquoted Template Values",
+              "shortDescription": {
+                "text": "Enforces single-quote wrapping around template expressions in YAML"
+              }
+            }
+          ]
+        }
+      },
+      "artifacts": [
+        {
+          "location": {
+            "uri": "cmd/template-resolver/testdata/test_linting_trailing_whitespace/input.yaml"
+          }
+        }
+      ],
+      "results": [
+        {
+          "level": "warning",
+          "message": {
+            "text": "trailing whitespace detected"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_trailing_whitespace/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 4
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL001",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "trailing whitespace detected"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_trailing_whitespace/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 7
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL001",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "trailing whitespace detected"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_trailing_whitespace/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 19
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL001",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "trailing whitespace detected"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_trailing_whitespace/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 23
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL001",
+          "ruleIndex": 0
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "template value for key should be single-quoted"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_trailing_whitespace/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 23,
+                  "startColumn": 24
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL003",
+          "ruleIndex": 1
+        }
+      ]
+    }
+  ]
+}

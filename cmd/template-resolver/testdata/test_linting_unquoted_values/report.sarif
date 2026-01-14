@@ -1,0 +1,149 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "go-template-utils-linter",
+          "informationUri": "https://github.com/stolostron/go-template-utils",
+          "rules": [
+            {
+              "id": "GTUL002",
+              "name": "Mismatched Delimiters",
+              "shortDescription": {
+                "text": "Ensures template delimiters ({{/}} and {{hub/hub}}) are properly paired"
+              }
+            },
+            {
+              "id": "GTUL003",
+              "name": "Unquoted Template Values",
+              "shortDescription": {
+                "text": "Enforces single-quote wrapping around template expressions in YAML"
+              }
+            }
+          ]
+        }
+      },
+      "artifacts": [
+        {
+          "location": {
+            "uri": "cmd/template-resolver/testdata/test_linting_unquoted_values/input.yaml"
+          }
+        }
+      ],
+      "results": [
+        {
+          "level": "warning",
+          "message": {
+            "text": "template value for key should be single-quoted"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_unquoted_values/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 21,
+                  "startColumn": 25
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL003",
+          "ruleIndex": 1
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "template value for key should be single-quoted"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_unquoted_values/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 23,
+                  "startColumn": 32
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL003",
+          "ruleIndex": 1
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "array item template should be single-quoted"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_unquoted_values/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 26,
+                  "startColumn": 21
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL003",
+          "ruleIndex": 1
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "template value for key should be single-quoted"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_unquoted_values/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 28,
+                  "startColumn": 27
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL003",
+          "ruleIndex": 1
+        },
+        {
+          "level": "error",
+          "message": {
+            "text": "mismatched hub and managed cluster delimiters"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_unquoted_values/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 29,
+                  "startColumn": 54
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL002",
+          "ruleIndex": 0
+        }
+      ]
+    }
+  ]
+}
