@@ -1,0 +1,13 @@
+Found linting issues:
+line 16: mismatchedQuotes: unmatched or invalid quote detected:
+	{{- range (lookup "v1" "ConfigMap" "default" ").items }}
+line 26: mismatchedQuotes: unmatched or invalid quote detected:
+	ford.com/model: "Mustang"""
+line 27: mismatchedQuotes: unmatched or invalid quote detected:
+	invalid: ''extra apostrophe'
+line 28: mismatchedQuotes: unmatched or invalid quote detected:
+	also-invalid: 'invalid\''
+line 29: mismatchedQuotes: unmatched or invalid quote detected:
+	two-templates: '{{if eq "1" "1 }}{{ printf "1 = 1 }}{{end}}'
+
+template: tmpl:1: unterminated quoted string (in policy-templates at index 0)

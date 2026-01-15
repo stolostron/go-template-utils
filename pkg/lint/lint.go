@@ -20,6 +20,7 @@ var linterRules = []LinterRule{
 	MismatchedDelimiters,
 	UnquotedTemplateValues,
 	InvalidVarSyntax,
+	MismatchedQuotes,
 }
 
 // LinterRuleViolation represents a single violation of a linting rule.

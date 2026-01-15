@@ -1,0 +1,33 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: quote-valid-raw-test
+spec:
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: quote-valid-raw-config
+        spec:
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  labels:
+                    also-valid: this is "valid"
+                    escaped: this quote " is escaped
+                    ford.com/model: Mustang
+                    multiline-config: '{"model":"Shelby Mustang" }'
+                    name: my-obj-name
+                    note: this is a string and shouldn't be checked for extra single quotes
+                    valid: this quote ' is a valid string
+                    valid-quote-at-start: '"my-obj-name'
+                    valid-single-quote: this apostrophe ' is valid
+                    valid-string: this apostrophe ' is valid
+                  name: cool-car
+                  namespace: defaultblah
+          remediationAction: enforce
+          severity: low

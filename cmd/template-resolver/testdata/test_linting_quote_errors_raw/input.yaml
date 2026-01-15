@@ -1,0 +1,33 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: quote-errors-raw-test
+spec:
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: quote-errors-raw-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{- range (lookup "v1" "ConfigMap" "default" ").items }}
+            {{- if and .data.model (contains "Mustang" .data.model) }}
+            - complianceType: musthave
+              objectDefinition:
+                kind: ConfigMap
+                apiVersion: v1
+                metadata:
+                  name: '{{ .metadata.name }}'
+                  namespace: "{{ .metadata.namespace }}"
+                  labels:
+                    ford.com/model: "Mustang"""
+                    invalid: ''extra apostrophe'
+                    also-invalid: 'invalid\''
+                    two-templates: '{{if eq "1" "1 }}{{ printf "1 = 1 }}{{end}}'
+                    missed-case-single-quote: '{{ printf "this unescaped apostrophe ' will not be linted" }}'
+                    missed-case-escaped-double-quote: "{{ printf \" escaped double quotes are invalid but will not be linted \"}}"
+            {{- end }}
+            {{- end }}
