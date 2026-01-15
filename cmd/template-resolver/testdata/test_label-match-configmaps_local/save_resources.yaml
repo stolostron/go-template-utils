@@ -1,0 +1,22 @@
+---
+# Resource was locally fetched
+apiVersion: v1
+data:
+    name: banana
+kind: ConfigMap
+metadata:
+    name: cool-fruit
+    namespace: default
+    labels:
+        color: yellow
+---
+# Resource was locally fetched
+apiVersion: v1
+data:
+    name: lemon
+kind: ConfigMap
+metadata:
+    name: coolest-fruit
+    namespace: default
+    labels:
+        color: yellow

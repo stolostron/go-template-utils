@@ -1,0 +1,20 @@
+---
+apiVersion: v1
+data:
+    name: banana
+kind: ConfigMap
+metadata:
+    name: cool-fruit
+    namespace: default
+    labels:
+        color: yellow
+---
+apiVersion: v1
+data:
+    name: lemon
+kind: ConfigMap
+metadata:
+    name: coolest-fruit
+    namespace: default
+    labels:
+        color: yellow

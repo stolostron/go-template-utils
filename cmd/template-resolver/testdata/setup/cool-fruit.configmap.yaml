@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cool-fruit
+  namespace: default
+  labels:
+    color: yellow 
+data:
+  name: banana

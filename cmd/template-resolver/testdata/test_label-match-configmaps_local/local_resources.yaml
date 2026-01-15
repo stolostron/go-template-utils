@@ -1,0 +1,28 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cool-fruit
+  namespace: default
+  labels:
+    color: yellow 
+data:
+  name: banana
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coolest-fruit
+  namespace: default
+  labels:
+    color: yellow 
+data:
+  name: lemon
+---
+apiVersion: v1
+data:
+    namespace: foobar
+kind: ConfigMap
+metadata:
+    name: operator-config
+    namespace: default
