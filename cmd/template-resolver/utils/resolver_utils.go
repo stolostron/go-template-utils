@@ -232,15 +232,17 @@ func (t *TemplateResolver) ProcessTemplate(yamlBytes []byte) ([]byte, error) {
 		policy.Object = hubResolvedObject
 	}
 
+	resolver, err := templates.NewResolver(kubeConfig, templates.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to instantiate the template resolver: %w", err)
+	}
+
 	localResources, err := decodeLocalResources(t.LocalResources)
 	if err != nil {
 		return nil, err
 	}
 
-	resolver, err := templates.NewResolverWithLocalResources(kubeConfig, templates.Config{}, localResources)
-	if err != nil {
-		return nil, fmt.Errorf("failed to instantiate the template resolver: %w", err)
-	}
+	resolver.WithLocalResources(localResources)
 
 	tempCtx := templates.TemplateContext{
 		ObjectNamespace: t.ObjNamespace,
@@ -310,9 +312,7 @@ func createSaveResourcesOutput(path string, resolver *templates.TemplateResolver
 		for _, r := range usedResources {
 			fmt.Fprintln(f, "---")
 
-			if r.IsRemote {
-				fmt.Fprintln(f, "# Resource was remotely fetched")
-			} else {
+			if !r.IsRemote {
 				fmt.Fprintln(f, "# Resource was locally fetched")
 			}
 

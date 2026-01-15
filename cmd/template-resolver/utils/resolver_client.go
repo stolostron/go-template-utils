@@ -52,7 +52,8 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 		&t.LocalResources,
 		"local-resources",
 		"",
-		"The path to a local resource YAML manifest used to resolve the managed cluster template.",
+		"The path to a local YAML manifest used to resolve the managed cluster template. "+
+			"The YAML manifest can define multiple resources.",
 	)
 
 	templateResolverCmd.Flags().StringVar(

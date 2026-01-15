@@ -225,8 +225,7 @@ type TemplateResult struct {
 	HasSensitiveData bool
 }
 
-// NewResolver creates a new (non-caching) TemplateResolver instance without using localResources,
-// which is the API for processing templates.
+// NewResolver creates a new (non-caching) TemplateResolver instance, which is the API for processing templates.
 //
 // - kubeConfig is the rest.Config instance used to create Kubernetes clients for template processing.
 //
@@ -242,26 +241,7 @@ func NewResolver(kubeConfig *rest.Config, config Config) (*TemplateResolver, err
 		return nil, err
 	}
 
-	return NewResolverWithClients(dynamicClient, discoveryClient, config, make([]unstructured.Unstructured, 0))
-}
-
-// NewResolverWithLocalResources creates a new (non-caching) TemplateResolver instance with local resources
-// Very similar to NewResolver with simply the addition of local resources
-// This is mainly used for the template-resolver cli
-func NewResolverWithLocalResources(kubeConfig *rest.Config, config Config,
-	localResources []unstructured.Unstructured,
-) (*TemplateResolver, error) {
-	discoveryClient, err := discovery.NewDiscoveryClientForConfig(kubeConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewResolverWithClients(dynamicClient, discoveryClient, config, localResources)
+	return NewResolverWithClients(dynamicClient, discoveryClient, config)
 }
 
 // NewResolverWithClients creates a new (non-caching) TemplateResolver instance, which is the API for processing
@@ -270,7 +250,6 @@ func NewResolverWithClients(
 	dynamicClient dynamic.Interface,
 	discoveryClient discovery.DiscoveryInterface,
 	config Config,
-	localResources []unstructured.Unstructured,
 ) (*TemplateResolver, error) {
 	if (config.StartDelim != "" && config.StopDelim == "") || (config.StartDelim == "" && config.StopDelim != "") {
 		return nil, errors.New("the configurations StartDelim and StopDelim cannot be set independently")
@@ -298,7 +277,6 @@ func NewResolverWithClients(
 		dynamicClient:  dynamicClient,
 		dynamicWatcher: nil,
 		tempCallCache:  tempCallCache,
-		localResources: localResources,
 	}, nil
 }
 
@@ -847,6 +825,13 @@ func (t *TemplateResolver) ResolveTemplate(
 	resolvedResult.ResolvedJSON = resolvedTemplateBytes
 
 	return resolvedResult, nil
+}
+
+// Set the local resources to be used for rendering. Used in CLI
+func (t *TemplateResolver) WithLocalResources(localResources []unstructured.Unstructured) *TemplateResolver {
+	t.localResources = localResources
+
+	return t
 }
 
 // UncacheWatcher will clear the watcher from the cache and remove all associated API watches.
