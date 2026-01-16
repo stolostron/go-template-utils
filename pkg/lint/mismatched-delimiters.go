@@ -6,19 +6,23 @@ import (
 	"strings"
 )
 
-var MismatchedDelimitersMetadata = RuleMetadata{
-	ID:          "GTUL002",
-	Name:        "Mismatched Delimiters",
-	Description: "Ensures template delimiters ({{/}} and {{hub/hub}}) are properly paired",
-	Severity:    "error",
-	Category:    "syntax",
+var MismatchedDelimiters = LinterRule{
+	metadata: RuleMetadata{
+		ID:               mismatchedDelimitersID,
+		Name:             "mismatchedDelimiters",
+		ShortDescription: "Template delimiters must be properly paired.",
+		FullDescription: "Template start delimiters (`{{` or `{{hub`) must be paired with a corresponding " +
+			"closing delimiter (`}}` or `hub}}`). Otherwise, the template is invalid.",
+		Level: "error",
+	},
+	runLinter: findMismatchedDelimiters,
 }
 
-// mismatchedDelimiters checks for mismatched delimiters in the template string.
-// It returns an error if the delimiters are not all paired.
-func mismatchedDelimiters(templateStr string) []LinterRuleViolation {
-	var violations []LinterRuleViolation
+const mismatchedDelimitersID = "GTUL002"
 
+// findMismatchedDelimiters checks for mismatched delimiters in the template string.
+// It returns an error if the delimiters are not all paired.
+func findMismatchedDelimiters(templateStr string) (violations []LinterRuleViolation) {
 	// This regex finds all template delimiters: {{ or {{hub
 	delimiterRegEx := regexp.MustCompile(`({{(hub)?-?)|(-?(hub)?}})`)
 
@@ -77,8 +81,9 @@ func mismatchedDelimiters(templateStr string) []LinterRuleViolation {
 		case len(openDelimiters) == 0 && !delimiter.isOpen:
 			violations = append(violations, LinterRuleViolation{
 				LineNumber:    delimiter.line,
-				RuleID:        MismatchedDelimitersMetadata.ID,
-				Message:       fmt.Sprintf("unmatched closing delimiter '%s'", delimiter.value),
+				RuleID:        mismatchedDelimitersID,
+				ShortMessage:  fmt.Sprintf("unmatched closing delimiter '%s'", delimiter.value),
+				Message:       fmt.Sprintf("Unmatched closing delimiter '%s'.", delimiter.value),
 				FormattedLine: strings.TrimSpace(lines[delimiter.line-1]),
 				Column:        delimiter.column,
 			})
@@ -88,8 +93,9 @@ func mismatchedDelimiters(templateStr string) []LinterRuleViolation {
 			if matchingOpen.isHub != delimiter.isHub {
 				violations = append(violations, LinterRuleViolation{
 					LineNumber:    delimiter.line,
-					RuleID:        MismatchedDelimitersMetadata.ID,
-					Message:       "mismatched hub and managed cluster delimiters",
+					RuleID:        mismatchedDelimitersID,
+					ShortMessage:  "mismatched hub and managed cluster delimiters",
+					Message:       "Mismatched hub and managed cluster delimiters.",
 					FormattedLine: strings.TrimSpace(lines[delimiter.line-1]),
 					Column:        delimiter.column,
 				})
@@ -103,8 +109,9 @@ func mismatchedDelimiters(templateStr string) []LinterRuleViolation {
 	for _, delimiter := range openDelimiters {
 		violations = append(violations, LinterRuleViolation{
 			LineNumber:    delimiter.line,
-			RuleID:        MismatchedDelimitersMetadata.ID,
-			Message:       fmt.Sprintf("unmatched opening delimiter '%s'", delimiter.value),
+			RuleID:        mismatchedDelimitersID,
+			ShortMessage:  fmt.Sprintf("unmatched opening delimiter '%s'", delimiter.value),
+			Message:       fmt.Sprintf("Unmatched opening delimiter '%s'.", delimiter.value),
 			FormattedLine: strings.TrimSpace(lines[delimiter.line-1]),
 			Column:        delimiter.column,
 		})

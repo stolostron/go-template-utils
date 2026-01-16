@@ -10,6 +10,17 @@ import (
 	"github.com/stolostron/go-template-utils/v7/pkg/lint/sarif"
 )
 
+type LinterRule struct {
+	metadata  RuleMetadata
+	runLinter func(string) []LinterRuleViolation
+}
+
+var linterRules = []LinterRule{
+	TrailingWhitespace,
+	MismatchedDelimiters,
+	UnquotedTemplateValues,
+}
+
 // LinterRuleViolation represents a single violation of a linting rule.
 // It contains information about where the violation occurred and what the issue is.
 type LinterRuleViolation struct {
@@ -19,7 +30,10 @@ type LinterRuleViolation struct {
 	// RuleID is the unique identifier for the rule that was violated (e.g., "GTUL001")
 	RuleID string
 
-	// Message describes the specific violation that was detected
+	// ShortMessage provides a quick description of the violation, in one uncapitalized clause
+	ShortMessage string
+
+	// Message provides specific information about the violation, in full sentences
 	Message string
 
 	// FormattedLine is the line content where the violation occurred, formatted for display
@@ -38,31 +52,30 @@ type RuleMetadata struct {
 	// This is used as the ruleId in SARIF output.
 	ID string
 
-	// Name is a human-readable name for the rule
+	// Name is a human-readable name for the rule, in camelCase format.
 	Name string
 
-	// Description explains what the rule checks for
-	Description string
+	// ShortDescription explains the rule in one sentence.
+	ShortDescription string
 
-	// Severity indicates the severity level of violations: "error", "warning", or "note"
-	Severity string
+	// FullDescription describes the rule with additional context, and suggestions
+	// for resolving violations of the rule, or instances where it can be ignored.
+	// The FullDescription can use GH-flavored markdown for formatting.
+	FullDescription string
 
-	// Category groups related rules together, e.g., "style", "syntax", "best-practice"
-	Category string
+	// Level indicates the severity of the violation: "error", "warning", or "note"
+	Level string
 }
 
 // getRuleMetadata returns the RuleMetadata for a given rule ID, or nil if not found.
 func getRuleMetadata(ruleID string) *RuleMetadata {
-	switch ruleID {
-	case TrailingWhitespaceMetadata.ID:
-		return &TrailingWhitespaceMetadata
-	case MismatchedDelimitersMetadata.ID:
-		return &MismatchedDelimitersMetadata
-	case UnquotedTemplateValuesMetadata.ID:
-		return &UnquotedTemplateValuesMetadata
-	default:
-		return nil
+	for _, rule := range linterRules {
+		if rule.metadata.ID == ruleID {
+			return &rule.metadata
+		}
 	}
+
+	return nil
 }
 
 func OutputStringViolations(violations []LinterRuleViolation) string {
@@ -72,13 +85,13 @@ func OutputStringViolations(violations []LinterRuleViolation) string {
 		ruleMD := getRuleMetadata(violation.RuleID)
 		if ruleMD == nil {
 			output.WriteString(fmt.Sprintf("line %d: unknown rule: %s: %s:\n\t%s\n",
-				violation.LineNumber, violation.RuleID, violation.Message, violation.FormattedLine))
+				violation.LineNumber, violation.RuleID, violation.ShortMessage, violation.FormattedLine))
 
 			continue
 		}
 
 		output.WriteString(fmt.Sprintf("line %d: %s: %s:\n\t%s\n",
-			violation.LineNumber, ruleMD.Name, violation.Message, violation.FormattedLine))
+			violation.LineNumber, ruleMD.Name, violation.ShortMessage, violation.FormattedLine))
 	}
 
 	return output.String()
@@ -107,7 +120,16 @@ func OutputSARIF(violations []LinterRuleViolation, inputFile string, output io.W
 
 	for i, ruleID := range usedRuleIDsList {
 		if metadata := getRuleMetadata(ruleID); metadata != nil {
-			rules = append(rules, sarif.NewRule(metadata.ID, metadata.Name, metadata.Description))
+			rule := sarif.NewRule(metadata.ID, metadata.Name, metadata.ShortDescription)
+
+			if metadata.FullDescription != "" {
+				rule.FullDescription = &sarif.Message{
+					Text:     metadata.FullDescription,
+					Markdown: metadata.FullDescription,
+				}
+			}
+
+			rules = append(rules, rule)
 
 			ruleIndexMap[ruleID] = i
 		} else {
@@ -125,7 +147,7 @@ func OutputSARIF(violations []LinterRuleViolation, inputFile string, output io.W
 		}
 
 		loc := sarif.NewLocation(inputFile, 0, violation.LineNumber, violation.Column)
-		res := sarif.NewResult(metadata.Severity, violation.Message, violation.RuleID,
+		res := sarif.NewResult(metadata.Level, violation.Message, violation.RuleID,
 			ruleIndexMap[violation.RuleID], loc)
 
 		results = append(results, res)
@@ -144,17 +166,9 @@ func OutputSARIF(violations []LinterRuleViolation, inputFile string, output io.W
 }
 
 // lint checks the template string for linting errors.
-func Lint(templateStr string) []LinterRuleViolation {
-	var violations []LinterRuleViolation
-
-	lintingChecks := []func(string) []LinterRuleViolation{
-		trailingWhitespace,
-		mismatchedDelimiters,
-		unquotedTemplateValues,
-	}
-
-	for _, check := range lintingChecks {
-		violations = append(violations, check(templateStr)...)
+func Lint(templateStr string) (violations []LinterRuleViolation) {
+	for _, rule := range linterRules {
+		violations = append(violations, rule.runLinter(templateStr)...)
 	}
 
 	if len(violations) > 0 {

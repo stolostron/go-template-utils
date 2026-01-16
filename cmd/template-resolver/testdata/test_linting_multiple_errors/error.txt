@@ -1,21 +1,21 @@
 Found linting issues:
-line 4: Trailing Whitespace: trailing whitespace detected:
+line 4: trailingWhitespace: trailing whitespace detected:
 	name: multiple-errors-test  <<<
-line 7: Trailing Whitespace: trailing whitespace detected:
+line 7: trailingWhitespace: trailing whitespace detected:
 	- objectDefinition:	<<<
-line 21: Unquoted Template Values: template value for key should be single-quoted:
+line 21: unquotedTemplateValues: templates should be single-quoted:
 	name: {{ fromConfigMap "default" "config" "name" }}
-line 23: Trailing Whitespace: trailing whitespace detected:
+line 23: trailingWhitespace: trailing whitespace detected:
 	trailing: "value with trailing"   <<<
-line 24: Unquoted Template Values: template value for key should be single-quoted:
+line 24: unquotedTemplateValues: templates should be single-quoted:
 	unquoted: {{ fromConfigMap "default" "config" "value" }}
-line 25: Mismatched Delimiters: unmatched opening delimiter '{{':
+line 25: mismatchedDelimiters: unmatched opening delimiter '{{':
 	unclosed: '{{ lookup "v1" "Secret" "default" "secret'
-line 26: Trailing Whitespace: trailing whitespace detected:
+line 26: trailingWhitespace: trailing whitespace detected:
 	rules: <<<
-line 27: Unquoted Template Values: array item template should be single-quoted:
+line 27: unquotedTemplateValues: templates for array items should be single-quoted:
 	- {{ lookup "v1" "Secret" "default" "my-secret" }}
-line 28: Mismatched Delimiters: unmatched opening delimiter '{{':
+line 28: mismatchedDelimiters: unmatched opening delimiter '{{':
 	- wrongClose: '{{ fromConfigMap "default" "config" "value" }hub}'
 
 failed to parse input to YAML: error converting YAML to JSON: yaml: invalid map key: map[interface {}]interface {}{"fromConfigMap \"default\" \"config\" \"name\"":interface {}(nil)}

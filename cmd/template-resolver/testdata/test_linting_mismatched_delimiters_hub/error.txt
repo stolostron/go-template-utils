@@ -1,9 +1,9 @@
 Found linting issues:
-line 21: Mismatched Delimiters: unmatched opening delimiter '{{hub':
+line 21: mismatchedDelimiters: unmatched opening delimiter '{{hub':
 	name: "{{hub .ManagedClusterName }"
-line 23: Mismatched Delimiters: unmatched opening delimiter '{{hub':
+line 23: mismatchedDelimiters: unmatched opening delimiter '{{hub':
 	unclosed: "{{hub .ManagedClusterName }"
-line 26: Mismatched Delimiters: mismatched hub and managed cluster delimiters:
+line 26: mismatchedDelimiters: mismatched hub and managed cluster delimiters:
 	mixed: '{{hub .ManagedClusterName {{ lookup "v1" "Secret" "default" "" }} .Status }}'
 
 template: tmpl:19: unexpected "{" in operand
