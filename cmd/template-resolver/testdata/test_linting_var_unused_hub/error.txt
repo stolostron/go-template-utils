@@ -1,0 +1,37 @@
+Found linting issues:
+line 24: unusedVariables: variable is defined but not used within scope:
+	something: '{{ $managed_var := "value1" }}'
+line 34: unusedVariables: variable is defined but not used within scope:
+	something: '{{hub $hub_var := "value1" hub}}'
+line 53: unusedVariables: variable is defined but not used within scope:
+	managed-var: '{{ $managedVar := "managed-value" }}something'
+line 54: unusedVariables: variable is defined but not used within scope:
+	hub-var: '{{hub $hubVar := "hub-value" hub}}something'
+line 72: unusedVariables: variable is defined but not used within scope:
+	something: '{{ $unused_managed := "value1" }}'
+line 82: unusedVariables: variable is defined but not used within scope:
+	something: '{{ $unused_a := "val1" }}{{ $unused_b := "val2" }}something'
+line 82: unusedVariables: variable is defined but not used within scope:
+	something: '{{ $unused_a := "val1" }}{{ $unused_b := "val2" }}something'
+line 91: unusedVariables: variable is defined but not used within scope:
+	something: '{{ range $unused_i,$ns := (list "x" "y" "z") }}{{ $ns }} {{ end }}'
+line 100: unusedVariables: variable is defined but not used within scope:
+	something: '{{ range $idx,$unused_val := (list "p" "q" "r") }}{{ $idx }} {{ end }}'
+line 109: unusedVariables: variable is defined but not used within scope:
+	something: '{{ range $unused_idx,$unused_item := (list "m" "n") }}something {{ end }}'
+line 109: unusedVariables: variable is defined but not used within scope:
+	something: '{{ range $unused_idx,$unused_item := (list "m" "n") }}something {{ end }}'
+line 118: unusedVariables: variable is defined but not used within scope:
+	something: '{{ $commented := "value" }}{{- /* This comment mentions $commented but doesnt use it */ -}}actual-value'
+line 127: unusedVariables: variable is defined but not used within scope:
+	something: '{{ $foo := "first" }}{{ $foo := "second" }}{{ $foo }}'
+line 136: unusedVariables: variable is defined but not used within scope:
+	something: '{{ $bar := "first" }}{{ $bar }}{{ $bar := "second" }}'
+line 145: unusedVariables: variable is defined but not used within scope:
+	something: '{{ $baz := "first" }}{{ $baz := "second" }}something'
+line 145: unusedVariables: variable is defined but not used within scope:
+	something: '{{ $baz := "first" }}{{ $baz := "second" }}something'
+line 154: unusedVariables: variable is defined but not used within scope:
+	something: '{{ $multi := "v1" }}{{ $multi }}{{ $multi := "v2" }}{{ $multi := "v3" }}{{ $multi }}'
+
+template: tmpl:18: undefined variable "$managed_var"

@@ -19,6 +19,7 @@ var linterRules = []LinterRule{
 	TrailingWhitespace,
 	MismatchedDelimiters,
 	UnquotedTemplateValues,
+	UnusedVariables,
 }
 
 // LinterRuleViolation represents a single violation of a linting rule.
@@ -173,7 +174,11 @@ func Lint(templateStr string) (violations []LinterRuleViolation) {
 
 	if len(violations) > 0 {
 		sort.Slice(violations, func(i, j int) bool {
-			return violations[i].LineNumber < violations[j].LineNumber
+			if violations[i].LineNumber != violations[j].LineNumber {
+				return violations[i].LineNumber < violations[j].LineNumber
+			}
+			// For violations on the same line, sort by message for deterministic ordering
+			return violations[i].Message < violations[j].Message
 		})
 
 		return violations

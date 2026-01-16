@@ -1,0 +1,106 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: used-variables-test
+spec:
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: should-not-find-unused-variables
+        spec:
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: '0=a 1=b 2=c '
+                kind: ConfigMap
+                metadata:
+                  name: test-range-both-used
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: 'zone1 zone2 zone3 '
+                kind: ConfigMap
+                metadata:
+                  name: test-range-single-used
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: 'a b c '
+                kind: ConfigMap
+                metadata:
+                  name: test-blank-identifier
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: myvalue
+                kind: ConfigMap
+                metadata:
+                  name: test-assign-and-use
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: '0=1 1=2 '
+                kind: ConfigMap
+                metadata:
+                  name: test-no-spaces
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: '0=1 1=2 '
+                kind: ConfigMap
+                metadata:
+                  name: test-space-before-comma
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: let $x := getValue()
+                kind: ConfigMap
+                metadata:
+                  name: test-string-literal
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: firstsecond
+                kind: ConfigMap
+                metadata:
+                  name: test-redefine-both-used
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  config:
+                    model: Shelby Mustang
+                kind: ConfigMap
+                metadata:
+                  name: test-multiline-with-braces
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  labels:
+                    first: myvalue
+                    second: myvalue
+                    third: myvalue
+                  name: test-cross-field-usage
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  something: Shelby Mustang
+                kind: ConfigMap
+                metadata:
+                  name: test-nested-field-used
+          remediationAction: enforce
+          severity: low
