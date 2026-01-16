@@ -1,0 +1,7 @@
+Found linting issues:
+line 18: invalidVariableSyntax: invalid variable reference inside dot operator:
+	model: '{{ $carModel.data.$model.color }}'
+line 20: invalidVariableSyntax: invalid variable reference inside dot operator:
+	model: '{{ $carModel.data.$model }}'
+
+template: tmpl:10: bad character U+0024 '$'

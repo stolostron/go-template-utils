@@ -1,0 +1,80 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "go-template-utils-linter",
+          "informationUri": "https://github.com/stolostron/go-template-utils",
+          "rules": [
+            {
+              "id": "GTUL005",
+              "name": "invalidVariableSyntax",
+              "shortDescription": {
+                "text": "Invalid variable syntax."
+              },
+              "fullDescription": {
+                "text": "A variable was defined or referenced with invalid syntax.",
+                "markdown": "A variable was defined or referenced with invalid syntax."
+              }
+            }
+          ]
+        }
+      },
+      "artifacts": [
+        {
+          "location": {
+            "uri": "cmd/template-resolver/testdata/test_linting_invalid_var/input.yaml"
+          }
+        }
+      ],
+      "results": [
+        {
+          "level": "error",
+          "message": {
+            "text": "Invalid variable reference inside dot operator."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_invalid_var/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 18,
+                  "startColumn": 37
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL005",
+          "ruleIndex": 0
+        },
+        {
+          "level": "error",
+          "message": {
+            "text": "Invalid variable reference inside dot operator."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_invalid_var/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 20,
+                  "startColumn": 37
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL005",
+          "ruleIndex": 0
+        }
+      ]
+    }
+  ]
+}
