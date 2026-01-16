@@ -10,16 +10,24 @@
           "rules": [
             {
               "id": "GTUL002",
-              "name": "Mismatched Delimiters",
+              "name": "mismatchedDelimiters",
               "shortDescription": {
-                "text": "Ensures template delimiters ({{/}} and {{hub/hub}}) are properly paired"
+                "text": "Template delimiters must be properly paired."
+              },
+              "fullDescription": {
+                "text": "Template start delimiters (`{{` or `{{hub`) must be paired with a corresponding closing delimiter (`}}` or `hub}}`). Otherwise, the template is invalid.",
+                "markdown": "Template start delimiters (`{{` or `{{hub`) must be paired with a corresponding closing delimiter (`}}` or `hub}}`). Otherwise, the template is invalid."
               }
             },
             {
               "id": "GTUL003",
-              "name": "Unquoted Template Values",
+              "name": "unquotedTemplateValues",
               "shortDescription": {
-                "text": "Enforces single-quote wrapping around template expressions in YAML"
+                "text": "Template expressions should be single-quoted."
+              },
+              "fullDescription": {
+                "text": "Single-quote wrapping around template expressions in YAML will ensure that the templates are properly interpreted and not interfere with the rest of the structure.",
+                "markdown": "Single-quote wrapping around template expressions in YAML will ensure that the templates are properly interpreted and not interfere with the rest of the structure."
               }
             }
           ]
@@ -36,7 +44,7 @@
         {
           "level": "warning",
           "message": {
-            "text": "template value for key should be single-quoted"
+            "text": "Templates should be single-quoted."
           },
           "locations": [
             {
@@ -58,7 +66,7 @@
         {
           "level": "warning",
           "message": {
-            "text": "template value for key should be single-quoted"
+            "text": "Templates should be single-quoted."
           },
           "locations": [
             {
@@ -80,7 +88,7 @@
         {
           "level": "warning",
           "message": {
-            "text": "array item template should be single-quoted"
+            "text": "Templates for array items should be single-quoted."
           },
           "locations": [
             {
@@ -102,7 +110,7 @@
         {
           "level": "warning",
           "message": {
-            "text": "template value for key should be single-quoted"
+            "text": "Templates should be single-quoted."
           },
           "locations": [
             {
@@ -124,7 +132,7 @@
         {
           "level": "error",
           "message": {
-            "text": "mismatched hub and managed cluster delimiters"
+            "text": "Mismatched hub and managed cluster delimiters."
           },
           "locations": [
             {

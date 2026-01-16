@@ -70,17 +70,18 @@ type Driver struct {
 
 // Rule represents a static analysis rule definition.
 type Rule struct {
-	ID               string  `json:"id"`
-	Name             string  `json:"name"`
-	ShortDescription Message `json:"shortDescription"`
+	ID               string   `json:"id"`
+	Name             string   `json:"name"`
+	ShortDescription Message  `json:"shortDescription"`
+	FullDescription  *Message `json:"fullDescription,omitempty"`
 }
 
-// NewRule creates a new rule with the given ID, name, and description.
-func NewRule(id, name, description string) Rule {
+// NewRule creates a new rule with the given ID, name, and a short description.
+func NewRule(id, name, shortDescription string) Rule {
 	return Rule{
 		ID:               id,
 		Name:             name,
-		ShortDescription: Message{Text: description},
+		ShortDescription: Message{Text: shortDescription},
 	}
 }
 
@@ -121,7 +122,8 @@ func NewResult(level, message, ruleID string, ruleIndex int, locs ...Location) R
 }
 
 type Message struct {
-	Text string `json:"text"`
+	Text     string `json:"text"`
+	Markdown string `json:"markdown,omitempty"`
 }
 
 // Location represents the location of a result in a source file.

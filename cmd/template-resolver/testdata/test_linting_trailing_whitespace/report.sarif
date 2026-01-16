@@ -10,16 +10,20 @@
           "rules": [
             {
               "id": "GTUL001",
-              "name": "Trailing Whitespace",
+              "name": "trailingWhitespace",
               "shortDescription": {
-                "text": "Detects lines with trailing whitespace (spaces or tabs)"
+                "text": "Lines should not have trailing whitespace."
               }
             },
             {
               "id": "GTUL003",
-              "name": "Unquoted Template Values",
+              "name": "unquotedTemplateValues",
               "shortDescription": {
-                "text": "Enforces single-quote wrapping around template expressions in YAML"
+                "text": "Template expressions should be single-quoted."
+              },
+              "fullDescription": {
+                "text": "Single-quote wrapping around template expressions in YAML will ensure that the templates are properly interpreted and not interfere with the rest of the structure.",
+                "markdown": "Single-quote wrapping around template expressions in YAML will ensure that the templates are properly interpreted and not interfere with the rest of the structure."
               }
             }
           ]
@@ -36,7 +40,7 @@
         {
           "level": "warning",
           "message": {
-            "text": "trailing whitespace detected"
+            "text": "Trailing whitespace detected."
           },
           "locations": [
             {
@@ -57,7 +61,7 @@
         {
           "level": "warning",
           "message": {
-            "text": "trailing whitespace detected"
+            "text": "Trailing whitespace detected."
           },
           "locations": [
             {
@@ -78,7 +82,7 @@
         {
           "level": "warning",
           "message": {
-            "text": "trailing whitespace detected"
+            "text": "Trailing whitespace detected."
           },
           "locations": [
             {
@@ -99,7 +103,7 @@
         {
           "level": "warning",
           "message": {
-            "text": "trailing whitespace detected"
+            "text": "Trailing whitespace detected."
           },
           "locations": [
             {
@@ -120,7 +124,7 @@
         {
           "level": "warning",
           "message": {
-            "text": "template value for key should be single-quoted"
+            "text": "Templates should be single-quoted."
           },
           "locations": [
             {

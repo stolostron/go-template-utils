@@ -10,9 +10,13 @@
           "rules": [
             {
               "id": "GTUL002",
-              "name": "Mismatched Delimiters",
+              "name": "mismatchedDelimiters",
               "shortDescription": {
-                "text": "Ensures template delimiters ({{/}} and {{hub/hub}}) are properly paired"
+                "text": "Template delimiters must be properly paired."
+              },
+              "fullDescription": {
+                "text": "Template start delimiters (`{{` or `{{hub`) must be paired with a corresponding closing delimiter (`}}` or `hub}}`). Otherwise, the template is invalid.",
+                "markdown": "Template start delimiters (`{{` or `{{hub`) must be paired with a corresponding closing delimiter (`}}` or `hub}}`). Otherwise, the template is invalid."
               }
             }
           ]
@@ -29,7 +33,7 @@
         {
           "level": "error",
           "message": {
-            "text": "unmatched opening delimiter '{{hub'"
+            "text": "Unmatched opening delimiter '{{hub'."
           },
           "locations": [
             {
@@ -51,7 +55,7 @@
         {
           "level": "error",
           "message": {
-            "text": "unmatched opening delimiter '{{hub'"
+            "text": "Unmatched opening delimiter '{{hub'."
           },
           "locations": [
             {
@@ -73,7 +77,7 @@
         {
           "level": "error",
           "message": {
-            "text": "mismatched hub and managed cluster delimiters"
+            "text": "Mismatched hub and managed cluster delimiters."
           },
           "locations": [
             {

@@ -5,19 +5,23 @@ import (
 	"strings"
 )
 
-var UnquotedTemplateValuesMetadata = RuleMetadata{
-	ID:          "GTUL003",
-	Name:        "Unquoted Template Values",
-	Description: "Enforces single-quote wrapping around template expressions in YAML",
-	Severity:    "warning",
-	Category:    "best-practice",
+var UnquotedTemplateValues = LinterRule{
+	metadata: RuleMetadata{
+		ID:               unquotedTemplateValuesID,
+		Name:             "unquotedTemplateValues",
+		ShortDescription: "Template expressions should be single-quoted.",
+		FullDescription: "Single-quote wrapping around template expressions in YAML will ensure that the " +
+			"templates are properly interpreted and not interfere with the rest of the structure.",
+		Level: "warning",
+	},
+	runLinter: findUnquotedTemplateValues,
 }
 
-// unquotedTemplateValues checks for unquoted template values in the template
-// string. It returns an error if the template values are not single-quoted.
-func unquotedTemplateValues(templateStr string) []LinterRuleViolation {
-	var violations []LinterRuleViolation
+const unquotedTemplateValuesID = "GTUL003"
 
+// findUnquotedTemplateValues checks for unquoted template values in the template
+// string. It returns an error if the template values are not single-quoted.
+func findUnquotedTemplateValues(templateStr string) (violations []LinterRuleViolation) {
 	lines := strings.Split(templateStr, "\n")
 
 	// Regex to match a line that is an array item with a template, e.g. "- {{ something }}"
@@ -46,8 +50,9 @@ func unquotedTemplateValues(templateStr string) []LinterRuleViolation {
 			violations = append(
 				violations, LinterRuleViolation{
 					LineNumber:    i + 1,
-					RuleID:        UnquotedTemplateValuesMetadata.ID,
-					Message:       "array item template should be single-quoted",
+					RuleID:        unquotedTemplateValuesID,
+					ShortMessage:  "templates for array items should be single-quoted",
+					Message:       "Templates for array items should be single-quoted.",
 					FormattedLine: trimmed,
 					Column:        bytePosToColumn(line, templateStart),
 				})
@@ -63,8 +68,9 @@ func unquotedTemplateValues(templateStr string) []LinterRuleViolation {
 			violations = append(
 				violations, LinterRuleViolation{
 					LineNumber:    i + 1,
-					RuleID:        UnquotedTemplateValuesMetadata.ID,
-					Message:       "template value for key should be single-quoted",
+					RuleID:        unquotedTemplateValuesID,
+					ShortMessage:  "templates should be single-quoted",
+					Message:       "Templates should be single-quoted.",
 					FormattedLine: trimmed,
 					Column:        bytePosToColumn(line, templateStart),
 				})
