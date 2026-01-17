@@ -1047,6 +1047,16 @@ func (t *TemplateResolver) GetUsedResources() []UsedResource {
 	return t.usedResources
 }
 
+// returns a slice of the unstructured resources collected in usedResources
+func (t *TemplateResolver) GetUsedUnstructs() []unstructured.Unstructured {
+	objs := make([]unstructured.Unstructured, 0, len(t.usedResources))
+	for _, used := range t.usedResources {
+		objs = append(objs, used.Resource)
+	}
+
+	return objs
+}
+
 // applyContextTransformers runs the configured ContextTransformers in order and
 // returns the final transformed context. This is only called when a
 // DynamicWatcher is configured.
