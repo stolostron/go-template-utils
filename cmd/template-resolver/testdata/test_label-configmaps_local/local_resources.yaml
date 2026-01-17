@@ -22,23 +22,3 @@ kind: ConfigMap
 metadata:
     name: operator-config
     namespace: default
----
-apiVersion: v1
-data:
-    name: banana
-kind: ConfigMap
-metadata:
-    name: cool-fruit
-    namespace: default
-    labels:
-        color: yellow
----
-apiVersion: v1
-data:
-    name: lemon
-kind: ConfigMap
-metadata:
-    name: coolest-fruit
-    namespace: default
-    labels:
-        color: yellow

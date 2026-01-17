@@ -1,0 +1,18 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: ConfigurationPolicy
+metadata:
+  name: label-configmaps
+spec:
+  remediationAction: enforce
+  severity: low
+  object-templates:
+    - complianceType: musthave
+      objectDefinition:
+        kind: ConfigMap
+        apiVersion: v1
+        metadata:
+          name: '{{ (lookup "v1" "ConfigMap" "default" "cool-car").metadata.name }}'
+          namespace: '{{ (lookup "v1" "ConfigMap" "default" "cool-car").metadata.namespace }}'
+          labels:
+            ford.com/model: '{{ fromConfigMap "default" "cool-car" "model" }}'
+

@@ -194,6 +194,12 @@ type EncryptionConfig struct {
 	InitializationVector  []byte
 }
 
+type UsedResource struct {
+	Resource unstructured.Unstructured
+	// If the used resource was fetched locally through a user-provided YAML file or remotely through kubeconfig
+	IsRemote bool
+}
+
 // TemplateResolver is the API for processing templates. It's better to use the NewResolver function
 // instead of instantiating this directly so that configuration defaults and validation are applied.
 type TemplateResolver struct {
@@ -208,7 +214,9 @@ type TemplateResolver struct {
 	tempCallCache client.ObjectCache
 	// Use in template resolver CLI to create outputs including resources used in fromSecret, fromConfigMap,
 	// loopUp etc functions.
-	usedResources []unstructured.Unstructured
+	usedResources []UsedResource
+	// Used in template resolver CLI to use locally provided resources during rendering
+	localResources []unstructured.Unstructured
 }
 
 type TemplateResult struct {
@@ -819,6 +827,13 @@ func (t *TemplateResolver) ResolveTemplate(
 	return resolvedResult, nil
 }
 
+// Set the local resources to be used for rendering. Used in CLI
+func (t *TemplateResolver) WithLocalResources(localResources []unstructured.Unstructured) *TemplateResolver {
+	t.localResources = localResources
+
+	return t
+}
+
 // UncacheWatcher will clear the watcher from the cache and remove all associated API watches.
 func (t *TemplateResolver) UncacheWatcher(watcher client.ObjectIdentifier) error {
 	if t.dynamicWatcher == nil {
@@ -1018,18 +1033,28 @@ func (t *TemplateResolver) indent(spaces int, v string) string {
 
 // Avoid duplicate entries since operatorPolicy calls ProcessTemplate multiple times
 // for the same objectTemplate.
-func (t *TemplateResolver) appendUsedResources(input unstructured.Unstructured) {
+func (t *TemplateResolver) appendUsedResources(input unstructured.Unstructured, isRemote bool) {
 	for _, res := range t.usedResources {
-		if reflect.DeepEqual(res, input) { // Keep only non-matching elements
+		if reflect.DeepEqual(res.Resource, input) { // Keep only non-matching elements
 			return // Resource already exists, no need to append
 		}
 	}
 
-	t.usedResources = append(t.usedResources, input)
+	t.usedResources = append(t.usedResources, UsedResource{Resource: input, IsRemote: isRemote})
 }
 
-func (t *TemplateResolver) GetUsedResources() []unstructured.Unstructured {
+func (t *TemplateResolver) GetUsedResources() []UsedResource {
 	return t.usedResources
+}
+
+// returns a slice of the unstructured resources collected in usedResources
+func (t *TemplateResolver) GetUsedUnstructs() []unstructured.Unstructured {
+	objs := make([]unstructured.Unstructured, 0, len(t.usedResources))
+	for _, used := range t.usedResources {
+		objs = append(objs, used.Resource)
+	}
+
+	return objs
 }
 
 // applyContextTransformers runs the configured ContextTransformers in order and

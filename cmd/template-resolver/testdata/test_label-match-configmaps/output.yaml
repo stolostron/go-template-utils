@@ -1,0 +1,34 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: label-configmaps
+spec:
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: label-configmaps
+        spec:
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  name: banana
+                kind: ConfigMap
+                metadata:
+                  name: cool-fruit
+                  namespace: default
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                data:
+                  name: lemon
+                kind: ConfigMap
+                metadata:
+                  name: coolest-fruit
+                  namespace: default
+          remediationAction: enforce
+          severity: low
