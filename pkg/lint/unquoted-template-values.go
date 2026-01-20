@@ -34,6 +34,11 @@ func findUnquotedTemplateValues(templateStr string) (violations []LinterRuleViol
 	// Regex to match a line that is a key with a *quoted* template value, e.g. "key: '{{ something }}'"
 	keyValueQuotedRe := regexp.MustCompile(`^\s*[^:]+:\s*'{{.*}}.*'$`)
 
+	// Regex to match }}'"
+	extraSingleQuoteAfterCloseRe := regexp.MustCompile(`}}'"\s*$`)
+	// Regex to match }}''
+	extraDoubleQuoteAfterCloseRe := regexp.MustCompile(`}}''\s*$`)
+
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
@@ -76,6 +81,19 @@ func findUnquotedTemplateValues(templateStr string) (violations []LinterRuleViol
 				})
 
 			continue
+		}
+
+		// Check for extra quotes after closing delimiters
+		if extraSingleQuoteAfterCloseRe.MatchString(line) || extraDoubleQuoteAfterCloseRe.MatchString(line) {
+			templateEnd := strings.Index(line, "}}")
+			violations = append(violations, LinterRuleViolation{
+				LineNumber:    i + 1,
+				RuleID:        unquotedTemplateValuesID,
+				ShortMessage:  "extra quote after closing template delimiter",
+				Message:       "Extra quote after closing template delimiter.",
+				FormattedLine: trimmed,
+				Column:        bytePosToColumn(line, templateEnd),
+			})
 		}
 	}
 

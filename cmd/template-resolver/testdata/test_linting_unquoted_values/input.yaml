@@ -22,6 +22,8 @@ spec:
                 data:
                   unquotedKey: {{ fromConfigMap "default" "cool-car" "model" }}
                   quotedKey: '{{ fromConfigMap "default" "cool-car" "model" }}'
+                  extraDoubleQuote: '{{ $.ObjectName }}'"
+                  extraSingleQuote: '{{ .metadata.name }}''
                 rules:
                   - {{ (lookup "v1" "ConfigMap" "policies" "coolest-car").data.model }}
                   - '{{ lookup "v1" "ConfigMap" "policies" "coolest-car").data.model }}'

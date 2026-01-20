@@ -88,7 +88,29 @@
         {
           "level": "warning",
           "message": {
-            "text": "Templates for array items should be single-quoted."
+            "text": "Extra quote after closing template delimiter."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_unquoted_values/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 25,
+                  "startColumn": 54
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL003",
+          "ruleIndex": 1
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Extra quote after closing template delimiter."
           },
           "locations": [
             {
@@ -99,6 +121,28 @@
                 },
                 "region": {
                   "startLine": 26,
+                  "startColumn": 56
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL003",
+          "ruleIndex": 1
+        },
+        {
+          "level": "warning",
+          "message": {
+            "text": "Templates for array items should be single-quoted."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_unquoted_values/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 28,
                   "startColumn": 21
                 }
               }
@@ -120,7 +164,7 @@
                   "index": 0
                 },
                 "region": {
-                  "startLine": 28,
+                  "startLine": 30,
                   "startColumn": 27
                 }
               }
@@ -142,7 +186,7 @@
                   "index": 0
                 },
                 "region": {
-                  "startLine": 29,
+                  "startLine": 31,
                   "startColumn": 54
                 }
               }

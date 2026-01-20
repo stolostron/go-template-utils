@@ -3,11 +3,15 @@ line 21: unquotedTemplateValues: templates should be single-quoted:
 	name: {{ fromConfigMap "default" "cool-car" "model" }}
 line 23: unquotedTemplateValues: templates should be single-quoted:
 	unquotedKey: {{ fromConfigMap "default" "cool-car" "model" }}
-line 26: unquotedTemplateValues: templates for array items should be single-quoted:
+line 25: unquotedTemplateValues: extra quote after closing template delimiter:
+	extraDoubleQuote: '{{ $.ObjectName }}'"
+line 26: unquotedTemplateValues: extra quote after closing template delimiter:
+	extraSingleQuote: '{{ .metadata.name }}''
+line 28: unquotedTemplateValues: templates for array items should be single-quoted:
 	- {{ (lookup "v1" "ConfigMap" "policies" "coolest-car").data.model }}
-line 28: unquotedTemplateValues: templates should be single-quoted:
+line 30: unquotedTemplateValues: templates should be single-quoted:
 	- host: {{ fromConfigMap "default" "cool-car" "model" }}
-line 29: mismatchedDelimiters: mismatched hub and managed cluster delimiters:
+line 31: mismatchedDelimiters: mismatched hub and managed cluster delimiters:
 	- port: '{{hub .ManagedClusterName }}'
 
-failed to parse input to YAML: error converting YAML to JSON: yaml: invalid map key: map[interface {}]interface {}{"fromConfigMap \"default\" \"cool-car\" \"model\"":interface {}(nil)}
+failed to parse input to YAML: error converting YAML to JSON: yaml: line 24: did not find expected key
