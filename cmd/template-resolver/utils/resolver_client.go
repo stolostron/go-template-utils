@@ -39,6 +39,8 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 		RunE:  t.resolveTemplates,
 	}
 
+	templateResolverCmd.AddCommand(t.getLintCmd())
+
 	// Initialize variables used to collect user input from CLI flags
 	// Add template-resolver command and parse flags
 	templateResolverCmd.Flags().StringVar(
@@ -130,27 +132,68 @@ func (t *TemplateResolver) GetCmd() *cobra.Command {
 	return templateResolverCmd
 }
 
+func (t *TemplateResolver) getLintCmd() *cobra.Command {
+	lintCmd := &cobra.Command{
+		Use: `lint [flags] [file|-]
+
+  The file positional argument is the path to a policy YAML manifest. If file
+  is a dash ('-') or absent, template-resolver reads from the standard input.`,
+		Short: "Lint Policy templates",
+		Long:  "Lint Policy templates",
+		Args:  cobra.MaximumNArgs(1),
+		RunE:  t.runLint,
+	}
+
+	lintCmd.Flags().StringVar(
+		&t.SarifOutput,
+		"sarif",
+		"",
+		"(Tech Preview) Location to save a SARIF report of the lint results.",
+	)
+
+	return lintCmd
+}
+
+func runLint(cmd *cobra.Command, yamlFile string, yamlBytes []byte, sarifOutput string) error {
+	violations := lint.Lint(string(yamlBytes))
+	if len(violations) > 0 {
+		cmd.Println("Found linting issues:")
+		cmd.Print(lint.OutputStringViolations(violations))
+	}
+
+	if sarifOutput == "" {
+		return nil
+	}
+
+	inputFile := yamlFile
+	if inputFile == "" || inputFile == "-" {
+		inputFile = "<stdin>"
+	}
+
+	file, err := os.Create(sarifOutput) //#nosec G304 -- files accessed here are on the user's local system
+	if err != nil {
+		return fmt.Errorf("failed to open output SARIF report file: %w", err)
+	}
+
+	defer file.Close()
+
+	if err := lint.OutputSARIF(violations, inputFile, file); err != nil {
+		return fmt.Errorf("failed to write SARIF report: %w", err)
+	}
+
+	return nil
+}
+
+func (t *TemplateResolver) runLint(cmd *cobra.Command, args []string) error {
+	yamlFile, yamlBytes, err := getInputYAML(args)
+	if err != nil {
+		return err
+	}
+
+	return runLint(cmd, yamlFile, yamlBytes, t.SarifOutput)
+}
+
 func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) error {
-	// Validate YAML input as positional arg
-	yamlFile := ""
-
-	// Detect whether stdin is provided when no arguments are provided
-	if len(args) == 0 {
-		stdinInfo, err := os.Stdin.Stat()
-		if err != nil {
-			return fmt.Errorf("error reading stdin: %w", err)
-		}
-
-		if (stdinInfo.Mode() & os.ModeCharDevice) != 0 {
-			return errors.New("failed to read from stdin: input is not a pipe")
-		}
-	}
-
-	// Set YAML path if a positional argument is provided ("-" is read as stdin)
-	if len(args) == 1 {
-		yamlFile = args[0]
-	}
-
 	// Validate flag args
 	if t.HubKubeConfigPath != "" && t.ClusterName == "" {
 		return errors.New(
@@ -159,34 +202,17 @@ func (t *TemplateResolver) resolveTemplates(cmd *cobra.Command, args []string) e
 		)
 	}
 
-	yamlBytes, err := HandleFile(yamlFile)
+	yamlFile, yamlBytes, err := getInputYAML(args)
 	if err != nil {
-		return fmt.Errorf("error handling YAML file input: %w", err)
+		return err
 	}
 
 	if t.Lint {
-		violations := Lint(string(yamlBytes))
-		if len(violations) > 0 {
-			cmd.Println("Found linting issues:")
-			cmd.Println(lint.OutputStringViolations(violations) + "\n")
+		if err := runLint(cmd, yamlFile, yamlBytes, t.SarifOutput); err != nil {
+			return err
 		}
 
-		if t.SarifOutput != "" {
-			// Determine input file path for SARIF report
-			inputFile := yamlFile
-			if inputFile == "" || inputFile == "-" {
-				inputFile = "<stdin>"
-			}
-
-			file, err := os.Create(t.SarifOutput)
-			if err != nil {
-				return fmt.Errorf("failed to open output SARIF report file: %w", err)
-			}
-
-			if err := lint.OutputSARIF(violations, inputFile, file); err != nil {
-				return fmt.Errorf("failed to write SARIF report: %w", err)
-			}
-		}
+		cmd.Println()
 	}
 
 	resolvedYAML, err := t.ProcessTemplate(yamlBytes)

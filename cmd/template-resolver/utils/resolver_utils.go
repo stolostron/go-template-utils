@@ -20,7 +20,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	k8syaml "sigs.k8s.io/yaml"
 
-	"github.com/stolostron/go-template-utils/v7/pkg/lint"
 	"github.com/stolostron/go-template-utils/v7/pkg/templates"
 )
 
@@ -104,8 +103,30 @@ func decodeLocalResources(localResourcesPath string) ([]unstructured.Unstructure
 	return localResources, nil
 }
 
-func Lint(yamlString string) []lint.LinterRuleViolation {
-	return lint.Lint(yamlString)
+func getInputYAML(args []string) (string, []byte, error) {
+	yamlFile := ""
+
+	if len(args) == 0 {
+		stdinInfo, err := os.Stdin.Stat()
+		if err != nil {
+			return "", nil, fmt.Errorf("error reading stdin: %w", err)
+		}
+
+		if (stdinInfo.Mode() & os.ModeCharDevice) != 0 {
+			return "", nil, errors.New("failed to read from stdin: input is not a pipe")
+		}
+	}
+
+	if len(args) == 1 {
+		yamlFile = args[0]
+	}
+
+	yamlBytes, err := HandleFile(yamlFile)
+	if err != nil {
+		return "", nil, fmt.Errorf("error handling YAML file input: %w", err)
+	}
+
+	return yamlFile, yamlBytes, nil
 }
 
 // ProcessTemplate takes a YAML byte array input, unmarshals it to a Policy, ConfigPolicy,

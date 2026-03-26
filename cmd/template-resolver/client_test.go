@@ -107,7 +107,7 @@ func cliTest(testName string) func(t *testing.T) {
 		var lintingBytes []byte
 
 		if tmplResolver.Lint {
-			violations := utils.Lint(string(inputBytes))
+			violations := lint.Lint(string(inputBytes))
 
 			if len(violations) > 0 {
 				lintingBytes = []byte("Found linting issues:\n" + lint.OutputStringViolations(violations) + "\n")
