@@ -156,7 +156,7 @@ func OutputSARIF(violations []LinterRuleViolation, inputFile string, output io.W
 		results = append(results, res)
 	}
 
-	run := sarif.NewRun("go-template-utils-linter", "https://github.com/stolostron/go-template-utils").
+	run := sarif.NewRun("Go Template Utils Linter", "https://github.com/stolostron/go-template-utils").
 		WithRules(rules...).
 		WithArtifacts(sarif.NewArtifact(inputFile)).
 		WithResults(results...)

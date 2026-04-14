@@ -5,7 +5,7 @@
     {
       "tool": {
         "driver": {
-          "name": "go-template-utils-linter",
+          "name": "Go Template Utils Linter",
           "informationUri": "https://github.com/stolostron/go-template-utils",
           "rules": []
         }
