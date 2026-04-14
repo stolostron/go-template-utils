@@ -26,13 +26,23 @@ type TemplateResolver struct {
 	SarifOutput          string `yaml:"sarif"`
 }
 
+type ExitError struct {
+	Code int
+	Err  error
+}
+
+// Error is a no-op to satisfy the error interface
+func (e *ExitError) Error() string { return "" }
+
 func (t *TemplateResolver) GetCmd() *cobra.Command {
 	// templateResolverCmd represents the template-resolver command
 	templateResolverCmd := &cobra.Command{
 		Use: `template-resolver [flags] [file|-]
 
   The file positional argument is the path to a policy YAML manifest. If file 
-  is a dash ('-') or absent, template-resolver reads from the standard input.`,
+  is a dash ('-') or absent, template-resolver reads from the standard input.
+	Resolved output is printed to stdout while linting or templating errors are 
+	printed to stderr.`,
 		Short: "Locally resolve Policy templates",
 		Long:  "Locally resolve Policy templates",
 		Args:  cobra.MaximumNArgs(1),
@@ -137,7 +147,9 @@ func (t *TemplateResolver) getLintCmd() *cobra.Command {
 		Use: `lint [flags] [file|-]
 
   The file positional argument is the path to a policy YAML manifest. If file
-  is a dash ('-') or absent, template-resolver reads from the standard input.`,
+  is a dash ('-') or absent, template-resolver reads from the standard input.
+	Linting violations are printed to stdout. Exit code 2 is returned if linting 
+	violations are found; other errors may return different exit codes.`,
 		Short: "Lint Policy templates",
 		Long:  "Lint Policy templates",
 		Args:  cobra.MaximumNArgs(1),
@@ -156,13 +168,28 @@ func (t *TemplateResolver) getLintCmd() *cobra.Command {
 
 func runLint(cmd *cobra.Command, yamlFile string, yamlBytes []byte, sarifOutput string) error {
 	violations := lint.Lint(string(yamlBytes))
+	returnViolationError := func() error {
+		if cmd.CalledAs() == "lint" && len(violations) > 0 {
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+
+			return &ExitError{Code: 2, Err: nil}
+		}
+
+		return nil
+	}
+
 	if len(violations) > 0 {
+		if cmd.CalledAs() == "lint" {
+			cmd.SetOut(os.Stdout)
+		}
+
 		cmd.Println("Found linting issues:")
 		cmd.Print(lint.OutputStringViolations(violations))
 	}
 
 	if sarifOutput == "" {
-		return nil
+		return returnViolationError()
 	}
 
 	inputFile := yamlFile
@@ -181,7 +208,7 @@ func runLint(cmd *cobra.Command, yamlFile string, yamlBytes []byte, sarifOutput 
 		return fmt.Errorf("failed to write SARIF report: %w", err)
 	}
 
-	return nil
+	return returnViolationError()
 }
 
 func (t *TemplateResolver) runLint(cmd *cobra.Command, args []string) error {

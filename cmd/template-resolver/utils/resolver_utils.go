@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -126,7 +127,7 @@ func getInputYAML(args []string) (string, []byte, error) {
 		return "", nil, fmt.Errorf("error handling YAML file input: %w", err)
 	}
 
-	return yamlFile, yamlBytes, nil
+	return filepath.Clean(yamlFile), yamlBytes, nil
 }
 
 // ProcessTemplate takes a YAML byte array input, unmarshals it to a Policy, ConfigPolicy,
