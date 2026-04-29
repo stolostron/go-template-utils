@@ -15,8 +15,8 @@
                 "text": "Template delimiters must be properly paired."
               },
               "fullDescription": {
-                "text": "Template start delimiters (`{{` or `{{hub`) must be paired with a corresponding closing delimiter (`}}` or `hub}}`). Otherwise, the template is invalid.",
-                "markdown": "Template start delimiters (`{{` or `{{hub`) must be paired with a corresponding closing delimiter (`}}` or `hub}}`). Otherwise, the template is invalid."
+                "text": "Template and JSON start delimiters (`{{` or `{{hub` or `{`) must be paired with a corresponding closing delimiter. Otherwise, the template is invalid.",
+                "markdown": "Template and JSON start delimiters (`{{` or `{{hub` or `{`) must be paired with a corresponding closing delimiter. Otherwise, the template is invalid."
               }
             },
             {
@@ -176,7 +176,7 @@
         {
           "level": "error",
           "message": {
-            "text": "Mismatched hub and managed cluster delimiters."
+            "text": "Mismatched hub and managed cluster delimiters: {{hub ... }}"
           },
           "locations": [
             {
