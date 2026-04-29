@@ -22,8 +22,8 @@
                 "text": "Template delimiters must be properly paired."
               },
               "fullDescription": {
-                "text": "Template start delimiters (`{{` or `{{hub`) must be paired with a corresponding closing delimiter (`}}` or `hub}}`). Otherwise, the template is invalid.",
-                "markdown": "Template start delimiters (`{{` or `{{hub`) must be paired with a corresponding closing delimiter (`}}` or `hub}}`). Otherwise, the template is invalid."
+                "text": "Template and JSON start delimiters (`{{` or `{{hub` or `{`) must be paired with a corresponding closing delimiter. Otherwise, the template is invalid.",
+                "markdown": "Template and JSON start delimiters (`{{` or `{{hub` or `{`) must be paired with a corresponding closing delimiter. Otherwise, the template is invalid."
               }
             },
             {
@@ -158,7 +158,7 @@
         {
           "level": "error",
           "message": {
-            "text": "Unmatched opening delimiter '{{'."
+            "text": "Mismatched JSON and template delimiters: {{ ... }"
           },
           "locations": [
             {
@@ -223,7 +223,7 @@
         {
           "level": "error",
           "message": {
-            "text": "Unmatched opening delimiter '{{'."
+            "text": "Mismatched JSON and template delimiters: {{ ... }"
           },
           "locations": [
             {
@@ -234,7 +234,51 @@
                 },
                 "region": {
                   "startLine": 28,
-                  "startColumn": 34
+                  "startColumn": 78
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL002",
+          "ruleIndex": 1
+        },
+        {
+          "level": "error",
+          "message": {
+            "text": "Unmatched closing JSON delimiter '}'."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_multiple_errors/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 29,
+                  "startColumn": 47
+                }
+              }
+            }
+          ],
+          "ruleId": "GTUL002",
+          "ruleIndex": 1
+        },
+        {
+          "level": "error",
+          "message": {
+            "text": "Unmatched closing delimiter '}'."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "cmd/template-resolver/testdata/test_linting_multiple_errors/input.yaml",
+                  "index": 0
+                },
+                "region": {
+                  "startLine": 30,
+                  "startColumn": 65
                 }
               }
             }
