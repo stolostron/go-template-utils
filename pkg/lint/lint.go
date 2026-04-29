@@ -70,8 +70,8 @@ type RuleMetadata struct {
 	Level string
 }
 
-// getRuleMetadata returns the RuleMetadata for a given rule ID, or nil if not found.
-func getRuleMetadata(ruleID string) *RuleMetadata {
+// GetRuleMetadata returns the RuleMetadata for a given rule ID, or nil if not found.
+func GetRuleMetadata(ruleID string) *RuleMetadata {
 	for _, rule := range linterRules {
 		if rule.metadata.ID == ruleID {
 			return &rule.metadata
@@ -85,7 +85,7 @@ func OutputStringViolations(violations []LinterRuleViolation) string {
 	var output strings.Builder
 
 	for _, violation := range violations {
-		ruleMD := getRuleMetadata(violation.RuleID)
+		ruleMD := GetRuleMetadata(violation.RuleID)
 		if ruleMD == nil {
 			fmt.Fprintf(&output, "line %d: unknown rule: %s: %s:\n\t%s\n",
 				violation.LineNumber, violation.RuleID, violation.ShortMessage, violation.FormattedLine)
@@ -122,7 +122,7 @@ func OutputSARIF(violations []LinterRuleViolation, inputFile string, output io.W
 	rules := make([]sarif.Rule, 0, len(usedRuleIDsList))
 
 	for i, ruleID := range usedRuleIDsList {
-		if metadata := getRuleMetadata(ruleID); metadata != nil {
+		if metadata := GetRuleMetadata(ruleID); metadata != nil {
 			rule := sarif.NewRule(metadata.ID, metadata.Name, metadata.ShortDescription)
 
 			if metadata.FullDescription != "" {
@@ -144,7 +144,7 @@ func OutputSARIF(violations []LinterRuleViolation, inputFile string, output io.W
 	results := make([]sarif.Result, 0, len(violations))
 
 	for _, violation := range violations {
-		metadata := getRuleMetadata(violation.RuleID)
+		metadata := GetRuleMetadata(violation.RuleID)
 		if metadata == nil {
 			return fmt.Errorf("unknown rule ID: %v", violation.RuleID)
 		}
