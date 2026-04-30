@@ -26,3 +26,6 @@ spec:
                 rules: 
                   - {{ lookup "v1" "Secret" "default" "my-secret" }}
                   - wrongClose: '{{ fromConfigMap "default" "config" "value" }hub}'
+                  - jsonwrong: {"key": "value"}}
+                  - jsontriplewrong: {"object":{"key": "value"}}}
+                  - json: {"object":{"key": "value"}}

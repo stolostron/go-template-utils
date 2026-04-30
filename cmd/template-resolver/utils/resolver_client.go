@@ -148,8 +148,10 @@ func (t *TemplateResolver) getLintCmd() *cobra.Command {
 
   The file positional argument is the path to a policy YAML manifest. If file
   is a dash ('-') or absent, template-resolver reads from the standard input.
-	Linting violations are printed to stdout. Exit code 2 is returned if linting 
-	violations are found; other errors may return different exit codes.`,
+ 	Linting violations are printed to stdout. Exit code 2 is returned if any
+ 	error-level violations are found; exit code 3 is returned when violations
+ 	are found with no error-level results; other errors may return different
+ 	exit codes.`,
 		Short: "Lint Policy templates",
 		Long:  "Lint Policy templates",
 		Args:  cobra.MaximumNArgs(1),
@@ -172,8 +174,18 @@ func runLint(cmd *cobra.Command, yamlFile string, yamlBytes []byte, sarifOutput 
 		if cmd.CalledAs() == "lint" && len(violations) > 0 {
 			cmd.SilenceUsage = true
 			cmd.SilenceErrors = true
+			exitCode := 3
 
-			return &ExitError{Code: 2, Err: nil}
+			for _, violation := range violations {
+				ruleMetadata := lint.GetRuleMetadata(violation.RuleID)
+				if ruleMetadata == nil || ruleMetadata.Level == "error" {
+					exitCode = 2
+
+					break
+				}
+			}
+
+			return &ExitError{Code: exitCode, Err: nil}
 		}
 
 		return nil
