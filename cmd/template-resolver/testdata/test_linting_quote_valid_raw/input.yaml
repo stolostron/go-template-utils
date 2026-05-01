@@ -25,7 +25,7 @@ spec:
                   namespace: '{{ printf "%v%v" .metadata.namespace "blah"}}'
                   labels:
                     ford.com/model: "Mustang"
-                    name: '{{ $.ObjectName }}'
+                    name: {{ $.ObjectName }}
                     escaped: "this quote \" is escaped"
                     valid: 'this quote '' is a valid string'
                     valid-quote-at-start: '"{{ $.ObjectName }}'
@@ -38,3 +38,32 @@ spec:
                     }{{ else }}{{ "{}" | toLiteral }}{{ end }}'
             {{- end }}
             {{- end }}
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: quote-valid-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                kind: ConfigMap
+                apiVersion: v1
+                metadata:
+                  name: cool-car
+                  namespace: default
+                  labels:
+                    ford.com/model: "Mustang"
+                    name: '{{ $.ObjectName }}'
+                    escaped: "this quote \" is escaped"
+                    valid: 'this quote '' is a valid string'
+                    valid-quote-at-start: '"{{ $.ObjectName }}'
+                    valid-string: '{{ printf "this apostrophe '' is valid" }}'
+                    also-valid: '{{ printf "this is \"valid\""}}'
+                    note: "this is a string and shouldn't be checked for extra single quotes"
+                    multiline-config: >
+                      {{ $carModel := (fromConfigMap "default" "cool-car"
+                      "model") }}{{ if eq "Shelby Mustang" $carModel }}{"model":"{{ $carModel }}"
+                      }{{ else }}{{ "{}" | toLiteral }}{{ end }}'
