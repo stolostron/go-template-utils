@@ -14,17 +14,6 @@
               "shortDescription": {
                 "text": "Lines should not have trailing whitespace."
               }
-            },
-            {
-              "id": "GTUL003",
-              "name": "unquotedTemplateValues",
-              "shortDescription": {
-                "text": "Template expressions should be single-quoted."
-              },
-              "fullDescription": {
-                "text": "Single-quote wrapping around template expressions in YAML will ensure that the templates are properly interpreted and not interfere with the rest of the structure.",
-                "markdown": "Single-quote wrapping around template expressions in YAML will ensure that the templates are properly interpreted and not interfere with the rest of the structure."
-              }
             }
           ]
         }
@@ -99,28 +88,6 @@
           ],
           "ruleId": "GTUL001",
           "ruleIndex": 0
-        },
-        {
-          "level": "warning",
-          "message": {
-            "text": "Templates should be single-quoted."
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "cmd/template-resolver/testdata/test_linting_trailing_whitespace/input.yaml",
-                  "index": 0
-                },
-                "region": {
-                  "startLine": 23,
-                  "startColumn": 24
-                }
-              }
-            }
-          ],
-          "ruleId": "GTUL003",
-          "ruleIndex": 1
         },
         {
           "level": "warning",

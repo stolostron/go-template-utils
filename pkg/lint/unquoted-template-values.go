@@ -39,8 +39,22 @@ func findUnquotedTemplateValues(templateStr string) (violations []LinterRuleViol
 	// Regex to match }}''
 	extraDoubleQuoteAfterCloseRe := regexp.MustCompile(`}}''\s*$`)
 
+	isRaw := false
+
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
+
+		if strings.HasPrefix(trimmed, "object-templates-raw: ") {
+			isRaw = true
+		}
+
+		if isRaw {
+			if strings.HasPrefix(trimmed, "object-templates:") {
+				isRaw = false
+			}
+
+			continue
+		}
 
 		// Skip empty lines or comments
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {

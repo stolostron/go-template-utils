@@ -5,8 +5,6 @@ line 7: trailingWhitespace: trailing whitespace detected:
 	- objectDefinition:	<<<
 line 19: trailingWhitespace: trailing whitespace detected:
 	kind: ConfigMap <<<
-line 23: unquotedTemplateValues: templates should be single-quoted:
-	key: {{ fromConfigMap "default" "cool-car" "model" }}
 line 23: trailingWhitespace: trailing whitespace detected:
 	key: {{ fromConfigMap "default" "cool-car" "model" }}    <<<
 
