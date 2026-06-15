@@ -36,6 +36,12 @@ spec:
                     multiline-config: '{{ $carModel := (fromConfigMap "default" "cool-car"
                     "model") }}{{ if eq "Shelby Mustang" $carModel }}{"model":"{{ $carModel }}"
                     }{{ else }}{{ "{}" | toLiteral }}{{ end }}'
+
+                    {{- $model := "Pinto" }}
+                    {{- if eq (fromConfigMap "default" "cool-car" "model") "Shelby Mustang" }}
+                      {{- $model = "Shelby Mustang" }}
+                    {{- end }}
+                    conditional-reassign-map: '{{ $model }}'
             {{- end }}
             {{- end }}
     - objectDefinition:

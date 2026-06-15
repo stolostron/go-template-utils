@@ -26,3 +26,12 @@ spec:
             # These variables are reachable here in object-templates-raw
             hub-value: '{{hub $hubVar hub}}'
             managed-value: '{{ $managedVar }}'
+    - complianceType: musthave
+      objectDefinition:
+        kind: ConfigMap
+        apiVersion: v1
+        metadata:
+          name: conditional-reassign-map
+          labels:
+            # Declared, reassigned with = inside if, then used (ACM-33627)
+            model: '{{ $model := "Pinto" }}{{ if eq (fromConfigMap "default" "cool-car" "model") "Shelby Mustang" }}{{ $model = "Shelby Mustang" }}{{ end }}{{ $model }}'

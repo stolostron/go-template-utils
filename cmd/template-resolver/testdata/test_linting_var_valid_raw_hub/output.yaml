@@ -22,5 +22,13 @@ spec:
             hub-value: hub-value
             managed-value: managed-value
           name: second-map
+    - complianceType: musthave
+      objectDefinition:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          labels:
+            model: Shelby Mustang
+          name: conditional-reassign-map
   remediationAction: enforce
   severity: low

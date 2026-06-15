@@ -32,7 +32,7 @@ func findUnusedVariables(templateStr string) []LinterRuleViolation {
 	}
 
 	varRe := regexp.MustCompile(`\$(\w+)(?:\.\w+)*`)
-	varDefRe := regexp.MustCompile(`\$(\w+)\s*[:=,]`)
+	varDefRe := regexp.MustCompile(`\$(\w+)\s*(?::=|,)`)
 	hubTmplRe := regexp.MustCompile(`{{hub\s+.*?\s+hub}}`)
 	tmplRe := regexp.MustCompile(`{{-?.*?-?}}`)
 	rawTmplRe := regexp.MustCompile(`(?m)^\s*object-templates-raw\s*:`)
