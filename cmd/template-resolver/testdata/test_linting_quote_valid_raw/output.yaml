@@ -18,6 +18,7 @@ spec:
                 metadata:
                   labels:
                     also-valid: this is "valid"
+                    conditional-reassign-map: Shelby Mustang
                     escaped: this quote " is escaped
                     ford.com/model: Mustang
                     multiline-config: '{"model":"Shelby Mustang" }'
