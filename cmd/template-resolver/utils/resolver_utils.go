@@ -389,7 +389,7 @@ func processRawGoTemplate(
 		return nil, fmt.Errorf("failed to process the templates: %w", err)
 	}
 
-	return
+	return resolved, err
 }
 
 // processObjTemplatesRaw takes a YAML string representation and resolves the object's managed templates
@@ -481,7 +481,7 @@ func processObjectTemplates(
 						"expected one optional boolean argument but received %d arguments", len(skips))
 				}
 
-				return
+				return empty, err
 			},
 		}
 

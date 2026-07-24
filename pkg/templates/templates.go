@@ -934,7 +934,7 @@ func toYAML(v any) (str string, err error) {
 
 	err = encoder.Encode(v)
 	if err != nil {
-		return
+		return str, err
 	}
 
 	// goyaml.v3 has some odd behaviors around newlines that arise because we
@@ -950,14 +950,14 @@ func toYAML(v any) (str string, err error) {
 	// that chomping shouldn't be used.
 	str = strings.TrimSuffix(data.String(), "\n")
 
-	return
+	return str, err
 }
 
 // fromYAML converts a YAML document into an interface{}.
 func fromYAML(str string) (m any, err error) {
 	err = yaml.Unmarshal([]byte(str), &m)
 
-	return
+	return m, err
 }
 
 func (t *TemplateResolver) indent(spaces int, v string) string {
