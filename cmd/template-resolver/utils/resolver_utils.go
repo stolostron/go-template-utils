@@ -461,7 +461,7 @@ func processObjectTemplates(
 						"expected one optional boolean argument but received %d arguments", len(skips))
 				}
 
-				return
+				return empty, err
 			},
 		}
 
