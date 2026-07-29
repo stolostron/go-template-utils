@@ -59,7 +59,7 @@ func (t *TemplateResolver) getOrList(
 	name string,
 	labelSelector ...string,
 ) (
-	map[string]interface{}, error,
+	map[string]any, error,
 ) {
 	if options == nil {
 		options = &ResolveOptions{}
@@ -255,14 +255,14 @@ func (t *TemplateResolver) getOrList(
 func (t *TemplateResolver) lookupHelper(
 	options *ResolveOptions,
 	templateResult *TemplateResult,
-) func(string, string, string, string, ...string) (map[string]interface{}, error) {
+) func(string, string, string, string, ...string) (map[string]any, error) {
 	return func(
 		apiVersion string,
 		kind string,
 		namespace string,
 		name string,
 		labelSelector ...string,
-	) (map[string]interface{}, error) {
+	) (map[string]any, error) {
 		return t.lookup(options, templateResult, apiVersion, kind, namespace, name, labelSelector...)
 	}
 }
@@ -276,7 +276,7 @@ func (t *TemplateResolver) lookup(
 	name string,
 	labelSelector ...string,
 ) (
-	map[string]interface{}, error,
+	map[string]any, error,
 ) {
 	klog.V(2).Infof("lookup :  %v, %v, %v, %v", apiVersion, kind, namespace, name)
 
@@ -318,10 +318,10 @@ func (t *TemplateResolver) getNodesWithExactRolesHelper(
 	options *ResolveOptions,
 	templateResult *TemplateResult,
 ) func(...string) (
-	map[string]interface{}, error,
+	map[string]any, error,
 ) {
 	return func(name ...string) (
-		map[string]interface{}, error,
+		map[string]any, error,
 	) {
 		return t.getNodesWithExactRoles(options, templateResult, name...)
 	}
@@ -335,7 +335,7 @@ func (t *TemplateResolver) getNodesWithExactRoles(
 	templateResult *TemplateResult,
 	name ...string,
 ) (
-	map[string]interface{}, error,
+	map[string]any, error,
 ) {
 	var searchRoles []string
 
