@@ -187,7 +187,6 @@ func TestDenylistFunctionUsage(t *testing.T) {
 			DenylistFunctions: []string{"now"},
 		},
 	)
-
 	if err == nil {
 		t.Fatal("expected an error when using a denylisted function, but got none")
 	}
@@ -216,7 +215,6 @@ func TestDenylistEnvFunctionsMessage(t *testing.T) {
 		nil,
 		&ResolveOptions{},
 	)
-
 	if err == nil {
 		t.Fatal("expected an error when using denylisted env function, but got none")
 	}
@@ -234,7 +232,7 @@ type resolveTestCase struct {
 	inputTmpl      string
 	config         Config
 	resolveOptions ResolveOptions
-	ctx            interface{}
+	ctx            any
 	expectedResult string
 	expectedErr    error
 }
@@ -259,13 +257,12 @@ func doResolveTest(t *testing.T, test resolveTestCase) {
 	}
 
 	tmplResult, err := resolver.ResolveTemplate(tmplStr, test.ctx, &test.resolveOptions)
-
 	if err != nil {
 		if test.expectedErr == nil {
 			t.Fatal(err)
 		}
 
-		if !(errors.Is(err, test.expectedErr) || strings.EqualFold(test.expectedErr.Error(), err.Error())) {
+		if !errors.Is(err, test.expectedErr) && !strings.EqualFold(test.expectedErr.Error(), err.Error()) {
 			t.Fatalf("expected err:\n%s\ngot err:\n%s", test.expectedErr, err)
 		}
 	} else {
@@ -325,7 +322,7 @@ data5: '{{ customFunc }}'
 	}
 
 	templateCtx := struct{ CustomVar string }{}
-	transformer := func(api CachingQueryAPI, templateCtx interface{}) (interface{}, error) {
+	transformer := func(api CachingQueryAPI, templateCtx any) (any, error) {
 		typedTemplateCtx, ok := templateCtx.(struct{ CustomVar string })
 		if !ok {
 			return templateCtx, nil
@@ -347,7 +344,7 @@ data5: '{{ customFunc }}'
 
 	resolveOptions := &ResolveOptions{
 		Watcher:             &watcher,
-		ContextTransformers: []func(CachingQueryAPI, interface{}) (interface{}, error){transformer},
+		ContextTransformers: []func(CachingQueryAPI, any) (any, error){transformer},
 		CustomFunctions: template.FuncMap{
 			"customFunc": func() string {
 				customFuncCalled = true
@@ -866,8 +863,8 @@ func TestResolveTemplateErrors(t *testing.T) {
 		"context_transformers_without_caching": {
 			inputTmpl: `param: '{{ "something" }}'`,
 			resolveOptions: ResolveOptions{
-				ContextTransformers: []func(CachingQueryAPI, interface{}) (interface{}, error){
-					func(_ CachingQueryAPI, ctx interface{}) (interface{}, error) {
+				ContextTransformers: []func(CachingQueryAPI, any) (any, error){
+					func(_ CachingQueryAPI, ctx any) (any, error) {
 						return ctx, nil
 					},
 				},
@@ -1020,8 +1017,8 @@ func TestResolveTemplateWithContext(t *testing.T) {
 		},
 		"nested_map2": {
 			inputTmpl: `value: '{{ .Metadata.labels.hello }} {{ .Metadata.namespace }}'`,
-			ctx: struct{ Metadata map[string]interface{} }{
-				Metadata: map[string]interface{}{
+			ctx: struct{ Metadata map[string]any }{
+				Metadata: map[string]any{
 					"labels": map[string]string{
 						"hello": "world",
 					},
@@ -1032,8 +1029,8 @@ func TestResolveTemplateWithContext(t *testing.T) {
 		},
 		"nested_empty_interface": {
 			inputTmpl: `value: '{{ .Foo.bar }} {{ .Foo.other }}'`,
-			ctx: struct{ Foo map[string]interface{} }{
-				Foo: map[string]interface{}{
+			ctx: struct{ Foo map[string]any }{
+				Foo: map[string]any{
 					"bar":   "hello",
 					"other": nil, // this can occur when YAML has 'null' fields
 				},
@@ -1411,7 +1408,7 @@ func TestGetNamespace(t *testing.T) {
 		ns, err := resolver.getNamespace(test.actualNamespace, test.configuredNamespace)
 
 		if err == nil || test.expectedError == nil {
-			if !(err == nil && test.expectedError == nil) {
+			if err != nil || test.expectedError != nil {
 				t.Fatalf("expected error: %v, got: %v", test.expectedError, err)
 			}
 
@@ -1476,13 +1473,13 @@ spec:
 		panic(err)
 	}
 
-	var policyResolved interface{}
+	var policyResolved any
 	err = yaml.Unmarshal(policyResolvedJSON, &policyResolved)
 
-	objTmpls := policyResolved.(map[string]interface{})["spec"].(map[string]interface{})["object-templates"]
-	objDef := objTmpls.([]interface{})[0].(map[string]interface{})["objectDefinition"]
+	objTmpls := policyResolved.(map[string]any)["spec"].(map[string]any)["object-templates"]
+	objDef := objTmpls.([]any)[0].(map[string]any)["objectDefinition"]
 
-	data, ok := objDef.(map[string]interface{})["data"].(map[string]interface{})
+	data, ok := objDef.(map[string]any)["data"].(map[string]any)
 	if !ok {
 		fmt.Fprintf(os.Stderr, "Failed to process the policy YAML: %v\n", err)
 		panic(err)

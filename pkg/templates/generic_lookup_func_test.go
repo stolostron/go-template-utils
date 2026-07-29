@@ -73,7 +73,6 @@ func TestLookup(t *testing.T) {
 			test.inputNs,
 			test.inputName,
 		)
-
 		if err != nil {
 			if test.expectedErr == nil {
 				t.Fatal(err)
@@ -232,7 +231,6 @@ func TestLookupWithLabels(t *testing.T) {
 			test.inputName,
 			test.labelSelector[:]...,
 		)
-
 		if err != nil {
 			if test.expectedErr == nil {
 				t.Fatal(err)
@@ -254,7 +252,7 @@ func TestLookupWithLabels(t *testing.T) {
 		}
 
 		if test.expectedExists && test.inputName != "" {
-			valMetadata := val["metadata"].(map[string]interface{})
+			valMetadata := val["metadata"].(map[string]any)
 			if val["apiVersion"] != test.inputAPIVersion || val["kind"] != test.inputKind ||
 				valMetadata["name"] != test.inputName || valMetadata["namespace"] != test.inputNs {
 				t.Fatalf(
@@ -264,9 +262,9 @@ func TestLookupWithLabels(t *testing.T) {
 					val["apiVersion"], val["kind"], valMetadata["name"], valMetadata["namespace"])
 			}
 		} else if test.expectedExists && test.inputName == "" {
-			for _, lstObj := range val["items"].([]interface{}) {
-				refObject := lstObj.(map[string]interface{})
-				refObjMetadata := refObject["metadata"].(map[string]interface{})
+			for _, lstObj := range val["items"].([]any) {
+				refObject := lstObj.(map[string]any)
+				refObjMetadata := refObject["metadata"].(map[string]any)
 
 				if refObject["apiVersion"] != test.inputAPIVersion || refObject["kind"] != test.inputKind ||
 					refObjMetadata["namespace"] != test.inputNs {
@@ -380,7 +378,6 @@ func TestLookupClusterScoped(t *testing.T) {
 			test.inputNs,
 			test.inputName,
 		)
-
 		if err != nil {
 			if test.expectedErr == nil {
 				t.Fatal(err)
@@ -456,12 +453,12 @@ func TestGetNodesWithExactRoles(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if len(val["items"].([]interface{})) == 0 && test.expectedExists {
+		if len(val["items"].([]any)) == 0 && test.expectedExists {
 			t.Fatal("An object was expected but not returned")
 		} else {
-			for _, lstObj := range val["items"].([]interface{}) {
-				refObject := lstObj.(map[string]interface{})
-				refObjMetadata := refObject["metadata"].(map[string]interface{})
+			for _, lstObj := range val["items"].([]any) {
+				refObject := lstObj.(map[string]any)
+				refObjMetadata := refObject["metadata"].(map[string]any)
 
 				if !slices.Contains(test.expectedObjNames, refObjMetadata["name"].(string)) {
 					t.Fatalf(

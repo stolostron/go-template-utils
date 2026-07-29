@@ -250,13 +250,13 @@ func setUp(ctx context.Context) {
 	}
 
 	clusterClaim := unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "cluster.open-cluster-management.io/v1alpha1",
 			"kind":       "ClusterClaim",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name": "env",
 			},
-			"spec": map[string]interface{}{
+			"spec": map[string]any{
 				"value": "dev",
 			},
 		},

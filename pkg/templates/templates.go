@@ -10,8 +10,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -73,13 +75,7 @@ var sensitiveSprigFunctions = []string{
 // isSensitiveSprigFunction returns true if the given function name is
 // considered high risk and should always be denylisted.
 func isSensitiveSprigFunction(name string) bool {
-	for _, fn := range sensitiveSprigFunctions {
-		if fn == name {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(sensitiveSprigFunctions, name)
 }
 
 // Config is a struct containing configuration for the API.
@@ -141,8 +137,8 @@ type Config struct {
 // - Watcher is the Kubernetes object that includes the templates. This is only used when caching is enabled.
 type ResolveOptions struct {
 	ContextTransformers []func(
-		queryAPI CachingQueryAPI, context interface{},
-	) (transformedContext interface{}, err error)
+		queryAPI CachingQueryAPI, context any,
+	) (transformedContext any, err error)
 	ClusterScopedAllowList []ClusterScopedObjectIdentifier
 	CustomFunctions        template.FuncMap
 	EncryptionConfig
@@ -410,7 +406,7 @@ func UsesEncryption(template []byte, startDelim string, stopDelim string) bool {
 
 // getValidContext takes an input context struct and validates it. If it is valid, the context will be returned as is.
 // If the input context is nil, an empty struct will be returned. If it's not valid, an error will be returned.
-func getValidContext(value interface{}) (interface{}, error) {
+func getValidContext(value any) (any, error) {
 	if value == nil {
 		return struct{}{}, nil
 	}
@@ -431,7 +427,7 @@ func getValidContext(value interface{}) (interface{}, error) {
 
 // isPrimitive detects primitive types from the reflect package
 func isPrimitive(kind reflect.Kind) bool {
-	switch kind {
+	switch kind { //nolint:exhaustive
 	case
 		reflect.Bool,
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
@@ -457,7 +453,7 @@ func getValidContextHelper(value any) error {
 	}
 
 	// Handle complex types
-	switch f.Kind() {
+	switch f.Kind() { //nolint:exhaustive
 	// Allow arrays and recurse into each item
 	case reflect.Slice, reflect.Array:
 		// Iterate over embedded maps and interfaces
@@ -605,7 +601,7 @@ func (t *TemplateResolver) EndQueryBatch(watcher client.ObjectIdentifier) error 
 // is stored just for the ResolveTemplate execution to avoid duplicate API queries. If running this method concurrently
 // with caching disabled, you may get some items from the temporary cache while others will be from API queries.
 func (t *TemplateResolver) ResolveTemplate(
-	tmplRaw []byte, context interface{}, options *ResolveOptions,
+	tmplRaw []byte, context any, options *ResolveOptions,
 ) (TemplateResult, error) {
 	klog.V(2).Infof("ResolveTemplate for: %v", string(tmplRaw))
 
@@ -703,15 +699,13 @@ func (t *TemplateResolver) ResolveTemplate(
 		delete(funcMap, funcName)
 	}
 
-	for customFuncName, customFunc := range options.CustomFunctions {
-		funcMap[customFuncName] = customFunc
-	}
+	maps.Copy(funcMap, options.CustomFunctions)
 
 	// Wrap any denylisted functions so that using them results in a clear error at
 	// template execution time instead of an undefined function error.
 	if len(options.DenylistFunctions) != 0 {
 		for _, name := range options.DenylistFunctions {
-			funcMap[name] = func(_ ...interface{}) (interface{}, error) {
+			funcMap[name] = func(_ ...any) (any, error) {
 				if isSensitiveSprigFunction(name) {
 					return nil, fmt.Errorf(
 						"%w: function '%s' is considered a security risk",
@@ -827,7 +821,7 @@ func (t *TemplateResolver) ResolveTemplate(
 	return resolvedResult, nil
 }
 
-// Set the local resources to be used for rendering. Used in CLI
+// WithLocalResources sets the local resources to be used for rendering. Used in CLI.
 func (t *TemplateResolver) WithLocalResources(localResources []unstructured.Unstructured) *TemplateResolver {
 	t.localResources = localResources
 
@@ -874,76 +868,11 @@ func (t *TemplateResolver) GetWatchCount() uint {
 	return 0
 }
 
-//nolint:wsl
-func (t *TemplateResolver) processForDataTypes(str string) string {
-	// The idea is to remove the quotes enclosing the template if it has toBool, toInt, or toLiteral.
-	// Quotes around the resolved template forces the value to be a string so removal of these quotes allows YAML to
-	// process the datatype correctly.
-
-	// the below pattern searches for optional block scalars | or >.. followed by the quoted template ,
-	// and replaces it with just the template txt thats inside the outer quotes
-	// ex-1 key : '{{ "6" | toInt }}'  .. is replaced with  key : {{ "6" | toInt }}
-	// ex-2 key : |
-	//						'{{ "true" | toBool }}' .. is replaced with key : {{ "true" | toBool }}
-
-	// NOTES : on testing it was found that
-	// outer quotes around key-values are always single quotes
-	// even if the user input is with  double quotes , the yaml processed and saved with single quotes
-
-	d1 := regexp.QuoteMeta(t.config.StartDelim)
-	d2 := regexp.QuoteMeta(t.config.StopDelim)
-	//nolint: lll
-	expression := `:\s+(?:[\|>]-?\s+)?(?:'?\s*)(` + d1 + `-?(?:.*\|\s*(?:toInt|toBool|toLiteral)|(?:.*(?:copyConfigMapData|copySecretData))).*` + d2 + `)(?:\s*'?)`
-	re := regexp.MustCompile(expression)
-	klog.V(2).Infof("\n Pattern: %v\n", re.String())
-
-	submatchall := re.FindAllStringSubmatch(str, -1)
-	if submatchall == nil {
-		return str
-	}
-	klog.V(2).Infof("\n All Submatches:\n%v", submatchall)
-
-	processeddata := re.ReplaceAllString(str, ": $1")
-	klog.V(2).Infof("\n processed data :\n%v", processeddata)
-
-	return processeddata
-}
-
-// processForAutoIndent converts any `autoindent` placeholders into `indent N` in the string.
-// The processed input string is returned.
-func (t *TemplateResolver) processForAutoIndent(str string) string {
-	d1 := regexp.QuoteMeta(t.config.StartDelim)
-	d2 := regexp.QuoteMeta(t.config.StopDelim)
-	// Detect any templates that contain `autoindent` and capture the spaces before it.
-	// Later on, the amount of spaces will dictate the conversion of `autoindent` to `indent`.
-	// This is not a very strict regex as occasionally, a user will make a mistake such as
-	// `config: '{{ "hello\nworld" | autoindent }}'`. In that event, `autoindent` will change to
-	// `indent 1`, but `indent` properly handles this.
-	re := regexp.MustCompile(`( *)(?:'|")?(` + d1 + `.*\| *autoindent *-?` + d2 + `)`)
-	klog.V(2).Infof("\n Pattern: %v\n", re.String())
-
-	submatches := re.FindAllStringSubmatch(str, -1)
-	processed := str
-
-	klog.V(2).Infof("\n All Submatches:\n%v", submatches)
-
-	for _, submatch := range submatches {
-		numSpaces := len(submatch[1]) - int(t.config.AdditionalIndentation)
-		matchStr := submatch[2]
-		newMatchStr := strings.Replace(matchStr, "autoindent", fmt.Sprintf("indent %d", numSpaces), 1)
-		processed = strings.Replace(processed, matchStr, newMatchStr, 1)
-	}
-
-	klog.V(2).Infof("\n processed data :\n%v", processed)
-
-	return processed
-}
-
 // JSONToYAML converts JSON to YAML using yaml.v3. This is important since
 // line wrapping is disabled in v3.
 func JSONToYAML(j []byte) ([]byte, error) {
 	// Convert the JSON to an object
-	var jsonObj interface{}
+	var jsonObj any
 
 	err := yaml.Unmarshal(j, &jsonObj)
 	if err != nil {
@@ -966,7 +895,7 @@ func JSONToYAML(j []byte) ([]byte, error) {
 // yamlToJSON converts YAML to JSON.
 func yamlToJSON(y []byte) ([]byte, error) {
 	// Convert the YAML to an object.
-	var yamlObj interface{}
+	var yamlObj any
 
 	err := yaml.Unmarshal(y, &yamlObj)
 	if err != nil {
@@ -1024,6 +953,85 @@ func fromYAML(str string) (m any, err error) {
 	return m, err
 }
 
+func (t *TemplateResolver) GetUsedResources() []UsedResource {
+	return t.usedResources
+}
+
+// GetUsedUnstructs returns a slice of the unstructured resources collected in usedResources.
+func (t *TemplateResolver) GetUsedUnstructs() []unstructured.Unstructured {
+	objs := make([]unstructured.Unstructured, 0, len(t.usedResources))
+	for _, used := range t.usedResources {
+		objs = append(objs, used.Resource)
+	}
+
+	return objs
+}
+
+//nolint:wsl
+func (t *TemplateResolver) processForDataTypes(str string) string {
+	// The idea is to remove the quotes enclosing the template if it has toBool, toInt, or toLiteral.
+	// Quotes around the resolved template forces the value to be a string so removal of these quotes allows YAML to
+	// process the datatype correctly.
+
+	// the below pattern searches for optional block scalars | or >.. followed by the quoted template ,
+	// and replaces it with just the template txt thats inside the outer quotes
+	// ex-1 key : '{{ "6" | toInt }}'  .. is replaced with  key : {{ "6" | toInt }}
+	// ex-2 key : |
+	//						'{{ "true" | toBool }}' .. is replaced with key : {{ "true" | toBool }}
+
+	// NOTES : on testing it was found that
+	// outer quotes around key-values are always single quotes
+	// even if the user input is with  double quotes , the yaml processed and saved with single quotes
+	d1 := regexp.QuoteMeta(t.config.StartDelim)
+	d2 := regexp.QuoteMeta(t.config.StopDelim)
+	//nolint: lll
+	expression := `:\s+(?:[\|>]-?\s+)?(?:'?\s*)(` + d1 + `-?(?:.*\|\s*(?:toInt|toBool|toLiteral)|(?:.*(?:copyConfigMapData|copySecretData))).*` + d2 + `)(?:\s*'?)`
+	re := regexp.MustCompile(expression)
+	klog.V(2).Infof("\n Pattern: %v\n", re.String())
+
+	submatchall := re.FindAllStringSubmatch(str, -1)
+	if submatchall == nil {
+		return str
+	}
+
+	klog.V(2).Infof("\n All Submatches:\n%v", submatchall)
+
+	processeddata := re.ReplaceAllString(str, ": $1")
+	klog.V(2).Infof("\n processed data :\n%v", processeddata)
+
+	return processeddata
+}
+
+// processForAutoIndent converts any `autoindent` placeholders into `indent N` in the string.
+// The processed input string is returned.
+func (t *TemplateResolver) processForAutoIndent(str string) string {
+	d1 := regexp.QuoteMeta(t.config.StartDelim)
+	d2 := regexp.QuoteMeta(t.config.StopDelim)
+	// Detect any templates that contain `autoindent` and capture the spaces before it.
+	// Later on, the amount of spaces will dictate the conversion of `autoindent` to `indent`.
+	// This is not a very strict regex as occasionally, a user will make a mistake such as
+	// `config: '{{ "hello\nworld" | autoindent }}'`. In that event, `autoindent` will change to
+	// `indent 1`, but `indent` properly handles this.
+	re := regexp.MustCompile(`( *)(?:'|")?(` + d1 + `.*\| *autoindent *-?` + d2 + `)`)
+	klog.V(2).Infof("\n Pattern: %v\n", re.String())
+
+	submatches := re.FindAllStringSubmatch(str, -1)
+	processed := str
+
+	klog.V(2).Infof("\n All Submatches:\n%v", submatches)
+
+	for _, submatch := range submatches {
+		numSpaces := len(submatch[1]) - int(t.config.AdditionalIndentation)
+		matchStr := submatch[2]
+		newMatchStr := strings.Replace(matchStr, "autoindent", fmt.Sprintf("indent %d", numSpaces), 1)
+		processed = strings.Replace(processed, matchStr, newMatchStr, 1)
+	}
+
+	klog.V(2).Infof("\n processed data :\n%v", processed)
+
+	return processed
+}
+
 func (t *TemplateResolver) indent(spaces int, v string) string {
 	pad := strings.Repeat(" ", spaces+int(t.config.AdditionalIndentation))
 	npad := "\n" + pad + strings.ReplaceAll(v, "\n", "\n"+pad)
@@ -1043,27 +1051,13 @@ func (t *TemplateResolver) appendUsedResources(input unstructured.Unstructured, 
 	t.usedResources = append(t.usedResources, UsedResource{Resource: input, IsRemote: isRemote})
 }
 
-func (t *TemplateResolver) GetUsedResources() []UsedResource {
-	return t.usedResources
-}
-
-// returns a slice of the unstructured resources collected in usedResources
-func (t *TemplateResolver) GetUsedUnstructs() []unstructured.Unstructured {
-	objs := make([]unstructured.Unstructured, 0, len(t.usedResources))
-	for _, used := range t.usedResources {
-		objs = append(objs, used.Resource)
-	}
-
-	return objs
-}
-
 // applyContextTransformers runs the configured ContextTransformers in order and
 // returns the final transformed context. This is only called when a
 // DynamicWatcher is configured.
 func (t *TemplateResolver) applyContextTransformers(
-	origContext interface{},
+	origContext any,
 	options *ResolveOptions,
-) (interface{}, error) {
+) (any, error) {
 	ctx := origContext
 	var err error
 
@@ -1087,7 +1081,7 @@ func autoindent(_ string) (string, error) {
 	return "", errors.New("an unexpected error occurred where autoindent could not be processed")
 }
 
-func toInt(v interface{}) int {
+func toInt(v any) int {
 	return cast.ToInt(v)
 }
 

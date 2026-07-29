@@ -168,7 +168,7 @@ func OutputSARIF(violations []LinterRuleViolation, inputFile string, output io.W
 	return enc.Encode(sarif.NewReport(run))
 }
 
-// lint checks the template string for linting errors.
+// Lint checks the template string for linting errors.
 func Lint(templateStr string) (violations []LinterRuleViolation) {
 	for _, rule := range linterRules {
 		violations = append(violations, rule.runLinter(templateStr)...)
