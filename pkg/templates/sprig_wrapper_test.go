@@ -319,7 +319,7 @@ data:
   %s: '%s'
 `
 
-			policyJSON, err := yamlToJSON([]byte(fmt.Sprintf(policyYAML, funcName, test.template)))
+			policyJSON, err := yamlToJSON(fmt.Appendf(nil, policyYAML, funcName, test.template))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to convert the policy YAML to JSON: %v\n", err)
 				panic(err)
@@ -333,10 +333,10 @@ data:
 			}
 
 			policyResolvedJSON := resolvedResult.ResolvedJSON
-			var policyResolved interface{}
+			var policyResolved any
 			err = yaml.Unmarshal(policyResolvedJSON, &policyResolved)
 
-			data, ok := policyResolved.(map[string]interface{})["data"].(map[string]interface{})
+			data, ok := policyResolved.(map[string]any)["data"].(map[string]any)
 			if !ok {
 				t.Fatalf("Failed to process the policy YAML reading data key: %v\n", err)
 			}
@@ -606,7 +606,7 @@ data:
   %s: '%s'
 `
 
-			policyJSON, err := yamlToJSON([]byte(fmt.Sprintf(policyYAML, funcName, test.template)))
+			policyJSON, err := yamlToJSON(fmt.Appendf(nil, policyYAML, funcName, test.template))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to convert the policy YAML to JSON: %v\n", err)
 				panic(err)
