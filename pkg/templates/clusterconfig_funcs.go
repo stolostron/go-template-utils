@@ -29,7 +29,7 @@ func (t *TemplateResolver) fromClusterClaim(options *ResolveOptions, claimName s
 		return "", err
 	}
 
-	spec, ok := clusterClaim["spec"].(map[string]interface{})
+	spec, ok := clusterClaim["spec"].(map[string]any)
 	if !ok {
 		return "", fmt.Errorf("unexpected ClusterClaim format: %s", claimName)
 	}
@@ -63,7 +63,7 @@ func (t *TemplateResolver) lookupClusterClaim(options *ResolveOptions, claimName
 		return "", err
 	}
 
-	spec, ok := clusterClaim["spec"].(map[string]interface{})
+	spec, ok := clusterClaim["spec"].(map[string]any)
 	if !ok {
 		return "", fmt.Errorf("unexpected ClusterClaim format: %s", claimName)
 	}
