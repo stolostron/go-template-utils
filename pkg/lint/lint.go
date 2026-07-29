@@ -87,14 +87,14 @@ func OutputStringViolations(violations []LinterRuleViolation) string {
 	for _, violation := range violations {
 		ruleMD := getRuleMetadata(violation.RuleID)
 		if ruleMD == nil {
-			output.WriteString(fmt.Sprintf("line %d: unknown rule: %s: %s:\n\t%s\n",
-				violation.LineNumber, violation.RuleID, violation.ShortMessage, violation.FormattedLine))
+			fmt.Fprintf(&output, "line %d: unknown rule: %s: %s:\n\t%s\n",
+				violation.LineNumber, violation.RuleID, violation.ShortMessage, violation.FormattedLine)
 
 			continue
 		}
 
-		output.WriteString(fmt.Sprintf("line %d: %s: %s:\n\t%s\n",
-			violation.LineNumber, ruleMD.Name, violation.ShortMessage, violation.FormattedLine))
+		fmt.Fprintf(&output, "line %d: %s: %s:\n\t%s\n",
+			violation.LineNumber, ruleMD.Name, violation.ShortMessage, violation.FormattedLine)
 	}
 
 	return output.String()
@@ -168,7 +168,7 @@ func OutputSARIF(violations []LinterRuleViolation, inputFile string, output io.W
 	return enc.Encode(sarif.NewReport(run))
 }
 
-// lint checks the template string for linting errors.
+// Lint checks the template string for linting errors.
 func Lint(templateStr string) (violations []LinterRuleViolation) {
 	for _, rule := range linterRules {
 		violations = append(violations, rule.runLinter(templateStr)...)
