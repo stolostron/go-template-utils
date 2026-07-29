@@ -118,7 +118,7 @@ var (
 	}
 )
 
-func getSprigFunc(funcName string) (result interface{}) {
+func getSprigFunc(funcName string) (result any) {
 	return sprigFuncMap[funcName]
 }
 
