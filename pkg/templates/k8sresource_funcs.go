@@ -65,7 +65,7 @@ func (t *TemplateResolver) fromSecretProtected(
 // copies all data in the given Secret, namespace.
 func (t *TemplateResolver) copySecretDataBase(
 	options *ResolveOptions, templateResult *TemplateResult, namespace string, name string,
-) (map[string]interface{}, error) {
+) (map[string]any, error) {
 	klog.V(2).Infof("copySecretDataBase for namespace: %v, name: %v", namespace, name)
 
 	if name == "" || (options.LookupNamespace == "" && namespace == "") {

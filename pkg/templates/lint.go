@@ -192,14 +192,14 @@ func unquotedTemplateValues(templateStr string) []LinterRuleViolation {
 func OutputStringViolations(violations []LinterRuleViolation) string {
 	var output strings.Builder
 	for _, violation := range violations {
-		output.WriteString(fmt.Sprintf("line %d: %s: %s:\n\t%s\n",
-			violation.LineNumber, violation.RuleName, violation.Message, violation.FormattedLine))
+		fmt.Fprintf(&output, "line %d: %s: %s:\n\t%s\n",
+			violation.LineNumber, violation.RuleName, violation.Message, violation.FormattedLine)
 	}
 
 	return output.String()
 }
 
-// lint checks the template string for linting errors.
+// Lint checks the template string for linting errors.
 func Lint(templateStr string) []LinterRuleViolation {
 	var violations []LinterRuleViolation
 
