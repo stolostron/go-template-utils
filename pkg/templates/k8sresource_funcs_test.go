@@ -87,7 +87,6 @@ func TestFromSecret(t *testing.T) {
 			test.inputCMname,
 			test.inputKey,
 		)
-
 		if err != nil {
 			if test.expectedErr == nil {
 				t.Fatal(err)
@@ -178,7 +177,6 @@ func TestFromConfigMap(t *testing.T) {
 		val, err := resolver.fromConfigMap(
 			&ResolveOptions{LookupNamespace: test.lookupNamespace}, test.inputNs, test.inputCMname, test.inputKey,
 		)
-
 		if err != nil {
 			if test.expectedErr == nil {
 				t.Fatal(err)
@@ -267,7 +265,6 @@ func TestCopySecretData(t *testing.T) {
 			test.inputNs,
 			test.inputSecretName,
 		)
-
 		if err != nil {
 			if test.expectedErr == nil {
 				t.Fatal(err)
@@ -387,7 +384,6 @@ func TestCopySecretDataProtected(t *testing.T) {
 			test.inputNs,
 			test.inputSecretName,
 		)
-
 		if err != nil {
 			if test.expectedErr == nil {
 				t.Fatal(err)
@@ -489,7 +485,6 @@ func TestCopyConfigMapData(t *testing.T) {
 		val, err := resolver.copyConfigMapData(
 			&ResolveOptions{LookupNamespace: test.lookupNamespace}, test.inputNs, test.inputCMname,
 		)
-
 		if err != nil {
 			if test.expectedErr == nil {
 				t.Fatal(err)
