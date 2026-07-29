@@ -25,7 +25,7 @@ import (
 type hubTemplateCtx struct {
 	ManagedClusterName   string
 	ManagedClusterLabels map[string]string
-	PolicyMetadata       map[string]interface{}
+	PolicyMetadata       map[string]any
 }
 
 type hubTemplateOptions struct {
@@ -153,7 +153,7 @@ func (t *TemplateResolver) ProcessTemplate(yamlBytes []byte) ([]byte, error) {
 		}
 
 		if policy.GetKind() == "Policy" {
-			hubTemplateOpts.ctx.PolicyMetadata = map[string]interface{}{
+			hubTemplateOpts.ctx.PolicyMetadata = map[string]any{
 				"annotations": policy.GetAnnotations(),
 				"labels":      policy.GetLabels(),
 				"name":        policy.GetName(),
@@ -216,7 +216,7 @@ func (t *TemplateResolver) ProcessTemplate(yamlBytes []byte) ([]byte, error) {
 			var resolvedRaw any
 			resolvedRaw, err = processRawGoTemplate(string(yamlBytes), resolver, tempCtx)
 
-			if resolved, ok := resolvedRaw.(map[string]interface{}); ok {
+			if resolved, ok := resolvedRaw.(map[string]any); ok {
 				policy.Object = resolved
 			} else {
 				err = errors.New("failed to cast returned object to map[string]interface{}")
@@ -408,13 +408,13 @@ func processObjTemplatesRaw(
 		return err
 	}
 
-	var objectTemplates []interface{}
+	var objectTemplates []any
 
 	switch v := resolved.(type) {
-	case []interface{}:
+	case []any:
 		objectTemplates = v
 	case nil:
-		objectTemplates = []interface{}{}
+		objectTemplates = []any{}
 	default:
 		return errors.New("object-templates-raw was not an array after templates were resolved")
 	}
@@ -431,13 +431,13 @@ func processObjTemplatesRaw(
 
 // processObjectTemplates takes any nested object and resolves its managed templates
 func processObjectTemplates(
-	objectDefinition map[string]interface{},
+	objectDefinition map[string]any,
 	resolver *templates.TemplateResolver,
 	tempCtx templates.TemplateContext,
-) (map[string]interface{}, error) {
+) (map[string]any, error) {
 	_, oTRawFound, _ := unstructured.NestedString(objectDefinition, "spec", "object-templates-raw")
 	if oTRawFound {
-		policy := unstructured.Unstructured{Object: objectDefinition["spec"].(map[string]interface{})}
+		policy := unstructured.Unstructured{Object: objectDefinition["spec"].(map[string]any)}
 
 		err := processObjTemplatesRaw(&policy, resolver, tempCtx)
 		if err != nil {
@@ -454,7 +454,7 @@ func processObjectTemplates(
 		return nil, fmt.Errorf("invalid object-templates array in Configuration Policy: %w", err)
 	}
 
-	resolvedTemplates := []interface{}{}
+	resolvedTemplates := []any{}
 	resolveOptions := templates.ResolveOptions{
 		InputIsYAML: false,
 	}
@@ -504,10 +504,10 @@ func processObjectTemplates(
 }
 
 func processOperatorPolicyTemplates(
-	operatorPolicy map[string]interface{},
+	operatorPolicy map[string]any,
 	resolver *templates.TemplateResolver,
 	tempCtx templates.TemplateContext,
-) (map[string]interface{}, error) {
+) (map[string]any, error) {
 	resolveOptions := templates.ResolveOptions{
 		InputIsYAML: false,
 	}
@@ -559,9 +559,9 @@ func processOperatorPolicyTemplates(
 			return nil, err
 		}
 
-		resolvedVersions := make([]interface{}, 0, len(resolved.([]interface{})))
+		resolvedVersions := make([]any, 0, len(resolved.([]any)))
 
-		for _, version := range resolved.([]interface{}) {
+		for _, version := range resolved.([]any) {
 			trimmedVersion := strings.TrimSpace(version.(string))
 
 			if trimmedVersion != "" {
@@ -580,10 +580,10 @@ func processOperatorPolicyTemplates(
 
 // resolveHubTemplates takes a hub templateResolver and any nested object and resolves its hub templates
 func resolveHubTemplates(
-	objectDefinition map[string]interface{},
+	objectDefinition map[string]any,
 	hubResolver *templates.TemplateResolver,
 	hubTemplateOpts *hubTemplateOptions,
-) (map[string]interface{}, error) {
+) (map[string]any, error) {
 	objectDefinitionJSON, err := json.Marshal(objectDefinition)
 	if err != nil {
 		return nil, fmt.Errorf("invalid object: %w", err)
@@ -596,7 +596,7 @@ func resolveHubTemplates(
 		return nil, fmt.Errorf("invalid object: %w", err)
 	}
 
-	var resolvedObjectDefinition map[string]interface{}
+	var resolvedObjectDefinition map[string]any
 
 	err = json.Unmarshal(hubTemplateResult.ResolvedJSON, &resolvedObjectDefinition)
 	if err != nil {
@@ -611,12 +611,12 @@ func resolveHubTemplates(
 // resolveManagedTemplate resolves a template, and emits an error if any
 // hub templates are still in the object.
 func resolveManagedTemplate(
-	field interface{},
+	field any,
 	fieldName string,
 	resolver *templates.TemplateResolver,
 	resolveOptions templates.ResolveOptions,
 	tempCtx templates.TemplateContext,
-) (interface{}, error) {
+) (any, error) {
 	rawData, err := json.Marshal(field)
 	if err != nil {
 		return nil, fmt.Errorf("invalid %v: %w", fieldName, err)
@@ -631,7 +631,7 @@ func resolveManagedTemplate(
 		return nil, fmt.Errorf("failed to process the templates: %w", err)
 	}
 
-	var resolved interface{}
+	var resolved any
 
 	err = json.Unmarshal(tmplResult.ResolvedJSON, &resolved)
 	if err != nil {

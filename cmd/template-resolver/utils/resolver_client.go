@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Struct representing the template-resolver command
+// TemplateResolver represents the template-resolver command.
 type TemplateResolver struct {
 	HubKubeConfigPath string `yaml:"hubKubeConfigPath"`
 	ClusterName       string `yaml:"clusterName"`

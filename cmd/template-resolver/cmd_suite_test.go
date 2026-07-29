@@ -124,7 +124,7 @@ func writeKubeconfig(f *os.File, restConfig *rest.Config) error {
 func kubectl(args ...string) (string, error) {
 	args = append([]string{"--kubeconfig=" + kubeconfigPath}, args...)
 
-	output, err := exec.Command("kubectl", args...).Output()
+	output, err := exec.CommandContext(context.Background(), "kubectl", args...).Output()
 
 	var exitError *exec.ExitError
 

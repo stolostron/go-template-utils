@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -117,8 +118,8 @@ type Config struct {
 // - Watcher is the Kubernetes object that includes the templates. This is only used when caching is enabled.
 type ResolveOptions struct {
 	ContextTransformers []func(
-		queryAPI CachingQueryAPI, context interface{},
-	) (transformedContext interface{}, err error)
+		queryAPI CachingQueryAPI, context any,
+	) (transformedContext any, err error)
 	ClusterScopedAllowList []ClusterScopedObjectIdentifier
 	CustomFunctions        template.FuncMap
 	EncryptionConfig
@@ -377,7 +378,7 @@ func UsesEncryption(template []byte, startDelim string, stopDelim string) bool {
 
 // getValidContext takes an input context struct and validates it. If it is valid, the context will be returned as is.
 // If the input context is nil, an empty struct will be returned. If it's not valid, an error will be returned.
-func getValidContext(value interface{}) (interface{}, error) {
+func getValidContext(value any) (any, error) {
 	if value == nil {
 		return struct{}{}, nil
 	}
@@ -398,7 +399,7 @@ func getValidContext(value interface{}) (interface{}, error) {
 
 // isPrimitive detects primitive types from the reflect package
 func isPrimitive(kind reflect.Kind) bool {
-	switch kind {
+	switch kind { //nolint:exhaustive
 	case
 		reflect.Bool,
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
@@ -424,7 +425,7 @@ func getValidContextHelper(value any) error {
 	}
 
 	// Handle complex types
-	switch f.Kind() {
+	switch f.Kind() { //nolint:exhaustive
 	// Allow arrays and recurse into each item
 	case reflect.Slice, reflect.Array:
 		// Iterate over embedded maps and interfaces
@@ -572,7 +573,7 @@ func (t *TemplateResolver) EndQueryBatch(watcher client.ObjectIdentifier) error 
 // is stored just for the ResolveTemplate execution to avoid duplicate API queries. If running this method concurrently
 // with caching disabled, you may get some items from the temporary cache while others will be from API queries.
 func (t *TemplateResolver) ResolveTemplate(
-	tmplRaw []byte, context interface{}, options *ResolveOptions,
+	tmplRaw []byte, context any, options *ResolveOptions,
 ) (TemplateResult, error) {
 	klog.V(2).Infof("ResolveTemplate for: %v", string(tmplRaw))
 
@@ -656,9 +657,7 @@ func (t *TemplateResolver) ResolveTemplate(
 		delete(funcMap, funcName)
 	}
 
-	for customFuncName, customFunc := range options.CustomFunctions {
-		funcMap[customFuncName] = customFunc
-	}
+	maps.Copy(funcMap, options.CustomFunctions)
 
 	// create template processor and Initialize function map
 	tmpl := template.New("tmpl").Delims(t.config.StartDelim, t.config.StopDelim).Funcs(funcMap)
@@ -810,6 +809,10 @@ func (t *TemplateResolver) GetWatchCount() uint {
 	return 0
 }
 
+func (t *TemplateResolver) GetUsedResources() []unstructured.Unstructured {
+	return t.usedResources
+}
+
 //nolint:wsl
 func (t *TemplateResolver) processForDataTypes(str string) string {
 	// The idea is to remove the quotes enclosing the template if it has toBool, toInt, or toLiteral.
@@ -825,7 +828,6 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 	// NOTES : on testing it was found that
 	// outer quotes around key-values are always single quotes
 	// even if the user input is with  double quotes , the yaml processed and saved with single quotes
-
 	d1 := regexp.QuoteMeta(t.config.StartDelim)
 	d2 := regexp.QuoteMeta(t.config.StopDelim)
 	//nolint: lll
@@ -837,6 +839,7 @@ func (t *TemplateResolver) processForDataTypes(str string) string {
 	if submatchall == nil {
 		return str
 	}
+
 	klog.V(2).Infof("\n All Submatches:\n%v", submatchall)
 
 	processeddata := re.ReplaceAllString(str, ": $1")
@@ -875,11 +878,30 @@ func (t *TemplateResolver) processForAutoIndent(str string) string {
 	return processed
 }
 
+func (t *TemplateResolver) indent(spaces int, v string) string {
+	pad := strings.Repeat(" ", spaces+int(t.config.AdditionalIndentation))
+	npad := "\n" + pad + strings.ReplaceAll(v, "\n", "\n"+pad)
+
+	return strings.TrimSpace(npad)
+}
+
+// Avoid duplicate entries since operatorPolicy calls ProcessTemplate multiple times
+// for the same objectTemplate.
+func (t *TemplateResolver) appendUsedResources(input unstructured.Unstructured) {
+	for _, res := range t.usedResources {
+		if reflect.DeepEqual(res, input) { // Keep only non-matching elements
+			return // Resource already exists, no need to append
+		}
+	}
+
+	t.usedResources = append(t.usedResources, input)
+}
+
 // JSONToYAML converts JSON to YAML using yaml.v3. This is important since
 // line wrapping is disabled in v3.
 func JSONToYAML(j []byte) ([]byte, error) {
 	// Convert the JSON to an object
-	var jsonObj interface{}
+	var jsonObj any
 
 	err := yaml.Unmarshal(j, &jsonObj)
 	if err != nil {
@@ -902,7 +924,7 @@ func JSONToYAML(j []byte) ([]byte, error) {
 // yamlToJSON converts YAML to JSON.
 func yamlToJSON(y []byte) ([]byte, error) {
 	// Convert the YAML to an object.
-	var yamlObj interface{}
+	var yamlObj any
 
 	err := yaml.Unmarshal(y, &yamlObj)
 	if err != nil {
@@ -960,36 +982,13 @@ func fromYAML(str string) (m any, err error) {
 	return m, err
 }
 
-func (t *TemplateResolver) indent(spaces int, v string) string {
-	pad := strings.Repeat(" ", spaces+int(t.config.AdditionalIndentation))
-	npad := "\n" + pad + strings.ReplaceAll(v, "\n", "\n"+pad)
-
-	return strings.TrimSpace(npad)
-}
-
-// Avoid duplicate entries since operatorPolicy calls ProcessTemplate multiple times
-// for the same objectTemplate.
-func (t *TemplateResolver) appendUsedResources(input unstructured.Unstructured) {
-	for _, res := range t.usedResources {
-		if reflect.DeepEqual(res, input) { // Keep only non-matching elements
-			return // Resource already exists, no need to append
-		}
-	}
-
-	t.usedResources = append(t.usedResources, input)
-}
-
-func (t *TemplateResolver) GetUsedResources() []unstructured.Unstructured {
-	return t.usedResources
-}
-
 // This is so that the user gets a nicer error in the event some valid scenario slips through the
 // regex.
 func autoindent(_ string) (string, error) {
 	return "", errors.New("an unexpected error occurred where autoindent could not be processed")
 }
 
-func toInt(v interface{}) int {
+func toInt(v any) int {
 	return cast.ToInt(v)
 }
 
