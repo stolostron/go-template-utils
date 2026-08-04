@@ -10,7 +10,7 @@ import (
 	"github.com/stolostron/go-template-utils/v7/pkg/lint"
 )
 
-// Struct representing the template-resolver command
+// TemplateResolver represents the template-resolver command.
 type TemplateResolver struct {
 	HubKubeConfigPath string `yaml:"hubKubeConfigPath"`
 	ClusterName       string `yaml:"clusterName"`
