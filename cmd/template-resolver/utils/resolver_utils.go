@@ -282,6 +282,9 @@ func (t *TemplateResolver) ProcessTemplate(yamlBytes []byte) ([]byte, error) {
 		if t.SkipPolicyValidation {
 			var resolvedRaw any
 			resolvedRaw, err = processRawGoTemplate(string(yamlBytes), resolver, tempCtx)
+			if err != nil {
+				return nil, err
+			}
 
 			if resolved, ok := resolvedRaw.(map[string]interface{}); ok {
 				policy.Object = resolved
