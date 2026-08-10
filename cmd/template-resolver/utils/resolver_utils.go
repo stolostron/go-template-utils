@@ -138,9 +138,14 @@ func getInputYAML(args []string) (string, []byte, error) {
 func (t *TemplateResolver) ProcessTemplate(yamlBytes []byte) ([]byte, error) {
 	policy := unstructured.Unstructured{}
 
+	// This is really ugly and just meant to show the idea of processing non-yaml template
+	rawTemplate := make(map[string]interface{})
+	rawTemplate["template"] = yamlBytes
+
 	err := k8syaml.Unmarshal(yamlBytes, &policy.Object)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse input to YAML: %w", err)
+		// Skip this is not a YAML template but rather a raw text template
+		policy.Object = rawTemplate
 	}
 
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
@@ -280,14 +285,18 @@ func (t *TemplateResolver) ProcessTemplate(yamlBytes []byte) ([]byte, error) {
 		_, err = processOperatorPolicyTemplates(policy.Object, resolver, tempCtx)
 	default:
 		if t.SkipPolicyValidation {
-			var resolvedRaw any
-			resolvedRaw, err = processRawGoTemplate(string(yamlBytes), resolver, tempCtx)
 
-			if resolved, ok := resolvedRaw.(map[string]interface{}); ok {
-				policy.Object = resolved
-			} else {
-				err = errors.New("failed to cast returned object to map[string]interface{}")
+			resolvedRaw, err := processRawGoTemplate(string(yamlBytes), resolver, tempCtx)
+			if err != nil {
+				return nil, err
 			}
+
+			err = createSaveResourcesOutput(t.SaveResources, resolver)
+			if err != nil {
+				return nil, err
+			}
+
+			return resolvedRaw, nil
 		} else {
 			if _, ok := policy.Object["object-templates-raw"]; !t.SkipPolicyValidation && !ok {
 				return nil, errors.New("invalid YAML. Supported types: Policy, " +
@@ -439,28 +448,25 @@ func processConfigPolicyTemplate(
 	return nil
 }
 
+// process the input template as completely raw text. In processTemplate, it 
+// is required for the input to be YAML, but in this process it can be just text
 func processRawGoTemplate(
 	input string,
 	resolver *templates.TemplateResolver,
 	tempCtx templates.TemplateContext,
-) (resolved any, err error) {
-	resolveOptions := templates.ResolveOptions{InputIsYAML: true}
+) (resolved []byte, err error) {
+	resolveOptions := templates.ResolveOptions{InputIsYAML: false}
 
 	if strings.Contains(input, "{{hub") {
-		return nil, errors.New("unresolved hub template in YAML input. Use the hub-kubeconfig argument")
+		return nil, errors.New("unresolved hub template in text input. Use the hub-kubeconfig argument")
 	}
 
-	tmplResult, err := resolver.ResolveTemplate([]byte(input), tempCtx, &resolveOptions)
+	tmplResult, err := resolver.ResolveRawTemplate([]byte(input), tempCtx, &resolveOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to process the templates: %w", err)
 	}
 
-	err = json.Unmarshal(tmplResult.ResolvedJSON, &resolved)
-	if err != nil {
-		return nil, fmt.Errorf("failed to process the templates: %w", err)
-	}
-
-	return resolved, err
+	return tmplResult.ResolvedJSON, err
 }
 
 // processObjTemplatesRaw takes a YAML string representation and resolves the object's managed templates
@@ -474,9 +480,15 @@ func processObjTemplatesRaw(
 		return errors.New("invalid object-templates-raw after resolving hub templates")
 	}
 
-	resolved, err := processRawGoTemplate(oTRaw, resolver, tempCtx)
+	var resolved any
+	rawTemplateResolved, err := processRawGoTemplate(oTRaw, resolver, tempCtx)
 	if err != nil {
 		return err
+	}
+
+	err = json.Unmarshal(rawTemplateResolved, &resolved)
+	if err != nil {
+		return fmt.Errorf("failed to process the templates: %w", err)
 	}
 
 	var objectTemplates []interface{}

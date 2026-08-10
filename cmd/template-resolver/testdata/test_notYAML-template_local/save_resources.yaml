@@ -1,0 +1,10 @@
+---
+# Resource was locally fetched
+apiVersion: v1
+data:
+    component.gitlab-runner.operator.channel: stable
+    component.gitlab-runner.operator.version: 1.48.3,1.49.0,1.51.0
+kind: ConfigMap
+metadata:
+    name: cluster-settings
+    namespace: ns
