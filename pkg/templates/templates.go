@@ -586,6 +586,213 @@ func (t *TemplateResolver) EndQueryBatch(watcher client.ObjectIdentifier) error 
 	return t.dynamicWatcher.EndQueryBatch(watcher)
 }
 
+// Resolves Raw Template like ResolveTemplate but with difference that the input is just text 
+// without being in yaml
+func (t *TemplateResolver) ResolveRawTemplate(tmplRaw []byte, context interface{}, options *ResolveOptions) (TemplateResult, error) {
+	klog.V(2).Infof("ResolveTemplate for: %v", string(tmplRaw))
+
+	if options == nil {
+		options = &ResolveOptions{}
+	}
+
+	// Always denylist sensitive functions that can expose host information.
+	if options.DenylistFunctions == nil {
+		options.DenylistFunctions = []string{}
+	}
+
+	options.DenylistFunctions = append(options.DenylistFunctions, sensitiveSprigFunctions...)
+
+	var resolvedResult TemplateResult
+
+	err := validateEncryptionConfig(options.EncryptionConfig)
+	if err != nil {
+		return resolvedResult, fmt.Errorf("error validating EncryptionConfig: %w", err)
+	}
+
+	if t.dynamicWatcher != nil {
+		if options.Watcher == nil {
+			return resolvedResult, fmt.Errorf(
+				"%w: options.Watcher cannot be nil if caching is enabled",
+				ErrInvalidInput,
+			)
+		}
+	} else if len(options.ContextTransformers) != 0 {
+		return resolvedResult, fmt.Errorf(
+			"%w: options.ContextTransformers cannot be set if caching is disabled",
+			ErrInvalidInput,
+		)
+	}
+
+	ctx, err := getValidContext(context)
+	if err != nil {
+		return resolvedResult, err
+	}
+
+	// Build Map of supported template functions
+	funcMap := template.FuncMap{
+		"copyConfigMapData":      t.copyConfigMapDataHelper(options),
+		"copySecretData":         t.copySecretDataHelper(options, &resolvedResult),
+		"fromSecret":             t.fromSecretHelper(options, &resolvedResult),
+		"fromConfigMap":          t.fromConfigMapHelper(options),
+		"fromClusterClaim":       t.fromClusterClaimHelper(options),
+		"lookupClusterClaim":     t.lookupClusterClaimHelper(options),
+		"getNodesWithExactRoles": t.getNodesWithExactRolesHelper(options, &resolvedResult),
+		"hasNodesWithExactRoles": t.hasNodesWithExactRolesHelper(options),
+		"lookup":                 t.lookupHelper(options, &resolvedResult),
+		"base64enc":              base64encode,
+		"base64dec":              base64decode,
+		"b64enc":                 base64encode, // Link the Sprig name to our function
+		"b64dec":                 base64decode, // Link the Sprig name to our function
+		"autoindent":             autoindent,
+		"indent":                 t.indent,
+		"atoi":                   atoi,
+		"toInt":                  toInt,
+		"toBool":                 toBool,
+		"toLiteral":              toLiteral,
+		"fromJSON":               getSprigFunc("fromJson"),      // Link uppercase invocation to JSON parser
+		"mustFromJSON":           getSprigFunc("mustFromJson"),  // Link uppercase invocation to JSON parser
+		"toJSON":                 getSprigFunc("toJson"),        // Link uppercase invocation to JSON parser
+		"mustToJSON":             getSprigFunc("mustToJson"),    // Link uppercase invocation to JSON parser
+		"toRawJSON":              getSprigFunc("toRawJson"),     // Link uppercase invocation to JSON parser
+		"mustToRawJSON":          getSprigFunc("mustToRawJson"), // Link uppercase invocation to JSON parser
+		"fromYAML":               fromYAML,
+		"toYAML":                 toYAML,
+		"fromYaml":               fromYAML, // Link lowercase invocation to YAML parser
+		"toYaml":                 toYAML,   // Link lowercase invocation to YAML parser
+	}
+
+	// Add all the functions from Sprig we will support. If a function name is already
+	// present in the funcMap (for example, when we override Sprig behavior locally),
+	// keep the existing implementation.
+	for fname, f := range sprigFuncMap {
+		if _, exists := funcMap[fname]; exists {
+			continue
+		}
+
+		funcMap[fname] = f
+	}
+
+	if options.EncryptionEnabled {
+		funcMap["fromSecret"] = t.fromSecretProtectedHelper(options, &resolvedResult)
+		funcMap["protect"] = t.protectHelper(options)
+		funcMap["copySecretData"] = t.copySecretDataProtectedHelper(options, &resolvedResult)
+	} else {
+		// In other encryption modes, return a readable error if the protect template function is accidentally used.
+		funcMap["protect"] = func(_ string) (string, error) { return "", ErrProtectNotEnabled }
+	}
+
+	for _, funcName := range t.config.DisabledFunctions {
+		delete(funcMap, funcName)
+	}
+
+	for customFuncName, customFunc := range options.CustomFunctions {
+		funcMap[customFuncName] = customFunc
+	}
+
+	// Wrap any denylisted functions so that using them results in a clear error at
+	// template execution time instead of an undefined function error.
+	if len(options.DenylistFunctions) != 0 {
+		for _, name := range options.DenylistFunctions {
+			funcMap[name] = func(_ ...interface{}) (interface{}, error) {
+				if isSensitiveSprigFunction(name) {
+					return nil, fmt.Errorf(
+						"%w: function '%s' is considered a security risk",
+						ErrDenylistedFunctionUsed,
+						name,
+					)
+				}
+
+				return nil, fmt.Errorf("%w: function '%s' is not allowed", ErrDenylistedFunctionUsed, name)
+			}
+		}
+	}
+
+	// create template processor and Initialize function map
+	tmpl := template.New("tmpl").Delims(t.config.StartDelim, t.config.StopDelim).Funcs(funcMap)
+
+	var templateStr string
+	templateStr = string(tmplRaw)
+
+	klog.V(2).Infof("Initial template str to resolve : %v ", templateStr)
+
+	if options.DecryptionEnabled {
+		templateStr, err = t.processEncryptedStrs(options, &resolvedResult, templateStr)
+		if err != nil {
+			return resolvedResult, err
+		}
+	}
+
+	// processForDataTypes handles scenarios where quotes need to be removed for
+	// special data types or cases where multiple values are returned
+	templateStr = t.processForDataTypes(templateStr)
+
+	// convert `autoindent` placeholders to `indent N`
+	if strings.Contains(templateStr, "autoindent") {
+		templateStr = t.processForAutoIndent(templateStr)
+	}
+
+	tmpl, err = tmpl.Parse(templateStr)
+	if err != nil {
+		tmplRawStr := string(tmplRaw)
+		klog.Errorf(
+			"error parsing template string %v,\n template str %v,\n error: %v", tmplRawStr, templateStr, err,
+		)
+
+		return resolvedResult, fmt.Errorf("failed to parse the template JSON string %v: %w", tmplRawStr, err)
+	}
+
+	var buf bytes.Buffer
+
+	// If the dynamic watcher caching style is disabled, clear the cache after resolving the template.
+	if t.tempCallCache != nil {
+		defer t.tempCallCache.Clear()
+	}
+
+	if t.dynamicWatcher != nil {
+		watcher := *options.Watcher
+
+		if !t.config.SkipBatchManagement {
+			err := t.dynamicWatcher.StartQueryBatch(watcher)
+			if err != nil {
+				if !errors.Is(err, client.ErrQueryBatchInProgress) {
+					return resolvedResult, err
+				}
+
+				return resolvedResult, fmt.Errorf(
+					"ResolveTemplate cannot be called with the same watchedObject in parallel: %w", err,
+				)
+			}
+
+			defer func() {
+				err := t.dynamicWatcher.EndQueryBatch(watcher)
+				if err != nil {
+					klog.Errorf("failed to end the query batch for %s: %v", watcher, err)
+				}
+			}()
+		}
+
+		ctx, err = t.applyContextTransformers(context, options)
+		if err != nil {
+			return resolvedResult, err
+		}
+	}
+
+	err = tmpl.Execute(&buf, ctx)
+	if err != nil {
+		tmplRawStr := string(tmplRaw)
+		klog.Errorf("error resolving the template %v,\n template str %v,\n error: %v", tmplRawStr, templateStr, err)
+
+		return resolvedResult, fmt.Errorf("failed to resolve the template %v: %w", tmplRawStr, err)
+	}
+
+	resolvedTemplateStr := buf.String()
+	klog.V(3).Infof("resolved template str: %v ", resolvedTemplateStr)
+
+	resolvedResult.ResolvedJSON = buf.Bytes()
+
+	return resolvedResult, nil
+}
+
 // ResolveTemplate accepts a map marshaled as JSON or YAML. It also accepts a combination of structs and maps that
 // ultimately end in a string value to be made available when the template is processed.
 // For example, if the argument is `struct{ClusterName string}{"cluster1"}`,
