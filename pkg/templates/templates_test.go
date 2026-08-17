@@ -697,6 +697,10 @@ func TestResolveTemplateDefaultConfig(t *testing.T) {
 			inputTmpl:      `param: '{{ fromConfigMap "testns" "testconfigmap" "cmkey1"  }}'`,
 			expectedResult: "param: cmkey1Val",
 		},
+		"fromConfigMapRequireKey": {
+			inputTmpl:      `param: '{{ fromConfigMapRequireKey "testns" "testconfigmap" "cmkey1"  }}'`,
+			expectedResult: "param: cmkey1Val",
+		},
 		"toLiteral": {
 			inputTmpl:      `param: '{{ fromConfigMap "testns" "testconfigmap" "ingressSources" | toLiteral }}'`,
 			expectedResult: "param:\n  - 10.10.10.10\n  - 1.1.1.1",

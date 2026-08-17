@@ -648,35 +648,36 @@ func (t *TemplateResolver) ResolveTemplate(
 
 	// Build Map of supported template functions
 	funcMap := template.FuncMap{
-		"copyConfigMapData":      t.copyConfigMapDataHelper(options),
-		"copySecretData":         t.copySecretDataHelper(options, &resolvedResult),
-		"fromSecret":             t.fromSecretHelper(options, &resolvedResult),
-		"fromConfigMap":          t.fromConfigMapHelper(options),
-		"fromClusterClaim":       t.fromClusterClaimHelper(options),
-		"lookupClusterClaim":     t.lookupClusterClaimHelper(options),
-		"getNodesWithExactRoles": t.getNodesWithExactRolesHelper(options, &resolvedResult),
-		"hasNodesWithExactRoles": t.hasNodesWithExactRolesHelper(options),
-		"lookup":                 t.lookupHelper(options, &resolvedResult),
-		"base64enc":              base64encode,
-		"base64dec":              base64decode,
-		"b64enc":                 base64encode, // Link the Sprig name to our function
-		"b64dec":                 base64decode, // Link the Sprig name to our function
-		"autoindent":             autoindent,
-		"indent":                 t.indent,
-		"atoi":                   atoi,
-		"toInt":                  toInt,
-		"toBool":                 toBool,
-		"toLiteral":              toLiteral,
-		"fromJSON":               getSprigFunc("fromJson"),      // Link uppercase invocation to JSON parser
-		"mustFromJSON":           getSprigFunc("mustFromJson"),  // Link uppercase invocation to JSON parser
-		"toJSON":                 getSprigFunc("toJson"),        // Link uppercase invocation to JSON parser
-		"mustToJSON":             getSprigFunc("mustToJson"),    // Link uppercase invocation to JSON parser
-		"toRawJSON":              getSprigFunc("toRawJson"),     // Link uppercase invocation to JSON parser
-		"mustToRawJSON":          getSprigFunc("mustToRawJson"), // Link uppercase invocation to JSON parser
-		"fromYAML":               fromYAML,
-		"toYAML":                 toYAML,
-		"fromYaml":               fromYAML, // Link lowercase invocation to YAML parser
-		"toYaml":                 toYAML,   // Link lowercase invocation to YAML parser
+		"copyConfigMapData":       t.copyConfigMapDataHelper(options),
+		"copySecretData":          t.copySecretDataHelper(options, &resolvedResult),
+		"fromSecret":              t.fromSecretHelper(options, &resolvedResult),
+		"fromConfigMap":           t.fromConfigMapHelper(options),
+		"fromConfigMapRequireKey": t.fromConfigMapRequireKeyHelper(options),
+		"fromClusterClaim":        t.fromClusterClaimHelper(options),
+		"lookupClusterClaim":      t.lookupClusterClaimHelper(options),
+		"getNodesWithExactRoles":  t.getNodesWithExactRolesHelper(options, &resolvedResult),
+		"hasNodesWithExactRoles":  t.hasNodesWithExactRolesHelper(options),
+		"lookup":                  t.lookupHelper(options, &resolvedResult),
+		"base64enc":               base64encode,
+		"base64dec":               base64decode,
+		"b64enc":                  base64encode, // Link the Sprig name to our function
+		"b64dec":                  base64decode, // Link the Sprig name to our function
+		"autoindent":              autoindent,
+		"indent":                  t.indent,
+		"atoi":                    atoi,
+		"toInt":                   toInt,
+		"toBool":                  toBool,
+		"toLiteral":               toLiteral,
+		"fromJSON":                getSprigFunc("fromJson"),      // Link uppercase invocation to JSON parser
+		"mustFromJSON":            getSprigFunc("mustFromJson"),  // Link uppercase invocation to JSON parser
+		"toJSON":                  getSprigFunc("toJson"),        // Link uppercase invocation to JSON parser
+		"mustToJSON":              getSprigFunc("mustToJson"),    // Link uppercase invocation to JSON parser
+		"toRawJSON":               getSprigFunc("toRawJson"),     // Link uppercase invocation to JSON parser
+		"mustToRawJSON":           getSprigFunc("mustToRawJson"), // Link uppercase invocation to JSON parser
+		"fromYAML":                fromYAML,
+		"toYAML":                  toYAML,
+		"fromYaml":                fromYAML, // Link lowercase invocation to YAML parser
+		"toYaml":                  toYAML,   // Link lowercase invocation to YAML parser
 	}
 
 	// Add all the functions from Sprig we will support. If a function name is already
