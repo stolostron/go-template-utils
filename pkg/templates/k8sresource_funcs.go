@@ -145,15 +145,32 @@ func (t *TemplateResolver) fromConfigMapHelper(
 	options *ResolveOptions,
 ) func(string, string, string) (string, error) {
 	return func(namespace string, name string, key string) (string, error) {
-		return t.fromConfigMap(options, namespace, name, key)
+		return t.fromConfigMap(options, namespace, name, key, false)
+	}
+}
+
+// different from fromConfigMap is that this will fail the template
+// if the key is missing in the ConfigMap
+func (t *TemplateResolver) fromConfigMapRequireKeyHelper(
+	options *ResolveOptions,
+) func(string, string, string) (string, error) {
+	return func(namespace string, name string, key string) (string, error) {
+		return t.fromConfigMap(options, namespace, name, key, true)
 	}
 }
 
 // retrieves value for the key in the given Configmap, namespace.
+// if the failIfMissingKey is set to True then it will fail if the configmap does not have the key
 func (t *TemplateResolver) fromConfigMap(
-	options *ResolveOptions, namespace string, name string, key string,
+	options *ResolveOptions, namespace string, name string, key string, failIfMissingKey bool,
 ) (string, error) {
-	klog.V(2).Infof("fromConfigMap for namespace: %s, name: %s, key: %s", namespace, name, key)
+	klog.V(2).Infof(
+		"fromConfigMap for namespace: %s, name: %s, key: %s, failIfMissingKey: %t",
+		namespace,
+		name,
+		key,
+		failIfMissingKey,
+	)
 
 	if name == "" || (options.LookupNamespace == "" && namespace == "") || key == "" {
 		return "", fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput)
@@ -166,7 +183,20 @@ func (t *TemplateResolver) fromConfigMap(
 		return "", err
 	}
 
-	keyVal, _, _ := unstructured.NestedString(configmap, "data", key)
+	keyVal, found, err := unstructured.NestedString(configmap, "data", key)
+	if err != nil {
+		return "", fmt.Errorf(
+			"failed to read key %q from ConfigMap %q in namespace %q: %w",
+			key,
+			name,
+			namespace,
+			err,
+		)
+	}
+
+	if !found && failIfMissingKey {
+		return "", fmt.Errorf("key %q not found in ConfigMap %q in namespace %q", key, name, namespace)
+	}
 
 	return keyVal, nil
 }

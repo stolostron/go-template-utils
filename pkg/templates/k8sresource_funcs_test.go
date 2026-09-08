@@ -111,31 +111,56 @@ func TestFromConfigMap(t *testing.T) {
 	t.Parallel()
 
 	testcases := []struct {
-		inputNs         string
-		inputCMname     string
-		inputKey        string
-		lookupNamespace string
-		expectedResult  string
-		expectedErr     error
+		inputNs               string
+		inputCMname           string
+		inputKey              string
+		lookupNamespace       string
+		inputFailIfMissingKey bool
+		expectedResult        string
+		expectedErr           error
 	}{
-		{"testns", "testconfigmap", "cmkey1", "", "cmkey1Val", nil},
-		{"testns", "testconfigmap", "cmkey2", "", "cmkey2Val", nil},
-		{"testns", "testconfigmap", "cmkey2", "testns", "cmkey2Val", nil},
-		{"", "testconfigmap", "cmkey2", "testns", "cmkey2Val", nil},
+		{"testns", "testconfigmap", "cmkey1", "", false, "cmkey1Val", nil},
+		{"testns", "testconfigmap", "cmkey2", "", false, "cmkey2Val", nil},
+		{"testns", "testconfigmap", "cmkey2", "testns", false, "cmkey2Val", nil},
+		{"", "testconfigmap", "cmkey2", "testns", false, "cmkey2Val", nil},
+		{"testns", "testconfigmap", "cmkey1", "", true, "cmkey1Val", nil},
+		{"testns", "testconfigmap", "cmkey2", "", true, "cmkey2Val", nil},
+		{"testns", "testconfigmap", "cmkey2", "testns", true, "cmkey2Val", nil},
+		{"", "testconfigmap", "cmkey2", "testns", true, "cmkey2Val", nil},
+		{
+			"testns",
+			"testconfigmap",
+			"cmkey3",
+			"",
+			true,
+			"",
+			errors.New(`key "cmkey3" not found in ConfigMap "testconfigmap" in namespace "testns"`),
+		},
 		{
 			"testns",
 			"idontexist",
 			"cmkey1",
 			"",
+			false,
 			"cmkey1Val",
 			errors.New(`failed getting the ConfigMap idontexist from testns: configmaps "idontexist" not found`),
 		},
-		{"testns", "testconfigmap", "idontexist", "", "", nil},
+		{
+			"testns",
+			"idontexist",
+			"cmkey1",
+			"",
+			true,
+			"cmkey1Val",
+			errors.New(`failed getting the ConfigMap idontexist from testns: configmaps "idontexist" not found`),
+		},
+		{"testns", "testconfigmap", "idontexist", "", false, "", nil},
 		{
 			"testns",
 			"testconfigmap",
 			"cmkey1",
 			"policies-ns",
+			false,
 			"cmkey1Val",
 			errors.New(
 				"failed getting the ConfigMap testconfigmap from testns: the namespace argument is restricted " +
@@ -147,6 +172,7 @@ func TestFromConfigMap(t *testing.T) {
 			"testconfigmap",
 			"cmkey1",
 			"",
+			true,
 			"cmkey1Val",
 			fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput),
 		},
@@ -155,6 +181,7 @@ func TestFromConfigMap(t *testing.T) {
 			"",
 			"cmkey1",
 			"",
+			true,
 			"cmkey1Val",
 			fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput),
 		},
@@ -163,6 +190,16 @@ func TestFromConfigMap(t *testing.T) {
 			"testconfigmap",
 			"",
 			"",
+			true,
+			"cmkey1Val",
+			fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput),
+		},
+		{
+			"testns",
+			"testconfigmap",
+			"",
+			"",
+			false,
 			"cmkey1Val",
 			fmt.Errorf("%w: namespace, name, and key must be specified", ErrInvalidInput),
 		},
@@ -175,7 +212,11 @@ func TestFromConfigMap(t *testing.T) {
 		}
 
 		val, err := resolver.fromConfigMap(
-			&ResolveOptions{LookupNamespace: test.lookupNamespace}, test.inputNs, test.inputCMname, test.inputKey,
+			&ResolveOptions{LookupNamespace: test.lookupNamespace},
+			test.inputNs,
+			test.inputCMname,
+			test.inputKey,
+			test.inputFailIfMissingKey,
 		)
 		if err != nil {
 			if test.expectedErr == nil {

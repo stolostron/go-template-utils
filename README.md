@@ -51,6 +51,7 @@ Function | Description | Example
 `fromClusterClaim` | Returns the value of a specific `ClusterClaim`. Errors if the `ClusterClaim` is not found. | `{{ fromClusterClaim "name" }}`
 `lookupClusterClaim` | Returns the value of a specific `ClusterClaim`. Returns an empty string if the `ClusterClaim` is not found. | `{{ lookupClusterClaim "name" }}`
 `fromConfigMap` | Returns the value of a key inside a `ConfigMap`. Errors if the `ConfigMap` is not found. | `{{ fromConfigMap "namespace" "config-map-name" "key" }}`
+`fromConfigMapRequireKey` | Returns the value of a key inside a `ConfigMap`. Errors if the `ConfigMap` is not found or the key is missing. | `{{ fromConfigMapRequireKey "namespace" "config-map-name" "key" }}`
 `copyConfigMapData` | Returns the `data` contents of the specified `ConfigMap` | `{{ copyConfigMapData "namespace" "config-map-name" }}`
 `fromSecret` | Returns the value of a key inside a `Secret`. If the `EncryptionMode` is set to `EncryptionEnabled`, this will return an encrypted value. Errors if the `Secret` is not found. | `{{ fromSecret "namespace" "secret-name" "key" }}`
 `copySecretData` | Returns the `data` contents of the specified `Secret`. If the `EncryptionMode` is set to `EncryptionEnabled`, this will return an encrypted value. | `{{ copySecretData "namespace" "secret-name" }}`
